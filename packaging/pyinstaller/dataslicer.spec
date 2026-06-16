@@ -8,13 +8,19 @@ block_cipher = None
 project_root = Path(SPECPATH).parents[1]
 launcher = project_root / "packaging" / "pyinstaller" / "dataslicer_launcher.py"
 web_assets = project_root / "src" / "gt_dataslicer" / "ui" / "web"
+filter_grammar = project_root / "src" / "gt_dataslicer" / "filters" / "grammar.lark"
+icon_png = project_root / "icon.png"
 
 
 a = Analysis(
     [str(launcher)],
     pathex=[str(project_root), str(project_root / "src")],
     binaries=[],
-    datas=[(str(web_assets), "gt_dataslicer/ui/web")],
+    datas=[
+        (str(web_assets), "gt_dataslicer/ui/web"),
+        (str(filter_grammar), "gt_dataslicer/filters"),
+        (str(icon_png), "gt_dataslicer/ui"),
+    ],
     hiddenimports=[
         "duckdb",
         "lark",
@@ -52,6 +58,5 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    icon=None,
+    icon=str(icon_png),
 )
-

@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>DataSlicer</title>
-    <link rel="stylesheet" href="./styles.css?v=20260616-2">
+    <link rel="stylesheet" href="./styles.css?v=20260616-4">
   </head>
   <body>
     <div class="app-shell">
@@ -218,7 +218,10 @@
 
     <template id="filterRowTemplate">
       <div class="filter-row">
-        <select class="filter-column" aria-label="Coluna"></select>
+        <div class="column-search">
+          <input class="filter-column" type="search" autocomplete="off" aria-label="Coluna" aria-autocomplete="list" aria-expanded="false" aria-haspopup="listbox" placeholder="Buscar coluna" data-i18n-placeholder="columnSearchPlaceholder">
+          <div class="filter-column-suggestions hidden" role="listbox"></div>
+        </div>
         <select class="filter-operator" aria-label="Operador">
           <option value="equals" data-i18n="opEquals">igual a</option>
           <option value="not_equals" data-i18n="opNotEquals">diferente de</option>
@@ -253,6 +256,6 @@
       </div>
     </template>
 
-    <script src="./app.js?v=20260616-2"></script>
+    <script src="./app.js?v=20260616-4"></script>
   </body>
 </html>

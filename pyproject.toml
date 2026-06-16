@@ -29,6 +29,7 @@ dev = [
   "pytest-cov>=5.0",
 ]
 freeze = [
+  "pillow>=10",
   "pyinstaller>=6.0",
 ]
 
@@ -40,6 +41,8 @@ gt-dataslicer = "gt_dataslicer.cli:main"
 packages = ["src/gt_dataslicer"]
 
 [tool.hatch.build.targets.wheel.force-include]
+"icon.png" = "gt_dataslicer/ui/icon.png"
+"src/gt_dataslicer/filters/grammar.lark" = "gt_dataslicer/filters/grammar.lark"
 "src/gt_dataslicer/ui/web" = "gt_dataslicer/ui/web"
 
 [tool.pytest.ini_options]

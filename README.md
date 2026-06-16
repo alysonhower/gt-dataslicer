@@ -22,6 +22,7 @@ Na tela visual você pode:
 
 - escolher o arquivo CSV;
 - montar filtros com campos e listas, sem escrever comandos;
+- encontrar colunas rapidamente digitando parte do nome, mesmo em arquivos com muitas colunas;
 - salvar em CSV ou Excel;
 - escolher colunas, remover duplicados e gerar relatório quando precisar.
 
@@ -34,13 +35,19 @@ python -m pip install -e .[dev,freeze]
 .\scripts\build-dataslicer.ps1
 ```
 
+Se você não tiver o comando `python`, mas tiver `uv`, o mesmo script usa `uv` automaticamente:
+
+```powershell
+uv run --extra freeze python -m PyInstaller packaging\pyinstaller\dataslicer.spec --noconfirm --clean
+```
+
 O arquivo final fica em:
 
 ```text
 dist\DataSlicer.exe
 ```
 
-Esse executável usa Pywebview e espera que o WebView2 Runtime esteja instalado no Windows.
+Esse executável não precisa de Python nem de `uv` para rodar. Ele usa Pywebview e espera que o WebView2 Runtime esteja instalado no Windows.
 
 ## Exemplos rápidos
 

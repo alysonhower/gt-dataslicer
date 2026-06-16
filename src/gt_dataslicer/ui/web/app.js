@@ -7,6 +7,7 @@ const state = {
   language: "pt-BR",
   filterMode: "visual",
   pollTimer: null,
+  columnSuggestionListId: 0,
 };
 
 const text = {
@@ -25,6 +26,7 @@ const text = {
     droppedFileNeedsPicker: "Use o botão Procurar CSV para garantir acesso ao caminho completo do arquivo.",
     noFile: "Nenhum arquivo escolhido",
     columnsLoaded: "colunas carregadas.",
+    columnSearchPlaceholder: "Buscar coluna",
     rowsWritten: "linhas gravadas.",
     bridgeNotReady: "A ponte com Python ainda não está pronta.",
     bridgeWaiting: "Aguardando a ponte com Python.",
@@ -127,6 +129,7 @@ const text = {
     droppedFileNeedsPicker: "Use Browse CSV so the app can access the full file path.",
     noFile: "No file selected",
     columnsLoaded: "columns loaded.",
+    columnSearchPlaceholder: "Search column",
     rowsWritten: "rows written.",
     bridgeNotReady: "The Python bridge is not ready yet.",
     bridgeWaiting: "Waiting for the Python bridge.",
@@ -281,6 +284,7 @@ function applyLanguage() {
   if (!state.inputPath) {
     byId("inputPathText").textContent = t("noFile");
   }
+  document.querySelectorAll(".filter-column").forEach((input) => updateColumnOptions(input));
   updateFilterHint();
 }
 
@@ -292,28 +296,160 @@ function updateFilterHint() {
 function setColumns(columns) {
   state.columns = columns || [];
   byId("columnCountText").textContent = state.columns.length ? String(state.columns.length) : "-";
-  document.querySelectorAll(".filter-column").forEach((select) => populateColumnSelect(select));
+  document.querySelectorAll(".filter-column").forEach((input) => updateColumnOptions(input));
 }
 
-function populateColumnSelect(select) {
-  const current = select.value;
-  select.innerHTML = "";
+function prepareColumnSearch(input) {
+  const suggestions = input.parentElement.querySelector(".filter-column-suggestions");
+  if (!suggestions.id) {
+    state.columnSuggestionListId += 1;
+    suggestions.id = `filterColumnSuggestions${state.columnSuggestionListId}`;
+    input.setAttribute("aria-controls", suggestions.id);
+  }
+}
+
+function updateColumnOptions(input) {
+  prepareColumnSearch(input);
+  const suggestions = input.parentElement.querySelector(".filter-column-suggestions");
+  const current = input.value;
+  suggestions.innerHTML = "";
+  input.dataset.activeIndex = "-1";
+  input.removeAttribute("aria-activedescendant");
   if (!state.columns.length) {
-    const option = document.createElement("option");
-    option.value = "";
-    option.textContent = t("noColumns");
-    select.appendChild(option);
+    input.disabled = true;
+    input.placeholder = t("noColumns");
+    closeColumnSuggestions(input);
     return;
   }
-  state.columns.forEach((column) => {
-    const option = document.createElement("option");
-    option.value = column;
+
+  input.disabled = false;
+  input.placeholder = t("columnSearchPlaceholder");
+  rankedColumns(current).forEach((column) => {
+    const option = document.createElement("button");
+    option.type = "button";
+    option.className = "column-suggestion";
+    option.setAttribute("role", "option");
     option.textContent = column;
-    select.appendChild(option);
+    option.title = column;
+    option.dataset.value = column;
+    option.addEventListener("mousedown", (event) => event.preventDefault());
+    option.addEventListener("click", () => chooseColumnSuggestion(input, column));
+    suggestions.appendChild(option);
   });
-  if (current && state.columns.includes(current)) {
-    select.value = current;
+  suggestions.classList.toggle("hidden", document.activeElement !== input || !suggestions.children.length);
+  input.setAttribute("aria-expanded", suggestions.classList.contains("hidden") ? "false" : "true");
+}
+
+function closeColumnSuggestions(input) {
+  const suggestions = input.parentElement.querySelector(".filter-column-suggestions");
+  suggestions.classList.add("hidden");
+  input.setAttribute("aria-expanded", "false");
+  input.dataset.activeIndex = "-1";
+  input.removeAttribute("aria-activedescendant");
+}
+
+function chooseColumnSuggestion(input, column) {
+  input.value = column;
+  closeColumnSuggestions(input);
+  updateFilterHint();
+  input.dispatchEvent(new Event("change", { bubbles: true }));
+}
+
+function setActiveColumnSuggestion(input, nextIndex) {
+  const suggestions = input.parentElement.querySelector(".filter-column-suggestions");
+  const options = Array.from(suggestions.querySelectorAll(".column-suggestion"));
+  if (!options.length) {
+    return;
   }
+  const index = Math.max(0, Math.min(nextIndex, options.length - 1));
+  options.forEach((option) => option.classList.remove("active"));
+  const active = options[index];
+  active.classList.add("active");
+  active.setAttribute("id", active.id || `${suggestions.id}Option${index}`);
+  input.dataset.activeIndex = String(index);
+  input.setAttribute("aria-activedescendant", active.id);
+  active.scrollIntoView({ block: "nearest" });
+}
+
+function moveColumnSuggestion(input, direction) {
+  const suggestions = input.parentElement.querySelector(".filter-column-suggestions");
+  if (suggestions.classList.contains("hidden") || !suggestions.children.length) {
+    updateColumnOptions(input);
+  }
+  const options = suggestions.querySelectorAll(".column-suggestion");
+  if (!options.length) {
+    return;
+  }
+  const currentIndex = Number(input.dataset.activeIndex || "-1");
+  const nextIndex = currentIndex < 0 ? (direction > 0 ? 0 : options.length - 1) : (currentIndex + direction + options.length) % options.length;
+  setActiveColumnSuggestion(input, nextIndex);
+}
+
+function chooseActiveColumnSuggestion(input) {
+  const suggestions = input.parentElement.querySelector(".filter-column-suggestions");
+  const options = Array.from(suggestions.querySelectorAll(".column-suggestion"));
+  const activeIndex = Number(input.dataset.activeIndex || "-1");
+  if (activeIndex < 0 || activeIndex >= options.length) {
+    return false;
+  }
+  chooseColumnSuggestion(input, options[activeIndex].dataset.value);
+  return true;
+}
+
+function normalizeForSearch(value) {
+  return String(value)
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+}
+
+function fuzzyScore(candidate, query) {
+  const normalizedCandidate = normalizeForSearch(candidate);
+  const normalizedQuery = normalizeForSearch(query).trim();
+  if (!normalizedQuery) {
+    return 0;
+  }
+  if (normalizedCandidate === normalizedQuery) {
+    return 100000;
+  }
+  if (normalizedCandidate.startsWith(normalizedQuery)) {
+    return 80000 - normalizedCandidate.length;
+  }
+  const containsIndex = normalizedCandidate.indexOf(normalizedQuery);
+  if (containsIndex >= 0) {
+    return 60000 - containsIndex * 20 - normalizedCandidate.length;
+  }
+
+  let score = 0;
+  let queryIndex = 0;
+  let previousMatch = -1;
+  for (let candidateIndex = 0; candidateIndex < normalizedCandidate.length && queryIndex < normalizedQuery.length; candidateIndex += 1) {
+    if (normalizedCandidate[candidateIndex] !== normalizedQuery[queryIndex]) {
+      continue;
+    }
+    const consecutive = previousMatch === candidateIndex - 1;
+    const boundary = candidateIndex === 0 || "_ -./".includes(normalizedCandidate[candidateIndex - 1]);
+    score += 120;
+    if (consecutive) score += 70;
+    if (boundary) score += 40;
+    score -= Math.max(candidateIndex - previousMatch - 1, 0) * 2;
+    previousMatch = candidateIndex;
+    queryIndex += 1;
+  }
+
+  if (queryIndex !== normalizedQuery.length) {
+    return Number.NEGATIVE_INFINITY;
+  }
+  return score - normalizedCandidate.length;
+}
+
+function rankedColumns(query) {
+  return state.columns
+    .map((column, index) => ({ column, index, score: fuzzyScore(column, query) }))
+    .filter((item) => item.score > Number.NEGATIVE_INFINITY)
+    .sort((left, right) => right.score - left.score || left.index - right.index)
+    .slice(0, 50)
+    .map((item) => item.column);
 }
 
 function updateFilterRow(row) {
@@ -376,8 +512,9 @@ function addFilterRow(initial = {}) {
   const value2 = row.querySelector(".filter-value2");
   const valueType = row.querySelector(".filter-type");
 
-  populateColumnSelect(column);
+  prepareColumnSearch(column);
   if (initial.column) column.value = initial.column;
+  updateColumnOptions(column);
   if (initial.operator) operator.value = initial.operator;
   if (initial.value) value.value = initial.value;
   if (initial.value2) value2.value = initial.value2;
@@ -386,6 +523,27 @@ function addFilterRow(initial = {}) {
     row.dataset.typeTouched = "true";
   }
 
+  column.addEventListener("focus", () => updateColumnOptions(column));
+  column.addEventListener("input", () => {
+    updateColumnOptions(column);
+    updateFilterHint();
+  });
+  column.addEventListener("keydown", (event) => {
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      moveColumnSuggestion(column, 1);
+    } else if (event.key === "ArrowUp") {
+      event.preventDefault();
+      moveColumnSuggestion(column, -1);
+    } else if (event.key === "Enter" && chooseActiveColumnSuggestion(column)) {
+      event.preventDefault();
+    } else if (event.key === "Escape") {
+      closeColumnSuggestions(column);
+    }
+  });
+  column.addEventListener("blur", () => {
+    setTimeout(() => closeColumnSuggestions(column), 120);
+  });
   column.addEventListener("change", updateFilterHint);
   operator.addEventListener("change", () => {
     updateFilterRow(row);

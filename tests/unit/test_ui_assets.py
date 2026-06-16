@@ -82,3 +82,25 @@ def test_browser_app_filter_rows_have_operator_specific_layouts() -> None:
     assert ".filter-row.is-between" in styles
     assert ".filter-row.no-value" in styles
     assert ".filter-row .remove-filter" in styles
+
+
+def test_browser_app_filter_columns_are_searchable() -> None:
+    markup = INDEX_HTML.read_text(encoding="utf-8")
+    script = APP_JS.read_text(encoding="utf-8")
+    styles = STYLES_CSS.read_text(encoding="utf-8")
+
+    assert 'type="search"' in markup
+    assert 'aria-autocomplete="list"' in markup
+    assert "filter-column-suggestions" in markup
+    assert "columnSearchPlaceholder" in script
+    assert "function fuzzyScore(candidate, query)" in script
+    assert "function rankedColumns(query)" in script
+    assert "function moveColumnSuggestion(input, direction)" in script
+    assert 'suggestions.classList.contains("hidden")' in script
+    assert 'event.key === "ArrowDown"' in script
+    assert ".slice(0, 50)" in script
+    assert 'column.addEventListener("input"' in script
+    assert 'column.addEventListener("keydown"' in script
+    assert ".column-search" in styles
+    assert ".filter-column-suggestions" in styles
+    assert ".column-suggestion.active" in styles
