@@ -275,14 +275,30 @@ def source_expression(input_: ResolvedInput, *, csv_expr: Callable[[Path], str])
     return csv_expr(input_.path)
 
 
-def output_path_for_input(base_output: Path, input_: ResolvedInput, *, index: int, total: int, output_format: str) -> Path:
-    if total == 1:
-        return base_output
-
+def output_path_for_input(
+    base_output: Path,
+    input_: ResolvedInput,
+    *,
+    index: int,
+    total: int,
+    output_format: str,
+    output_name: str | None = None,
+) -> Path:
     suffix = f".{output_format}"
+    if output_name:
+        safe_stem = _safe_output_stem(output_name, output_format)
+        if base_output.exists() and base_output.is_dir():
+            return base_output / f"{safe_stem}{suffix}"
+        if not base_output.suffix:
+            return base_output / f"{safe_stem}{suffix}"
+        return base_output.with_name(f"{safe_stem}{suffix}")
+
     safe_stem = _safe_name(input_.display_name)
     if input_.excel_sheet:
         safe_stem = f"{safe_stem}_{_safe_name(input_.excel_sheet)}"
+
+    if total == 1:
+        return base_output
 
     if base_output.exists() and base_output.is_dir():
         return base_output / f"{index:03d}_{safe_stem}_filtered{suffix}"
@@ -325,3 +341,11 @@ def _safe_zip_member_path(root: Path, member_name: str) -> Path:
 def _safe_name(value: str) -> str:
     safe = re.sub(r"[^A-Za-z0-9._-]+", "_", value).strip("._-")
     return safe or "input"
+
+
+def _safe_output_stem(value: str, output_format: str) -> str:
+    name = value.strip()
+    suffix = Path(name).suffix.lower()
+    if suffix in {".csv", ".xlsx", ".parquet"} or suffix == f".{output_format}":
+        name = name[: -len(suffix)]
+    return _safe_name(name)

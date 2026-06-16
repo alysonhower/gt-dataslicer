@@ -356,6 +356,7 @@ def build_options_from_payload(
         cli_types=_type_items(payload.get("types") or payload.get("column_types")),
         cli_derived_columns=[],
         derived_columns_file=None,
+        cli_output_names=_output_name_items(payload.get("output_names") or payload.get("output_name")),
         csv_options=_csv_options(payload),
         sheet_prefix=str(payload.get("sheet_prefix") or "Results"),
         max_rows_per_sheet=int(payload.get("max_rows_per_sheet") or 1_048_576),
@@ -418,6 +419,9 @@ def _config_from_payload(payload: dict[str, Any]) -> dict[str, object]:
     derived_columns = payload.get("derived_columns")
     if isinstance(derived_columns, list) and derived_columns:
         config["derived_columns"] = derived_columns
+    output_names = _output_name_items(payload.get("output_names") or payload.get("output_name"))
+    if any(output_names):
+        config["output_names"] = output_names
     csv_options = payload.get("csv_options")
     if isinstance(csv_options, dict):
         clean_csv = {
@@ -549,6 +553,16 @@ def _string_list(value: object) -> list[str]:
         return [str(item).strip() for item in value if str(item).strip()]
     text = str(value).strip()
     return [text] if text else []
+
+
+def _output_name_items(value: object) -> list[str]:
+    if value is None or value == "":
+        return []
+    if isinstance(value, str):
+        return [value.strip()]
+    if isinstance(value, list):
+        return [str(item).strip() for item in value]
+    return [str(value).strip()]
 
 
 def _rename_items(value: object) -> list[str]:

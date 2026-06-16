@@ -292,6 +292,25 @@ h2 {
   font-size: 0.86rem;
 }
 
+.queue-output-name {
+  display: grid;
+  grid-template-columns: minmax(90px, max-content) minmax(160px, 1fr);
+  align-items: center;
+  gap: 10px;
+  margin-top: 6px;
+}
+
+.queue-output-name span {
+  color: var(--purple-dark);
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.queue-output-name input {
+  min-height: 34px;
+  padding: 7px 9px;
+}
+
 .advanced-line {
   margin-top: 16px;
   border-top: 1px solid var(--line);

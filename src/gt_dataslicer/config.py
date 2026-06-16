@@ -81,6 +81,7 @@ class FilterRunOptions:
     strict_values: bool = False
     batch_size: int = 10_000
     derived_columns: list[DerivedColumnSpec] = field(default_factory=list)
+    output_names: list[str] = field(default_factory=list)
 
 
 def load_config_file(path: Path | None) -> dict[str, Any]:
@@ -298,6 +299,7 @@ def merge_config_and_cli(
     cli_types: list[str],
     cli_derived_columns: list[str],
     derived_columns_file: Path | None,
+    cli_output_names: list[str],
     csv_options: CsvOptions,
     sheet_prefix: str,
     max_rows_per_sheet: int,
@@ -323,6 +325,10 @@ def merge_config_and_cli(
     config_dedupe_keys = as_list(preset_config.get("dedupe_key") or preset_config.get("dedupe_keys"), key="dedupe_key")
     config_sorts = as_list(preset_config.get("sort") or preset_config.get("sorts"), key="sort")
     config_lookups = as_list(preset_config.get("lookup") or preset_config.get("lookups"), key="lookup")
+    output_names = [
+        *as_list(preset_config.get("output_name") or preset_config.get("output_names"), key="output_names"),
+        *cli_output_names,
+    ]
 
     config_renames_raw = preset_config.get("rename") or preset_config.get("renames") or {}
     if isinstance(config_renames_raw, dict):
@@ -386,4 +392,5 @@ def merge_config_and_cli(
         strict_values=strict_values,
         batch_size=batch_size,
         derived_columns=derived_columns,
+        output_names=output_names,
     )
