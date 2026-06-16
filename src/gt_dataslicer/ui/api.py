@@ -1,0 +1,469 @@
+"""Pywebview JavaScript bridge for the DataSlicer desktop UI."""
+
+from __future__ import annotations
+
+from importlib.metadata import PackageNotFoundError, version
+import logging
+import os
+from pathlib import Path
+import subprocess
+from typing import Any
+
+from ..config import (
+    CsvOptions,
+    load_config_file,
+    merge_config_and_cli,
+    select_preset,
+)
+from ..engine.duckdb_engine import DuckDBEngine
+from ..exceptions import ConfigError, DataSlicerError
+from ..filters.compiler import CompileContext, compile_filter
+from ..filters.parser import combine_filters
+from ..i18n import (
+    DEFAULT_LANGUAGE,
+    SUPPORTED_LANGUAGES,
+    localize_error_message,
+    messages_for,
+    set_language,
+    tr,
+)
+from .filters import build_filter_expression
+from .jobs import JobAlreadyRunningError, JobManager, ProgressCallback
+
+
+LOGGER = logging.getLogger(__name__)
+
+
+class DataSlicerApi:
+    """JSON-safe API exposed to the web UI."""
+
+    def __init__(self, *, language: str = DEFAULT_LANGUAGE, job_manager: JobManager | None = None) -> None:
+        self._language = language
+        set_language(language)
+        self._jobs = job_manager or JobManager()
+        self._window: Any | None = None
+
+    def bind_window(self, window: Any) -> None:
+        self._window = window
+
+    def get_app_info(self) -> dict[str, object]:
+        return _ok(
+            {
+                "name": tr("ui.app_name"),
+                "descriptor": tr("ui.descriptor"),
+                "version": _package_version(),
+                "language": self._language,
+                "supported_languages": list(SUPPORTED_LANGUAGES),
+                "output_formats": ["csv", "xlsx"],
+            }
+        )
+
+    def set_language(self, language: str) -> dict[str, object]:
+        try:
+            set_language(language)
+        except ValueError as exc:
+            return _error("invalid_language", str(exc), details=str(exc))
+        self._language = language
+        return _ok({"language": self._language, "messages": messages_for(language, prefix="ui.")})
+
+    def get_messages(self, language: str | None = None) -> dict[str, object]:
+        try:
+            selected_language = language or self._language
+            return _ok({"language": selected_language, "messages": messages_for(selected_language, prefix="ui.")})
+        except ValueError as exc:
+            return _error("invalid_language", str(exc), details=str(exc))
+
+    def choose_input_csv(self) -> dict[str, object]:
+        return self._choose_open_file(("CSV (*.csv)", "Todos os arquivos (*.*)"))
+
+    def choose_config_file(self) -> dict[str, object]:
+        return self._choose_open_file(("Configurações (*.yaml;*.yml;*.json;*.toml)", "Todos os arquivos (*.*)"))
+
+    def choose_lookup_file(self) -> dict[str, object]:
+        return self._choose_open_file(("CSV (*.csv)", "Todos os arquivos (*.*)"))
+
+    def choose_report_file(self) -> dict[str, object]:
+        return self._choose_save_file("json", ("JSON (*.json)", "Todos os arquivos (*.*)"))
+
+    def choose_rejects_file(self) -> dict[str, object]:
+        return self._choose_save_file("csv", ("CSV (*.csv)", "Todos os arquivos (*.*)"))
+
+    def choose_output_file(self, output_format: str = "csv") -> dict[str, object]:
+        normalized_format = output_format if output_format in {"csv", "xlsx"} else "csv"
+        file_types = (
+            ("CSV (*.csv)", "Todos os arquivos (*.*)")
+            if normalized_format == "csv"
+            else ("Excel (*.xlsx)", "Todos os arquivos (*.*)")
+        )
+        return self._choose_save_file(normalized_format, file_types)
+
+    def open_output_folder(self, path: str) -> dict[str, object]:
+        self._activate_language()
+        try:
+            target = Path(path)
+            folder = target if target.is_dir() else target.parent
+            if os.name == "nt":
+                os.startfile(folder)  # type: ignore[attr-defined]
+            elif os.name == "posix":
+                opener = "open" if os.uname().sysname == "Darwin" else "xdg-open"
+                subprocess.Popen([opener, str(folder)])
+            return _ok({"path": str(folder)})
+        except Exception as exc:  # noqa: BLE001
+            return self._exception_response(exc)
+
+    def _choose_save_file(self, suffix: str, file_types: tuple[str, str]) -> dict[str, object]:
+        self._activate_language()
+        if self._window is None:
+            return _error("window_not_ready", tr("ui.error.window_not_ready"))
+        try:
+            webview = _import_webview()
+            result = self._window.create_file_dialog(
+                webview.FileDialog.SAVE,
+                save_filename=f"resultado.{suffix}",
+                file_types=file_types,
+            )
+            return _ok({"path": _first_dialog_path(result)})
+        except Exception as exc:  # noqa: BLE001
+            return self._exception_response(exc)
+
+    def inspect_csv(self, payload: dict[str, Any]) -> dict[str, object]:
+        self._activate_language()
+        try:
+            input_path = _input_path(payload)
+            csv_options = _csv_options(payload)
+            typed_mode = bool(payload.get("typed_mode", False))
+            schema = DuckDBEngine().inspect_csv(input_path, csv_options, typed_mode=typed_mode)
+            return _ok(
+                {
+                    "path": str(input_path),
+                    "columns": list(schema.columns.values()),
+                    "types": schema.types,
+                    "size_bytes": input_path.stat().st_size,
+                }
+            )
+        except Exception as exc:  # noqa: BLE001
+            return self._exception_response(exc)
+
+    def validate_filter(self, payload: dict[str, Any]) -> dict[str, object]:
+        self._activate_language()
+        try:
+            options = build_options_from_payload(payload, require_output=False, force_dry_run=True)
+            engine = DuckDBEngine()
+            schema = engine.inspect_csv(options.input_path, options.csv, typed_mode=options.typed_mode)
+            column_types = engine.resolve_column_types(schema, options)
+            lookup_bindings = engine.register_lookups(
+                options.lookups,
+                options.csv,
+                case_insensitive_columns=options.case_insensitive_columns,
+            )
+            expr = combine_filters(options.where)
+            compiled = compile_filter(
+                expr,
+                CompileContext(
+                    columns=schema.columns,
+                    column_types=column_types,
+                    lookups=lookup_bindings,
+                    case_insensitive_columns=options.case_insensitive_columns,
+                    strict_values=options.strict_values,
+                ),
+            )
+            return _ok(
+                {
+                    "valid": True,
+                    "normalized_filters": options.where,
+                    "sql": compiled.sql,
+                    "columns": list(schema.columns.values()),
+                }
+            )
+        except Exception as exc:  # noqa: BLE001
+            return self._exception_response(exc)
+
+    def start_filter_run(self, payload: dict[str, Any]) -> dict[str, object]:
+        self._activate_language()
+        try:
+            options = build_options_from_payload(payload, require_output=True, force_dry_run=False)
+            language = self._language
+
+            def runner(progress: ProgressCallback) -> Any:
+                set_language(language)
+                return DuckDBEngine().run_filter(options, progress=progress)
+
+            job = self._jobs.start(runner, on_error=self._ui_error_from_exception)
+            return _ok(job.to_dict())
+        except JobAlreadyRunningError:
+            return _error("job_running", tr("ui.error.job_running"))
+        except Exception as exc:  # noqa: BLE001
+            return self._exception_response(exc)
+
+    def get_job_status(self, job_id: str) -> dict[str, object]:
+        self._activate_language()
+        try:
+            return _ok(self._jobs.get(job_id).to_dict())
+        except KeyError:
+            return _error("job_not_found", f"Job not found: {job_id}", details=job_id)
+        except Exception as exc:  # noqa: BLE001
+            return self._exception_response(exc)
+
+    def _choose_open_file(self, file_types: tuple[str, str]) -> dict[str, object]:
+        self._activate_language()
+        if self._window is None:
+            return _error("window_not_ready", tr("ui.error.window_not_ready"))
+        try:
+            webview = _import_webview()
+            result = self._window.create_file_dialog(
+                webview.FileDialog.OPEN,
+                allow_multiple=False,
+                file_types=file_types,
+            )
+            return _ok({"path": _first_dialog_path(result)})
+        except Exception as exc:  # noqa: BLE001
+            return self._exception_response(exc)
+
+    def _activate_language(self) -> None:
+        set_language(self._language)
+
+    def _exception_response(self, exc: Exception) -> dict[str, object]:
+        return _error_payload(self._ui_error_from_exception(exc))
+
+    def _ui_error_from_exception(self, exc: Exception) -> dict[str, str]:
+        set_language(self._language)
+        if isinstance(exc, DataSlicerError):
+            return {
+                "type": exc.__class__.__name__,
+                "message": localize_error_message(str(exc)),
+                "details": str(exc),
+            }
+        LOGGER.exception("Unexpected DataSlicer UI error")
+        return {
+            "type": exc.__class__.__name__,
+            "message": tr("ui.error.unexpected"),
+            "details": str(exc),
+        }
+
+
+def build_options_from_payload(
+    payload: dict[str, Any],
+    *,
+    require_output: bool,
+    force_dry_run: bool,
+) -> Any:
+    input_path = _input_path(payload)
+    output_path = _output_path(payload) if require_output else Path("dry-run")
+    config_path = _optional_path(payload.get("config_path"))
+    preset = _optional_text(payload.get("preset"))
+    preset_config = select_preset(load_config_file(config_path), preset)
+
+    filter_expression = _filter_expression(payload)
+    cli_where = [filter_expression] if filter_expression else _string_list(payload.get("where"))
+
+    return merge_config_and_cli(
+        input_path=input_path,
+        output_path=output_path,
+        cli_output_format=_optional_text(payload.get("output_format")),
+        preset_config=preset_config,
+        config_base_dir=config_path.resolve().parent if config_path is not None else None,
+        cli_where=cli_where,
+        cli_select=_string_list(payload.get("select") or payload.get("selected_columns")),
+        select_file=_optional_path(payload.get("select_file")),
+        cli_renames=_rename_items(payload.get("renames") or payload.get("rename")),
+        cli_dedupe=bool(payload.get("dedupe", False)),
+        cli_dedupe_keys=_string_list(payload.get("dedupe_keys") or payload.get("dedupe_key")),
+        cli_sorts=_sort_items(payload.get("sorts") or payload.get("sort")),
+        cli_lookups=_lookup_items(payload.get("lookups") or payload.get("lookup")),
+        cli_types=_type_items(payload.get("types") or payload.get("column_types")),
+        csv_options=_csv_options(payload),
+        sheet_prefix=str(payload.get("sheet_prefix") or "Results"),
+        max_rows_per_sheet=int(payload.get("max_rows_per_sheet") or 1_048_576),
+        split_mode=str(payload.get("split_mode") or "sheets"),
+        sheets_per_file=int(payload.get("sheets_per_file") or 31),
+        report_path=_optional_path(payload.get("report_path")),
+        rejects_path=_optional_path(payload.get("rejects_path")),
+        dry_run=force_dry_run or bool(payload.get("dry_run", False)),
+        case_insensitive_columns=bool(payload.get("case_insensitive_columns", False)),
+        typed_mode=bool(payload.get("typed_mode", False)),
+        strict_values=bool(payload.get("strict_values", False)),
+        batch_size=int(payload.get("batch_size") or 10_000),
+    )
+
+
+def _filter_expression(payload: dict[str, Any]) -> str:
+    filters_payload = payload.get("filters")
+    if isinstance(filters_payload, dict):
+        return build_filter_expression(filters_payload)
+    raw_filter = payload.get("raw_filter")
+    if raw_filter:
+        return str(raw_filter).strip()
+    conditions = payload.get("conditions")
+    if isinstance(conditions, list):
+        return build_filter_expression(
+            {
+                "mode": "visual",
+                "combine": payload.get("combine") or "and",
+                "conditions": conditions,
+            }
+        )
+    return ""
+
+
+def _csv_options(payload: dict[str, Any]) -> CsvOptions:
+    csv_payload = payload.get("csv_options") or {}
+    if not isinstance(csv_payload, dict):
+        raise ConfigError("csv_options must be an object.")
+    rejects_path = _optional_path(payload.get("rejects_path"))
+    return CsvOptions(
+        encoding=_optional_text(csv_payload.get("encoding")),
+        delimiter=_optional_text(csv_payload.get("delimiter")),
+        quotechar=_optional_text(csv_payload.get("quotechar")),
+        escapechar=_optional_text(csv_payload.get("escapechar")),
+        header=_optional_bool(csv_payload.get("header")),
+        null_values=_string_list(csv_payload.get("null_values") or csv_payload.get("null_value")),
+        date_format=_optional_text(csv_payload.get("date_format")),
+        timestamp_format=_optional_text(csv_payload.get("timestamp_format")),
+        strict_mode=bool(csv_payload.get("strict_mode", True)),
+        store_rejects=bool(csv_payload.get("store_rejects", False)) or rejects_path is not None,
+        sample_size=_optional_int(csv_payload.get("sample_size")),
+        max_line_size=_optional_int(csv_payload.get("max_line_size")),
+    )
+
+
+def _input_path(payload: dict[str, Any]) -> Path:
+    value = _optional_text(payload.get("input_path"))
+    if value is None:
+        raise ConfigError(tr("ui.error.input_required"))
+    return Path(value)
+
+
+def _output_path(payload: dict[str, Any]) -> Path:
+    value = _optional_text(payload.get("output_path"))
+    if value is None:
+        raise ConfigError(tr("ui.error.output_required"))
+    return Path(value)
+
+
+def _optional_path(value: object) -> Path | None:
+    text = _optional_text(value)
+    return Path(text) if text is not None else None
+
+
+def _optional_text(value: object) -> str | None:
+    if value is None:
+        return None
+    text = str(value).strip()
+    return text or None
+
+
+def _optional_bool(value: object) -> bool | None:
+    if value is None or value == "":
+        return None
+    if isinstance(value, str):
+        lowered = value.strip().lower()
+        if lowered in {"true", "1", "yes", "sim"}:
+            return True
+        if lowered in {"false", "0", "no", "nao", "não"}:
+            return False
+    return bool(value)
+
+
+def _optional_int(value: object) -> int | None:
+    if value is None or value == "":
+        return None
+    return int(value)
+
+
+def _string_list(value: object) -> list[str]:
+    if value is None or value == "":
+        return []
+    if isinstance(value, str):
+        text = value.strip()
+        return [text] if text else []
+    if isinstance(value, list):
+        return [str(item).strip() for item in value if str(item).strip()]
+    text = str(value).strip()
+    return [text] if text else []
+
+
+def _rename_items(value: object) -> list[str]:
+    if isinstance(value, dict):
+        return [f"{key}={item}" for key, item in value.items()]
+    if isinstance(value, list):
+        items: list[str] = []
+        for item in value:
+            if isinstance(item, dict):
+                old = item.get("old") or item.get("from")
+                new = item.get("new") or item.get("to")
+                if old and new:
+                    items.append(f"{old}={new}")
+            else:
+                items.append(str(item))
+        return items
+    return _string_list(value)
+
+
+def _sort_items(value: object) -> list[str]:
+    if isinstance(value, list):
+        items: list[str] = []
+        for item in value:
+            if isinstance(item, dict):
+                column = item.get("column")
+                direction = item.get("direction") or "asc"
+                if column:
+                    items.append(f"{column}:{direction}")
+            else:
+                items.append(str(item))
+        return items
+    return _string_list(value)
+
+
+def _lookup_items(value: object) -> list[str]:
+    if isinstance(value, list):
+        items: list[str] = []
+        for item in value:
+            if isinstance(item, dict):
+                name = item.get("name")
+                path = item.get("path")
+                column = item.get("column")
+                if name and path and column:
+                    items.append(f"{name}={path}:{column}")
+            else:
+                items.append(str(item))
+        return items
+    return _string_list(value)
+
+
+def _type_items(value: object) -> list[str]:
+    if isinstance(value, dict):
+        return [f"{key}={item}" for key, item in value.items()]
+    return _string_list(value)
+
+
+def _ok(data: dict[str, object]) -> dict[str, object]:
+    return {"ok": True, "data": data}
+
+
+def _error(error_type: str, message: str, *, details: str | None = None) -> dict[str, object]:
+    return _error_payload({"type": error_type, "message": message, "details": details or message})
+
+
+def _error_payload(error: dict[str, str]) -> dict[str, object]:
+    return {"ok": False, "error": error}
+
+
+def _package_version() -> str:
+    try:
+        return version("gt-dataslicer")
+    except PackageNotFoundError:
+        return "0.1.0"
+
+
+def _import_webview() -> Any:
+    import webview
+
+    return webview
+
+
+def _first_dialog_path(result: object) -> str | None:
+    if result is None:
+        return None
+    if isinstance(result, (list, tuple)):
+        return str(result[0]) if result else None
+    return str(result)

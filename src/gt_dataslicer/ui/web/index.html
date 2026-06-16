@@ -1,0 +1,258 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>DataSlicer</title>
+    <link rel="stylesheet" href="./styles.css?v=20260616-2">
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="topbar">
+        <div>
+          <p class="descriptor">Powered by Grant Thornton Brasil</p>
+          <h1>DataSlicer</h1>
+        </div>
+        <label class="language-switch">
+          <span data-i18n="language">Idioma</span>
+          <select id="languageSelect">
+            <option value="pt-BR">Português</option>
+            <option value="en-US">English</option>
+          </select>
+        </label>
+      </header>
+
+      <main class="workspace">
+        <nav class="steps" aria-label="Etapas">
+          <a href="#step-file" class="step-link active" data-i18n="stepFile">1. Arquivo</a>
+          <a href="#step-filter" class="step-link" data-i18n="stepFilter">2. Filtro</a>
+          <a href="#step-output" class="step-link" data-i18n="stepOutput">3. Saída</a>
+          <a href="#step-run" class="step-link" data-i18n="stepRun">4. Gerar</a>
+        </nav>
+
+        <section id="step-file" class="panel">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow" data-i18n="stageOne">Etapa 1</p>
+              <h2 data-i18n="chooseFile">Escolha o arquivo</h2>
+            </div>
+            <button id="browseInputBtn" class="button primary" type="button" data-i18n="browseCsv">Procurar CSV</button>
+          </div>
+
+          <div id="dropZone" class="drop-zone" tabindex="0">
+            <strong data-i18n="dropStrong">Arraste o CSV aqui</strong>
+            <span data-i18n="dropHelp">ou use o botão para procurar no computador.</span>
+          </div>
+
+          <div class="file-summary" aria-live="polite">
+            <div>
+              <span class="label" data-i18n="fileLabel">Arquivo</span>
+              <strong id="inputPathText" data-i18n="noFile">Nenhum arquivo escolhido</strong>
+            </div>
+            <div>
+              <span class="label" data-i18n="sizeLabel">Tamanho</span>
+              <strong id="inputSizeText">-</strong>
+            </div>
+            <div>
+              <span class="label" data-i18n="columnsLabel">Colunas</span>
+              <strong id="columnCountText">-</strong>
+            </div>
+          </div>
+
+          <details class="advanced-line">
+            <summary data-i18n="readOptions">Opções de leitura</summary>
+            <div class="field-grid compact">
+              <label>
+                <span data-i18n="encoding">Codificação</span>
+                <input id="encodingInput" type="text" placeholder="utf-8">
+              </label>
+              <label>
+                <span data-i18n="delimiter">Delimitador</span>
+                <input id="delimiterInput" type="text" maxlength="4" placeholder="auto">
+              </label>
+              <label>
+                <span data-i18n="nullValue">Valor nulo</span>
+                <input id="nullValueInput" type="text" placeholder="vazio" data-i18n-placeholder="emptyPlaceholder">
+              </label>
+            </div>
+          </details>
+        </section>
+
+        <section id="step-filter" class="panel">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow" data-i18n="stageTwo">Etapa 2</p>
+              <h2 data-i18n="buildFilter">Monte o filtro</h2>
+            </div>
+            <div class="segmented" role="tablist" aria-label="Modo de filtro">
+              <button id="visualTab" class="segment active" type="button" data-i18n="visual">Visual</button>
+              <button id="advancedTab" class="segment" type="button" data-i18n="advanced">Avançado</button>
+            </div>
+          </div>
+
+          <div id="visualFilterPanel">
+            <div class="toolbar-row">
+              <label>
+                <span data-i18n="combineRules">Combinar regras</span>
+                <select id="combineSelect">
+                  <option value="and" data-i18n="allRules">todas as regras</option>
+                  <option value="or" data-i18n="anyRule">qualquer regra</option>
+                </select>
+              </label>
+              <button id="addFilterBtn" class="button secondary" type="button" data-i18n="addRule">Adicionar regra</button>
+            </div>
+            <p id="noFilterHint" class="hint" data-i18n="noFilterHint">Sem regras, todas as linhas serão exportadas.</p>
+            <div id="filterRows" class="filter-rows"></div>
+          </div>
+
+          <div id="advancedFilterPanel" class="hidden">
+            <label>
+              <span data-i18n="advancedFilter">Filtro avançado</span>
+              <textarea id="rawFilterInput" rows="6" spellcheck="false" placeholder='STATUS EM ("ATIVO", "SUSPENSO") E VALOR_TOTAL > 1000'></textarea>
+            </label>
+          </div>
+
+          <div class="toolbar-row end">
+            <button id="validateBtn" class="button secondary" type="button" data-i18n="validateFilter">Validar filtro</button>
+          </div>
+        </section>
+
+        <section id="step-output" class="panel">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow" data-i18n="stageThree">Etapa 3</p>
+              <h2 data-i18n="chooseOutputTitle">Escolha a saída</h2>
+            </div>
+            <button id="browseOutputBtn" class="button primary" type="button" data-i18n="chooseDestination">Escolher destino</button>
+          </div>
+
+          <div class="field-grid">
+            <label>
+              <span data-i18n="format">Formato</span>
+              <select id="formatSelect">
+                <option value="csv">CSV</option>
+                <option value="xlsx">Excel</option>
+              </select>
+            </label>
+            <label class="wide">
+              <span data-i18n="saveAs">Salvar em</span>
+              <input id="outputPathInput" type="text" placeholder="Escolha onde salvar" data-i18n-placeholder="chooseSavePlaceholder">
+            </label>
+          </div>
+
+          <p id="excelNotice" class="notice hidden" data-i18n="excelNotice">
+            Arquivos Excel têm limite de linhas por aba. Se o resultado for muito grande, o DataSlicer dividirá em abas ou arquivos conforme as opções.
+          </p>
+
+          <details class="advanced-line">
+            <summary data-i18n="advancedOptions">Opções avançadas</summary>
+            <div class="field-grid">
+              <label>
+                <span data-i18n="columnsToSave">Colunas para salvar</span>
+                <textarea id="selectColumnsInput" rows="4" placeholder="Uma coluna por linha" data-i18n-placeholder="oneColumnPerLine"></textarea>
+              </label>
+              <label>
+                <span data-i18n="renameColumns">Renomear colunas</span>
+                <textarea id="renamesInput" rows="4" placeholder="ANTIGO=Novo nome" data-i18n-placeholder="renamePlaceholder"></textarea>
+              </label>
+              <label>
+                <span data-i18n="sortBy">Ordenar por</span>
+                <input id="sortInput" type="text" placeholder="COLUNA ou COLUNA:desc" data-i18n-placeholder="sortPlaceholder">
+              </label>
+              <label>
+                <span data-i18n="dedupeKey">Chave de deduplicação</span>
+                <input id="dedupeKeyInput" type="text" placeholder="COLUNA" data-i18n-placeholder="columnPlaceholder">
+              </label>
+              <label class="checkline">
+                <input id="dedupeInput" type="checkbox">
+                <span data-i18n="removeDuplicates">Remover linhas duplicadas</span>
+              </label>
+              <label class="checkline">
+                <input id="caseInsensitiveInput" type="checkbox">
+                <span data-i18n="caseInsensitive">Não diferenciar maiúsculas em nomes de colunas</span>
+              </label>
+              <label>
+                <span data-i18n="jsonReport">Relatório JSON</span>
+                <div class="inline-field">
+                  <input id="reportPathInput" type="text" placeholder="Opcional" data-i18n-placeholder="optional">
+                  <button id="browseReportBtn" class="icon-button" type="button" title="Escolher relatório" data-i18n-title="chooseReport">...</button>
+                </div>
+              </label>
+              <label>
+                <span data-i18n="rejectsCsv">Rejeitados CSV</span>
+                <div class="inline-field">
+                  <input id="rejectsPathInput" type="text" placeholder="Opcional" data-i18n-placeholder="optional">
+                  <button id="browseRejectsBtn" class="icon-button" type="button" title="Escolher rejeitados" data-i18n-title="chooseRejects">...</button>
+                </div>
+              </label>
+            </div>
+          </details>
+        </section>
+
+        <section id="step-run" class="panel">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow" data-i18n="stageFour">Etapa 4</p>
+              <h2 data-i18n="generateFile">Gerar arquivo</h2>
+            </div>
+            <button id="runBtn" class="button primary" type="button" data-i18n="generateResult">Gerar resultado</button>
+          </div>
+
+          <div class="status-strip" aria-live="polite">
+            <span id="statusDot" class="status-dot idle"></span>
+            <div>
+              <strong id="statusTitle">Pronto</strong>
+              <p id="statusText">Escolha um arquivo CSV para começar.</p>
+            </div>
+          </div>
+
+          <pre id="detailsBox" class="details-box hidden"></pre>
+
+          <div class="toolbar-row">
+            <button id="openFolderBtn" class="button secondary hidden" type="button" data-i18n="openFolder">Abrir pasta</button>
+            <button id="resetBtn" class="button ghost" type="button" data-i18n="newRun">Nova execução</button>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <template id="filterRowTemplate">
+      <div class="filter-row">
+        <select class="filter-column" aria-label="Coluna"></select>
+        <select class="filter-operator" aria-label="Operador">
+          <option value="equals" data-i18n="opEquals">igual a</option>
+          <option value="not_equals" data-i18n="opNotEquals">diferente de</option>
+          <option value="gt" data-i18n="opGt">maior que</option>
+          <option value="gte" data-i18n="opGte">maior ou igual a</option>
+          <option value="lt" data-i18n="opLt">menor que</option>
+          <option value="lte" data-i18n="opLte">menor ou igual a</option>
+          <option value="in" data-i18n="opIn">está na lista</option>
+          <option value="not_in" data-i18n="opNotIn">não está na lista</option>
+          <option value="between" data-i18n="opBetween">entre</option>
+          <option value="contains" data-i18n="opContains">contém</option>
+          <option value="starts_with" data-i18n="opStartsWith">começa com</option>
+          <option value="ends_with" data-i18n="opEndsWith">termina com</option>
+          <option value="regex">regex</option>
+          <option value="is_null" data-i18n="opIsNull">é nulo</option>
+          <option value="is_not_null" data-i18n="opIsNotNull">não é nulo</option>
+          <option value="is_empty" data-i18n="opIsEmpty">é vazio</option>
+          <option value="is_not_empty" data-i18n="opIsNotEmpty">não é vazio</option>
+          <option value="is_blank" data-i18n="opIsBlank">é branco</option>
+          <option value="is_not_blank" data-i18n="opIsNotBlank">não é branco</option>
+        </select>
+        <input class="filter-value" type="text" placeholder="Valor" data-i18n-placeholder="value">
+        <input class="filter-value2" type="text" placeholder="Valor final" data-i18n-placeholder="finalValue">
+        <select class="filter-type" aria-label="Tipo do valor">
+          <option value="string" data-i18n="typeText" selected>texto</option>
+          <option value="number" data-i18n="typeNumber">número</option>
+          <option value="date" data-i18n="typeDate">data</option>
+          <option value="bool" data-i18n="typeBool">lógico</option>
+          <option value="auto">auto</option>
+        </select>
+        <button class="icon-button remove-filter" type="button" title="Remover regra" data-i18n-title="removeRule">x</button>
+      </div>
+    </template>
+
+    <script src="./app.js?v=20260616-2"></script>
+  </body>
+</html>

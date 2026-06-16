@@ -19,6 +19,7 @@ _MESSAGES: Final[dict[str, dict[str, str]]] = {
         "command.inspect.help": "Inspeciona as colunas e tipos detectados no CSV.",
         "command.validate_filter.help": "Analisa e valida filtros sem exportar dados.",
         "command.filter.help": "Filtra um arquivo CSV e exporta as linhas correspondentes para CSV ou XLSX.",
+        "command.ui.help": "Abre a tela visual do DataSlicer.",
         "option.lang": "Idioma da saída da CLI: pt-BR ou en-US. Use antes do comando.",
         "option.typed_mode": "Permite que o DuckDB infira tipos das colunas do CSV.",
         "option.where": "Expressão de filtro. Repita para combinar filtros com E/AND.",
@@ -41,12 +42,27 @@ _MESSAGES: Final[dict[str, dict[str, str]]] = {
         "error_prefix": "Erro:",
         "invalid_language": "Idioma inválido '{language}'. Use um destes valores: {supported}.",
         "warning.sort_temp_disk": "Ordenar saídas filtradas grandes pode exigir bastante espaço temporário em disco.",
+        "ui.app_name": "DataSlicer",
+        "ui.descriptor": "Powered by Grant Thornton Brasil",
+        "ui.error.unexpected": "Não foi possível concluir a ação. Veja os detalhes técnicos ou tente novamente.",
+        "ui.error.window_not_ready": "A janela ainda não está pronta para abrir este diálogo.",
+        "ui.error.input_required": "Escolha um arquivo CSV antes de continuar.",
+        "ui.error.output_required": "Escolha onde salvar o resultado antes de continuar.",
+        "ui.error.job_running": "Já existe uma exportação em andamento. Aguarde terminar antes de iniciar outra.",
+        "ui.phase.queued": "Na fila",
+        "ui.phase.inspecting": "Lendo o arquivo",
+        "ui.phase.validating": "Validando o filtro",
+        "ui.phase.exporting": "Gerando o arquivo",
+        "ui.phase.finishing": "Finalizando",
+        "ui.phase.done": "Concluído",
+        "ui.phase.error": "Erro",
     },
     "en-US": {
         "app.help": "Filter large CSV files and export matching rows to CSV or XLSX.",
         "command.inspect.help": "Inspect detected CSV columns and types.",
         "command.validate_filter.help": "Parse and validate filters without exporting.",
         "command.filter.help": "Filter a CSV file and export matching rows to CSV or XLSX.",
+        "command.ui.help": "Open the DataSlicer visual interface.",
         "option.lang": "CLI output language: pt-BR or en-US. Use before the command.",
         "option.typed_mode": "Allow DuckDB to infer CSV column types.",
         "option.where": "Filter expression. Repeat to AND filters.",
@@ -69,6 +85,20 @@ _MESSAGES: Final[dict[str, dict[str, str]]] = {
         "error_prefix": "Error:",
         "invalid_language": "Invalid language '{language}'. Use one of: {supported}.",
         "warning.sort_temp_disk": "Sorting large filtered outputs can require substantial temporary disk space.",
+        "ui.app_name": "DataSlicer",
+        "ui.descriptor": "Powered by Grant Thornton Brasil",
+        "ui.error.unexpected": "The action could not be completed. Review technical details or try again.",
+        "ui.error.window_not_ready": "The window is not ready to open this dialog yet.",
+        "ui.error.input_required": "Choose a CSV file before continuing.",
+        "ui.error.output_required": "Choose where to save the result before continuing.",
+        "ui.error.job_running": "An export is already running. Wait for it to finish before starting another.",
+        "ui.phase.queued": "Queued",
+        "ui.phase.inspecting": "Reading file",
+        "ui.phase.validating": "Validating filter",
+        "ui.phase.exporting": "Creating output file",
+        "ui.phase.finishing": "Finishing",
+        "ui.phase.done": "Done",
+        "ui.phase.error": "Error",
     },
 }
 
@@ -115,6 +145,16 @@ def tr(key: str, **kwargs: object) -> str:
     language = get_language()
     template = _MESSAGES.get(language, {}).get(key) or _MESSAGES["en-US"].get(key) or key
     return template.format(**kwargs)
+
+
+def messages_for(language: str | None = None, *, prefix: str | None = None) -> dict[str, str]:
+    selected_language = language or get_language()
+    if selected_language not in SUPPORTED_LANGUAGES:
+        raise ValueError(invalid_language_message(selected_language))
+    messages = _MESSAGES[selected_language]
+    if prefix is None:
+        return dict(messages)
+    return {key: value for key, value in messages.items() if key.startswith(prefix)}
 
 
 def invalid_language_message(language: str) -> str:

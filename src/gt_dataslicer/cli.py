@@ -23,6 +23,7 @@ from .filters.parser import combine_filters
 from .i18n import (
     DEFAULT_LANGUAGE,
     SUPPORTED_LANGUAGES,
+    get_language,
     invalid_language_message,
     localize_error_message,
     set_language,
@@ -75,6 +76,13 @@ def create_app(language: str = DEFAULT_LANGUAGE) -> typer.Typer:
         ),
     ) -> None:
         _configure_language(lang, fallback_language=initial_language)
+
+    @localized_app.command("ui", help=tr("command.ui.help"), hidden=True)
+    @localized_app.command("abrir", help=tr("command.ui.help"))
+    def ui_command() -> None:
+        from .ui.app import main as ui_main
+
+        ui_main(language=get_language())
 
     @localized_app.command("inspect", help=tr("command.inspect.help"), hidden=True)
     @localized_app.command("inspecionar", help=tr("command.inspect.help"))

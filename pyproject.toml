@@ -15,6 +15,7 @@ authors = [
 dependencies = [
   "duckdb>=1.1",
   "lark>=1.2",
+  "pywebview>=6.2.1",
   "pyyaml>=6.0",
   "rich>=13.7",
   "typer>=0.12",
@@ -27,12 +28,19 @@ dev = [
   "pytest>=8.2",
   "pytest-cov>=5.0",
 ]
+freeze = [
+  "pyinstaller>=6.0",
+]
 
 [project.scripts]
+dataslicer = "gt_dataslicer.ui.app:main"
 gt-dataslicer = "gt_dataslicer.cli:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/gt_dataslicer"]
+
+[tool.hatch.build.targets.wheel.force-include]
+"src/gt_dataslicer/ui/web" = "gt_dataslicer/ui/web"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 import logging
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 import duckdb
 
@@ -50,7 +50,7 @@ class DuckDBEngine:
     def resolve_column_types(self, schema: CsvSchema, options: FilterRunOptions) -> dict[str, str]:
         return self._resolve_column_types(schema, options)
 
-    def run_filter(self, options: FilterRunOptions) -> RunReport:
+    def run_filter(self, options: FilterRunOptions, progress: Callable[[str], None] | None = None) -> RunReport:
         report = RunReport(
             input_path=str(options.input_path),
             applied_filters=options.where,
@@ -66,10 +66,14 @@ class DuckDBEngine:
             dry_run=options.dry_run,
         )
 
+        if progress is not None:
+            progress("inspecting")
         schema = self.inspect_csv(options.input_path, options.csv, typed_mode=options.typed_mode)
         report.schema = schema.types
         column_types = self.resolve_column_types(schema, options)
 
+        if progress is not None:
+            progress("validating")
         lookup_bindings = self._register_lookups(options.lookups, options.csv, options.case_insensitive_columns)
         expr = combine_filters(options.where)
         compiled = compile_filter(
@@ -104,10 +108,14 @@ class DuckDBEngine:
             report.warnings.append(tr("warning.sort_temp_disk"))
 
         if options.dry_run:
+            if progress is not None:
+                progress("finishing")
             report.finish()
             return report
 
         try:
+            if progress is not None:
+                progress("exporting")
             if options.report_path is not None:
                 report.input_rows = self._count_rows(options.input_path, options.csv, options.typed_mode)
             if options.output_format == "csv":
@@ -143,6 +151,8 @@ class DuckDBEngine:
             report.finish()
             raise
 
+        if progress is not None:
+            progress("finishing")
         report.finish()
         return report
 

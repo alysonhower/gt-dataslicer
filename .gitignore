@@ -2,3 +2,6 @@ __pycache__/
 *.py[cod]
 .pytest_cache/
 .codex-remote-attachments/
+build/
+dist/
+gtil-global-sub-brand-guidelines.pdf

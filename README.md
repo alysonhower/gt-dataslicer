@@ -4,6 +4,44 @@
 
 Por padrão, o resultado sai em CSV. Se você quiser abrir no Excel, também pode salvar em XLSX.
 
+## Usar com tela visual
+
+A forma mais simples de usar é abrir o DataSlicer:
+
+```bash
+dataslicer
+```
+
+Ou, pelo comando principal:
+
+```bash
+gt-dataslicer abrir
+```
+
+Na tela visual você pode:
+
+- escolher o arquivo CSV;
+- montar filtros com campos e listas, sem escrever comandos;
+- salvar em CSV ou Excel;
+- escolher colunas, remover duplicados e gerar relatório quando precisar.
+
+## Gerar executável do DataSlicer
+
+No Windows, você pode gerar um executável portátil:
+
+```powershell
+python -m pip install -e .[dev,freeze]
+.\scripts\build-dataslicer.ps1
+```
+
+O arquivo final fica em:
+
+```text
+dist\DataSlicer.exe
+```
+
+Esse executável usa Pywebview e espera que o WebView2 Runtime esteja instalado no Windows.
+
 ## Exemplos rápidos
 
 Salvar em CSV:
