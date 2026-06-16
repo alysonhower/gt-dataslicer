@@ -1,7 +1,10 @@
 import csv as csv_module
 import json
 from pathlib import Path
+import zipfile
 
+import duckdb
+from openpyxl import Workbook
 from openpyxl import load_workbook
 import pytest
 from typer.testing import CliRunner
@@ -36,6 +39,10 @@ def rows_from_xlsx(path: Path, sheet: str = "Results_001") -> list[tuple[object,
 def rows_from_csv(path: Path) -> list[tuple[str, ...]]:
     with path.open(newline="", encoding="utf-8") as file:
         return [tuple(row) for row in csv_module.reader(file)]
+
+
+def rows_from_parquet(path: Path) -> list[tuple[object, ...]]:
+    return duckdb.connect().execute(f"SELECT * FROM read_parquet('{path.as_posix()}')").fetchall()
 
 
 def test_filter_command_exports_matching_rows(tmp_path: Path) -> None:
@@ -118,6 +125,161 @@ def test_filter_command_accepts_pt_br_command_and_options(tmp_path: Path) -> Non
     assert rows_from_csv(output_path) == [("NOME",), ("JOAO SILVA",), ("MARIA SILVA",), ("ANA LIMA",)]
 
 
+def test_filter_command_supports_parquet_input(tmp_path: Path) -> None:
+    parquet_path = tmp_path / "input.parquet"
+    output_path = tmp_path / "output.csv"
+    duckdb.connect().execute(
+        f"COPY (SELECT 1 AS ID, 'ATIVO' AS STATUS UNION ALL SELECT 2, 'CANCELADO') TO '{parquet_path.as_posix()}'"
+        " (FORMAT parquet)"
+    )
+
+    result = runner.invoke(
+        app,
+        [
+            "filtrar",
+            str(parquet_path),
+            "--saida",
+            str(output_path),
+            "--filtro",
+            'STATUS = "ATIVO"',
+            "--selecionar",
+            "ID",
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert rows_from_csv(output_path) == [("ID",), ("1",)]
+
+
+def test_filter_command_supports_xlsx_input(tmp_path: Path) -> None:
+    workbook = Workbook()
+    sheet = workbook.active
+    sheet.title = "Dados"
+    sheet.append(["ID", "STATUS"])
+    sheet.append([1, "ATIVO"])
+    sheet.append([2, "CANCELADO"])
+    xlsx_path = tmp_path / "input.xlsx"
+    output_path = tmp_path / "output.csv"
+    workbook.save(xlsx_path)
+
+    result = runner.invoke(
+        app,
+        [
+            "filtrar",
+            str(xlsx_path),
+            "--saida",
+            str(output_path),
+            "--filtro",
+            'STATUS = "ATIVO"',
+            "--selecionar",
+            "ID",
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert rows_from_csv(output_path) == [("ID",), ("1",)]
+
+
+def test_filter_command_processes_multiple_inputs_sequentially(tmp_path: Path) -> None:
+    first = tmp_path / "jan.csv"
+    second = tmp_path / "feb.csv"
+    output_path = tmp_path / "filtered.csv"
+    first.write_text("ID,STATUS\n1,ATIVO\n2,CANCELADO\n", encoding="utf-8")
+    second.write_text("ID,STATUS\n3,ATIVO\n4,CANCELADO\n", encoding="utf-8")
+
+    result = runner.invoke(
+        app,
+        [
+            "filtrar",
+            str(first),
+            str(second),
+            "--saida",
+            str(output_path),
+            "--filtro",
+            'STATUS = "ATIVO"',
+            "--selecionar",
+            "ID",
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert rows_from_csv(tmp_path / "filtered_001_jan.csv") == [("ID",), ("1",)]
+    assert rows_from_csv(tmp_path / "filtered_002_feb.csv") == [("ID",), ("3",)]
+    assert not output_path.exists()
+
+
+def test_filter_dry_run_fails_when_any_queue_input_fails(tmp_path: Path) -> None:
+    first = tmp_path / "ok.csv"
+    second = tmp_path / "bad.csv"
+    output_path = tmp_path / "filtered.csv"
+    first.write_text("ID,STATUS\n1,ATIVO\n", encoding="utf-8")
+    second.write_text("ID,OTHER\n2,ATIVO\n", encoding="utf-8")
+
+    result = runner.invoke(
+        app,
+        [
+            "filtrar",
+            str(first),
+            str(second),
+            "--saida",
+            str(output_path),
+            "--filtro",
+            'STATUS = "ATIVO"',
+            "--teste",
+        ],
+    )
+
+    assert result.exit_code == 1, result.output
+    assert "não puderam ser processados" in result.output
+    assert "Execução de teste concluída" not in result.output
+
+
+def test_filter_report_includes_input_resolution_warnings(tmp_path: Path) -> None:
+    zip_path = tmp_path / "inputs.zip"
+    output_path = tmp_path / "filtered.csv"
+    report_path = tmp_path / "report.json"
+    with zipfile.ZipFile(zip_path, "w") as archive:
+        archive.writestr("data.csv", "A\n1\n")
+        archive.writestr("ignored.txt", "not supported")
+
+    result = runner.invoke(
+        app,
+        [
+            "filtrar",
+            str(zip_path),
+            "--saida",
+            str(output_path),
+            "--relatorio",
+            str(report_path),
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    report = json.loads(report_path.read_text(encoding="utf-8"))
+    assert report["input_path"] == f"{zip_path}!data.csv"
+    assert report["warnings"] == ["Unsupported ZIP entry skipped: ignored.txt"]
+
+
+def test_validate_filter_does_not_delete_zip_when_delete_flag_is_passed(tmp_path: Path) -> None:
+    zip_path = tmp_path / "inputs.zip"
+    with zipfile.ZipFile(zip_path, "w") as archive:
+        archive.writestr("data.csv", "A\n1\n")
+
+    result = runner.invoke(
+        app,
+        [
+            "validar-filtro",
+            str(zip_path),
+            "--filtro",
+            'A = "1"',
+            "--excluir-zip-apos-extrair",
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert zip_path.exists()
+
+
 def test_filter_defaults_to_csv_when_output_has_no_suffix(tmp_path: Path) -> None:
     csv_path = tmp_path / "input.csv"
     output_path = tmp_path / "output"
@@ -193,6 +355,56 @@ def test_filter_format_xlsx_adds_missing_suffix(tmp_path: Path) -> None:
     assert rows_from_xlsx(normalized_path) == [("NOME",), ("ANA LIMA",)]
 
 
+def test_filter_writes_parquet_when_suffix_requests_parquet(tmp_path: Path) -> None:
+    csv_path = tmp_path / "input.csv"
+    output_path = tmp_path / "output.parquet"
+    write_csv(csv_path)
+
+    result = runner.invoke(
+        app,
+        [
+            "filtrar",
+            str(csv_path),
+            "--saida",
+            str(output_path),
+            "--filtro",
+            'STATUS = "SUSPENSO"',
+            "--selecionar",
+            "NOME",
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert rows_from_parquet(output_path) == [("ANA LIMA",)]
+
+
+def test_filter_format_parquet_adds_missing_suffix(tmp_path: Path) -> None:
+    csv_path = tmp_path / "input.csv"
+    output_path = tmp_path / "output"
+    write_csv(csv_path)
+
+    result = runner.invoke(
+        app,
+        [
+            "filter",
+            str(csv_path),
+            "-o",
+            str(output_path),
+            "--format",
+            "parquet",
+            "--where",
+            'STATUS = "SUSPENSO"',
+            "--select",
+            "NOME",
+        ],
+    )
+
+    normalized_path = output_path.with_suffix(".parquet")
+    assert result.exit_code == 0, result.output
+    assert not output_path.exists()
+    assert rows_from_parquet(normalized_path) == [("ANA LIMA",)]
+
+
 def test_filter_rejects_explicit_format_suffix_conflict(tmp_path: Path) -> None:
     csv_path = tmp_path / "input.csv"
     output_path = tmp_path / "output.xlsx"
@@ -215,6 +427,148 @@ def test_filter_rejects_explicit_format_suffix_conflict(tmp_path: Path) -> None:
     assert result.exit_code == 2
     assert "conflita com o sufixo" in result.output
     assert not output_path.exists()
+
+
+def test_filter_command_accepts_derived_column_json(tmp_path: Path) -> None:
+    csv_path = tmp_path / "input.csv"
+    output_path = tmp_path / "output.csv"
+    write_csv(csv_path)
+    derived = {
+        "source": "CPF",
+        "name": {"prefix": "LIMPO", "separator": "_"},
+        "transforms": [{"operation": "keep_digits"}, {"operation": "add_prefix", "text": "BR_"}],
+    }
+
+    result = runner.invoke(
+        app,
+        [
+            "filtrar",
+            str(csv_path),
+            "--saida",
+            str(output_path),
+            "--filtro",
+            'NOME contains "JOAO"',
+            "--selecionar",
+            "NOME",
+            "--coluna-derivada",
+            json.dumps(derived),
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert rows_from_csv(output_path) == [("NOME", "LIMPO_CPF"), ("JOAO SILVA", "BR_123")]
+
+
+def test_filter_command_accepts_derived_columns_file(tmp_path: Path) -> None:
+    csv_path = tmp_path / "input.csv"
+    output_path = tmp_path / "output.csv"
+    derived_path = tmp_path / "derived.yaml"
+    write_csv(csv_path)
+    derived_path.write_text(
+        "derived_columns:\n"
+        "  - source: CPF\n"
+        "    name: CPF_FORMATADO\n"
+        "    position:\n"
+        "      mode: before\n"
+        "      target: NOME\n"
+        "    transforms:\n"
+        "      - operation: format_cpf\n",
+        encoding="utf-8",
+    )
+
+    result = runner.invoke(
+        app,
+        [
+            "filtrar",
+            str(csv_path),
+            "--saida",
+            str(output_path),
+            "--filtro",
+            'NOME contains "JOAO"',
+            "--selecionar",
+            "NOME",
+            "--selecionar",
+            "CPF",
+            "--colunas-derivadas-arquivo",
+            str(derived_path),
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert rows_from_csv(output_path) == [("CPF_FORMATADO", "NOME", "CPF"), ("123", "JOAO SILVA", "123")]
+
+
+def test_filter_command_accepts_derived_columns_from_config(tmp_path: Path) -> None:
+    csv_path = tmp_path / "input.csv"
+    output_path = tmp_path / "output.csv"
+    config_path = tmp_path / "filters.json"
+    write_csv(csv_path)
+    config_path.write_text(
+        json.dumps(
+            {
+                "where": 'NOME contains "JOAO"',
+                "select": ["NOME"],
+                "derived_columns": [
+                    {
+                        "source": "NOME",
+                        "name": {"suffix": "MAIUSCULO", "separator": "_"},
+                        "transforms": [{"operation": "uppercase"}],
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    result = runner.invoke(
+        app,
+        [
+            "filtrar",
+            str(csv_path),
+            "--saida",
+            str(output_path),
+            "--configuracao",
+            str(config_path),
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert rows_from_csv(output_path) == [("NOME", "NOME_MAIUSCULO"), ("JOAO SILVA", "JOAO SILVA")]
+
+
+def test_xlsx_derived_columns_use_formula_with_cached_value_when_simple(tmp_path: Path) -> None:
+    csv_path = tmp_path / "input.csv"
+    output_path = tmp_path / "output.xlsx"
+    write_csv(csv_path)
+    derived = {
+        "source": "NOME",
+        "name": {"suffix": "MAIUSCULO", "separator": "_"},
+        "transforms": [{"operation": "uppercase"}],
+    }
+
+    result = runner.invoke(
+        app,
+        [
+            "filtrar",
+            str(csv_path),
+            "--saida",
+            str(output_path),
+            "--filtro",
+            'NOME contains "JOAO"',
+            "--selecionar",
+            "NOME",
+            "--formato",
+            "xlsx",
+            "--coluna-derivada",
+            json.dumps(derived),
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    formula_workbook = load_workbook(output_path, data_only=False)
+    value_workbook = load_workbook(output_path, data_only=True)
+    assert formula_workbook["Results_001"]["B2"].value == "=UPPER(A2)"
+    assert value_workbook["Results_001"]["B2"].value == "JOAO SILVA"
 
 
 def test_csv_output_supports_transforms_and_lookups(tmp_path: Path) -> None:
@@ -335,7 +689,7 @@ def test_cli_help_defaults_to_pt_br() -> None:
     result = runner.invoke(app, ["--help"])
 
     assert result.exit_code == 0, result.output
-    assert "Filtra arquivos CSV grandes" in result.output
+    assert "Filtra arquivos grandes" in result.output
     assert "filtrar" in result.output
     assert "validar-filtro" in result.output
     assert "--idioma" in result.output
@@ -354,7 +708,7 @@ def test_cli_help_can_be_created_in_en_us() -> None:
     result = runner.invoke(create_app("en-US"), ["--help"])
 
     assert result.exit_code == 0, result.output
-    assert "Filter large CSV files" in result.output
+    assert "Filter large files" in result.output
 
 
 def test_create_app_rejects_invalid_pre_scanned_language() -> None:

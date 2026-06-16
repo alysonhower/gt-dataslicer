@@ -1,32 +1,42 @@
 const state = {
   api: null,
   inputPath: "",
+  inputPaths: [],
   outputPath: "",
   outputPaths: [],
+  resolvedInputs: [],
   columns: [],
   language: "pt-BR",
   filterMode: "visual",
   pollTimer: null,
   columnSuggestionListId: 0,
+  eventsBound: false,
+  derivedColumnId: 0,
 };
 
 const text = {
   "pt-BR": {
     readyTitle: "Pronto",
-    readyText: "Escolha um arquivo CSV para começar.",
+    readyText: "Escolha um arquivo de entrada para começar.",
     inspecting: "Lendo o arquivo...",
     validating: "Validando filtro...",
     valid: "Filtro válido.",
     running: "Gerando o arquivo...",
     done: "Arquivo gerado com sucesso.",
     error: "Algo precisa de atenção.",
-    chooseCsv: "Escolha um CSV.",
+    chooseCsv: "Escolha um arquivo de entrada.",
     chooseOutput: "Escolha onde salvar o resultado.",
     noColumns: "Escolha um arquivo para carregar as colunas.",
-    droppedFileNeedsPicker: "Use o botão Procurar CSV para garantir acesso ao caminho completo do arquivo.",
+    droppedFileNeedsPicker: "Use o botão Procurar arquivo para garantir acesso ao caminho completo do arquivo.",
     noFile: "Nenhum arquivo escolhido",
     columnsLoaded: "colunas carregadas.",
     columnSearchPlaceholder: "Buscar coluna",
+    inputQueue: "Arquivos na fila",
+    zipPasswords: "Senhas de ZIP",
+    onePasswordPerLine: "Uma senha por linha",
+    allExcelSheets: "Processar todas as abas do Excel",
+    reuseSchema: "Reutilizar o esquema do primeiro arquivo",
+    deleteZipAfterExtract: "Excluir ZIP após extrair com sucesso",
     rowsWritten: "linhas gravadas.",
     bridgeNotReady: "A ponte com Python ainda não está pronta.",
     bridgeWaiting: "Aguardando a ponte com Python.",
@@ -40,8 +50,8 @@ const text = {
     stageThree: "Etapa 3",
     stageFour: "Etapa 4",
     chooseFile: "Escolha o arquivo",
-    browseCsv: "Procurar CSV",
-    dropStrong: "Arraste o CSV aqui",
+    browseInput: "Procurar arquivo",
+    dropStrong: "Arraste o arquivo aqui",
     dropHelp: "ou use o botão para procurar no computador.",
     fileLabel: "Arquivo",
     sizeLabel: "Tamanho",
@@ -60,13 +70,38 @@ const text = {
     addRule: "Adicionar regra",
     noFilterHint: "Sem regras, todas as linhas serão exportadas.",
     advancedFilter: "Filtro avançado",
-    validateFilter: "Validar filtro",
+    checkExpression: "Verificar expressão",
     chooseOutputTitle: "Escolha a saída",
     chooseDestination: "Escolher destino",
     format: "Formato",
+    formatCsvTitle: "CSV",
+    formatExcelTitle: "Excel",
+    formatParquetTitle: "Parquet",
     saveAs: "Salvar em",
     chooseSavePlaceholder: "Escolha onde salvar",
-    excelNotice: "Arquivos Excel têm limite de linhas por aba. Se o resultado for muito grande, o DataSlicer dividirá em abas ou arquivos conforme as opções.",
+    derivedColumnsTitle: "Criar novas colunas",
+    derivedColumnsHelp: "Opcional: crie colunas limpas a partir das colunas filtradas.",
+    addDerivedColumn: "Adicionar coluna",
+    noDerivedColumns: "Nenhuma coluna nova será criada.",
+    saveConfig: "Salvar configuração",
+    configSaved: "Configuração salva.",
+    sourceColumn: "Coluna de origem",
+    namePrefix: "Prefixo",
+    nameSuffix: "Sufixo",
+    nameSeparator: "Separador",
+    prefixPlaceholder: "LIMPO",
+    suffixPlaceholder: "FORMATADO",
+    addTransformation: "Adicionar transformação",
+    removeDerivedColumn: "Remover coluna",
+    removeTransformation: "Remover transformação",
+    derivedPosition: "Posição",
+    positionAppend: "No fim da tabela",
+    positionBefore: "Antes de uma coluna",
+    positionAfter: "Depois de uma coluna",
+    positionTarget: "Coluna de referência",
+    newColumn: "Nova coluna",
+    derivedSummaryEmpty: "Escolha uma coluna de origem e uma transformação.",
+    derivedSummary: "Criar coluna `{name}` a partir de `{source}`.",
     advancedOptions: "Opções avançadas",
     columnsToSave: "Colunas para salvar",
     oneColumnPerLine: "Uma coluna por linha",
@@ -93,8 +128,8 @@ const text = {
     opGte: "maior ou igual a",
     opLt: "menor que",
     opLte: "menor ou igual a",
-    opIn: "está na lista",
-    opNotIn: "não está na lista",
+    opIn: "é um destes valores",
+    opNotIn: "não é nenhum destes valores",
     opBetween: "entre",
     opContains: "contém",
     opStartsWith: "começa com",
@@ -107,29 +142,79 @@ const text = {
     opIsNotBlank: "não é branco",
     value: "Valor",
     finalValue: "Valor final",
-    valueList: "valor1, valor2",
+    valueList: "Separe os valores com vírgula",
     typeText: "texto",
     typeNumber: "número",
     typeDate: "data",
     typeBool: "lógico",
     removeRule: "Remover regra",
+    txTrim: "Aparar espaços",
+    txRemoveExtraSpaces: "Remover espaços repetidos",
+    txUppercase: "Maiúsculas",
+    txLowercase: "Minúsculas",
+    txTitleCase: "Título",
+    txReplaceText: "Substituir texto",
+    txAddPrefix: "Adicionar texto antes",
+    txAddSuffix: "Adicionar texto depois",
+    txKeepDigits: "Manter só números",
+    txKeepLetters: "Manter só letras",
+    txRemoveAccents: "Remover acentos",
+    txRemovePunctuation: "Remover pontuação e símbolos",
+    txRemoveSpaces: "Remover espaços",
+    txPadLeft: "Preencher à esquerda",
+    txPadRight: "Preencher à direita",
+    txTakeFirst: "Pegar primeiros caracteres",
+    txTakeLast: "Pegar últimos caracteres",
+    txRemoveFirst: "Remover primeiros caracteres",
+    txRemoveLast: "Remover últimos caracteres",
+    txExtractBefore: "Extrair antes de separador",
+    txExtractAfter: "Extrair depois de separador",
+    txDefaultIfBlank: "Usar padrão se vazio/nulo",
+    txFormatCpf: "Formatar CPF",
+    txFormatCnpj: "Formatar CNPJ",
+    txFormatPhone: "Formatar telefone",
+    transformValue: "Valor",
+    transformNewValue: "Novo valor",
+    transformCount: "Quantidade",
+    transformFill: "Preenchimento",
+    transformSeparator: "Separador",
+    transformDefault: "Valor padrão",
+    filesCreated: "Arquivos gerados",
+    rowsSaved: "Linhas salvas",
+    filesProcessed: "Arquivos processados",
+    warnings: "Avisos",
+    filesFailed: "Não foi possível processar",
+    queuePartialDone: "Alguns arquivos foram gerados, mas outros precisam de atenção.",
+    queueAllFailed: "Nenhum arquivo foi gerado. Veja os itens que precisam de atenção.",
+    technicalDetails: "Detalhes técnicos",
+    likelyCause: "Provável causa",
+    nextStep: "Próximo passo",
+    zipPasswordNeeded: "Este ZIP precisa de senha.",
+    zipPasswordAsk: "Digite a senha do ZIP para tentar novamente.",
+    reviewAndTryAgain: "Revise as informações acima e tente novamente.",
   },
   "en-US": {
     readyTitle: "Ready",
-    readyText: "Choose a CSV file to begin.",
+    readyText: "Choose an input file to begin.",
     inspecting: "Reading file...",
     validating: "Validating filter...",
     valid: "Filter is valid.",
     running: "Creating output file...",
     done: "Output file created.",
     error: "Something needs attention.",
-    chooseCsv: "Choose a CSV file.",
+    chooseCsv: "Choose an input file.",
     chooseOutput: "Choose where to save the result.",
     noColumns: "Choose a file to load columns.",
-    droppedFileNeedsPicker: "Use Browse CSV so the app can access the full file path.",
+    droppedFileNeedsPicker: "Use Browse file so the app can access the full file path.",
     noFile: "No file selected",
     columnsLoaded: "columns loaded.",
     columnSearchPlaceholder: "Search column",
+    inputQueue: "Files in queue",
+    zipPasswords: "ZIP passwords",
+    onePasswordPerLine: "One password per line",
+    allExcelSheets: "Process all Excel sheets",
+    reuseSchema: "Reuse the first file schema",
+    deleteZipAfterExtract: "Delete ZIP after successful extraction",
     rowsWritten: "rows written.",
     bridgeNotReady: "The Python bridge is not ready yet.",
     bridgeWaiting: "Waiting for the Python bridge.",
@@ -143,8 +228,8 @@ const text = {
     stageThree: "Step 3",
     stageFour: "Step 4",
     chooseFile: "Choose the file",
-    browseCsv: "Browse CSV",
-    dropStrong: "Drop the CSV here",
+    browseInput: "Browse file",
+    dropStrong: "Drop the file here",
     dropHelp: "or use the button to browse your computer.",
     fileLabel: "File",
     sizeLabel: "Size",
@@ -163,13 +248,38 @@ const text = {
     addRule: "Add rule",
     noFilterHint: "With no rules, all rows will be exported.",
     advancedFilter: "Advanced filter",
-    validateFilter: "Validate filter",
+    checkExpression: "Check expression",
     chooseOutputTitle: "Choose the output",
     chooseDestination: "Choose destination",
     format: "Format",
+    formatCsvTitle: "CSV",
+    formatExcelTitle: "Excel",
+    formatParquetTitle: "Parquet",
     saveAs: "Save as",
     chooseSavePlaceholder: "Choose where to save",
-    excelNotice: "Excel files have row limits per sheet. If the result is very large, DataSlicer will split it across sheets or files according to the options.",
+    derivedColumnsTitle: "Create new columns",
+    derivedColumnsHelp: "Optional: create cleaned columns from filtered columns.",
+    addDerivedColumn: "Add column",
+    noDerivedColumns: "No new column will be created.",
+    saveConfig: "Save configuration",
+    configSaved: "Configuration saved.",
+    sourceColumn: "Source column",
+    namePrefix: "Prefix",
+    nameSuffix: "Suffix",
+    nameSeparator: "Separator",
+    prefixPlaceholder: "CLEAN",
+    suffixPlaceholder: "FORMATTED",
+    addTransformation: "Add transformation",
+    removeDerivedColumn: "Remove column",
+    removeTransformation: "Remove transformation",
+    derivedPosition: "Position",
+    positionAppend: "At the end of the table",
+    positionBefore: "Before a column",
+    positionAfter: "After a column",
+    positionTarget: "Reference column",
+    newColumn: "New column",
+    derivedSummaryEmpty: "Choose a source column and a transformation.",
+    derivedSummary: "Create column `{name}` from `{source}`.",
     advancedOptions: "Advanced options",
     columnsToSave: "Columns to save",
     oneColumnPerLine: "One column per line",
@@ -196,8 +306,8 @@ const text = {
     opGte: "greater than or equal",
     opLt: "less than",
     opLte: "less than or equal",
-    opIn: "is in list",
-    opNotIn: "is not in list",
+    opIn: "is one of these values",
+    opNotIn: "is none of these values",
     opBetween: "between",
     opContains: "contains",
     opStartsWith: "starts with",
@@ -210,12 +320,56 @@ const text = {
     opIsNotBlank: "is not blank",
     value: "Value",
     finalValue: "Final value",
-    valueList: "value1, value2",
+    valueList: "Separate values with commas",
     typeText: "text",
     typeNumber: "number",
     typeDate: "date",
     typeBool: "boolean",
     removeRule: "Remove rule",
+    txTrim: "Trim spaces",
+    txRemoveExtraSpaces: "Remove repeated spaces",
+    txUppercase: "Uppercase",
+    txLowercase: "Lowercase",
+    txTitleCase: "Title Case",
+    txReplaceText: "Replace text",
+    txAddPrefix: "Add text before",
+    txAddSuffix: "Add text after",
+    txKeepDigits: "Keep only numbers",
+    txKeepLetters: "Keep only letters",
+    txRemoveAccents: "Remove accents",
+    txRemovePunctuation: "Remove punctuation and symbols",
+    txRemoveSpaces: "Remove spaces",
+    txPadLeft: "Pad left",
+    txPadRight: "Pad right",
+    txTakeFirst: "Take first characters",
+    txTakeLast: "Take last characters",
+    txRemoveFirst: "Remove first characters",
+    txRemoveLast: "Remove last characters",
+    txExtractBefore: "Extract before separator",
+    txExtractAfter: "Extract after separator",
+    txDefaultIfBlank: "Use default when empty/null",
+    txFormatCpf: "Format CPF",
+    txFormatCnpj: "Format CNPJ",
+    txFormatPhone: "Format phone",
+    transformValue: "Value",
+    transformNewValue: "New value",
+    transformCount: "Count",
+    transformFill: "Fill",
+    transformSeparator: "Separator",
+    transformDefault: "Default value",
+    filesCreated: "Files created",
+    rowsSaved: "Rows saved",
+    filesProcessed: "Files processed",
+    warnings: "Warnings",
+    filesFailed: "Could not process",
+    queuePartialDone: "Some files were created, but others need attention.",
+    queueAllFailed: "No file was created. Review the items that need attention.",
+    technicalDetails: "Technical details",
+    likelyCause: "Likely cause",
+    nextStep: "Next step",
+    zipPasswordNeeded: "This ZIP needs a password.",
+    zipPasswordAsk: "Enter the ZIP password to try again.",
+    reviewAndTryAgain: "Review the information above and try again.",
   },
 };
 
@@ -234,14 +388,42 @@ function setStatus(title, detail, variant = "idle") {
 }
 
 function showDetails(value) {
+  const detailsWrapper = byId("technicalDetails");
   const details = byId("detailsBox");
   if (!value) {
-    details.classList.add("hidden");
+    detailsWrapper.classList.add("hidden");
     details.textContent = "";
     return;
   }
   details.textContent = typeof value === "string" ? value : JSON.stringify(value, null, 2);
-  details.classList.remove("hidden");
+  detailsWrapper.classList.remove("hidden");
+}
+
+function escapeHtml(value) {
+  return String(value)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+function showFriendlyError(error) {
+  const box = byId("friendlyErrorBox");
+  if (!error) {
+    box.classList.add("hidden");
+    box.innerHTML = "";
+    return;
+  }
+  const message = error.message || t("error");
+  const isZipPassword = error.type === "ZipPasswordRequiredError" || String(message).toLowerCase().includes("zip");
+  const cause = isZipPassword ? t("zipPasswordNeeded") : message;
+  const next = isZipPassword ? t("zipPasswordAsk") : t("reviewAndTryAgain");
+  box.innerHTML = `
+    <strong>${escapeHtml(message)}</strong>
+    <p><b>${t("likelyCause")}:</b> ${escapeHtml(cause)}</p>
+    <p><b>${t("nextStep")}:</b> ${escapeHtml(next)}</p>
+  `;
+  box.classList.remove("hidden");
 }
 
 function handleResponse(response) {
@@ -250,8 +432,49 @@ function handleResponse(response) {
   }
   const error = response && response.error ? response.error : { message: t("error") };
   setStatus(t("error"), error.message, "error");
+  showFriendlyError(error);
   showDetails(error.details || error);
-  throw new Error(error.message);
+  const thrown = new Error(error.message);
+  Object.assign(thrown, error);
+  throw thrown;
+}
+
+function bridgeUnavailableResponse() {
+  return Promise.resolve({
+    ok: false,
+    error: {
+      message: t("bridgeNotReady"),
+      details: t("bridgeWaiting"),
+    },
+  });
+}
+
+function createBrowserFallbackApi() {
+  return {
+    get_app_info: () =>
+      Promise.resolve({
+        ok: true,
+        data: {
+          version: "",
+          language: state.language,
+          output_formats: ["csv", "xlsx", "parquet"],
+        },
+      }),
+    set_language: (language) => {
+      state.language = language;
+      return Promise.resolve({ ok: true, data: { language } });
+    },
+    choose_input_files: bridgeUnavailableResponse,
+    choose_output_file: bridgeUnavailableResponse,
+    choose_report_file: bridgeUnavailableResponse,
+    choose_rejects_file: bridgeUnavailableResponse,
+    save_config: bridgeUnavailableResponse,
+    inspect_csv: bridgeUnavailableResponse,
+    validate_filter: bridgeUnavailableResponse,
+    start_filter_run: bridgeUnavailableResponse,
+    get_job_status: bridgeUnavailableResponse,
+    open_output_folder: bridgeUnavailableResponse,
+  };
 }
 
 function linesFromTextarea(id) {
@@ -262,8 +485,15 @@ function linesFromTextarea(id) {
 }
 
 function setInputPath(path) {
-  state.inputPath = path || "";
+  setInputPaths(path ? [path] : []);
+}
+
+function setInputPaths(paths) {
+  state.inputPaths = (paths || []).filter(Boolean);
+  state.inputPath = state.inputPaths[0] || "";
   byId("inputPathText").textContent = state.inputPath || t("noFile");
+  renderQueue();
+  showInputWarnings([]);
 }
 
 function setOutputPath(path) {
@@ -285,7 +515,10 @@ function applyLanguage() {
     byId("inputPathText").textContent = t("noFile");
   }
   document.querySelectorAll(".filter-column").forEach((input) => updateColumnOptions(input));
+  document.querySelectorAll(".derived-transform-row").forEach(updateTransformRow);
+  document.querySelectorAll(".derived-column-card").forEach(updateDerivedCard);
   updateFilterHint();
+  updateDerivedEmptyState();
 }
 
 function updateFilterHint() {
@@ -297,6 +530,44 @@ function setColumns(columns) {
   state.columns = columns || [];
   byId("columnCountText").textContent = state.columns.length ? String(state.columns.length) : "-";
   document.querySelectorAll(".filter-column").forEach((input) => updateColumnOptions(input));
+}
+
+function renderQueue(inputs = state.resolvedInputs) {
+  const panel = byId("queuePanel");
+  const list = byId("queueList");
+  const items = inputs && inputs.length ? inputs : state.inputPaths.map((path) => ({ label: path, format: "" }));
+  list.innerHTML = "";
+  if (!items.length) {
+    panel.classList.add("hidden");
+    return;
+  }
+  items.forEach((item, index) => {
+    const row = document.createElement("div");
+    row.className = "queue-item";
+    const label = item.label || item.display_name || item.source_path || item.path;
+    const meta = [item.format, item.excel_sheet ? `aba: ${item.excel_sheet}` : "", item.zip_source ? "ZIP" : ""]
+      .filter(Boolean)
+      .join(" · ");
+    row.innerHTML = `<strong>${index + 1}. ${escapeHtml(label)}</strong><span>${escapeHtml(meta)}</span>`;
+    list.appendChild(row);
+  });
+  panel.classList.remove("hidden");
+}
+
+function showInputWarnings(warnings = []) {
+  const panel = byId("inputWarningsPanel");
+  const list = byId("inputWarningsList");
+  list.innerHTML = "";
+  if (!warnings.length) {
+    panel.classList.add("hidden");
+    return;
+  }
+  warnings.forEach((warning) => {
+    const item = document.createElement("li");
+    item.textContent = warning;
+    list.appendChild(item);
+  });
+  panel.classList.remove("hidden");
 }
 
 function prepareColumnSearch(input) {
@@ -601,12 +872,206 @@ function visualConditions() {
   }));
 }
 
+function formatDerivedName(source, prefix, suffix, separator) {
+  if (!source) {
+    return t("newColumn");
+  }
+  const before = prefix ? `${prefix}${separator && !prefix.endsWith(separator) ? separator : ""}` : "";
+  const after = suffix ? `${separator && !suffix.startsWith(separator) ? separator : ""}${suffix}` : "";
+  return `${before}${source}${after}`;
+}
+
+function visualDerivedColumns() {
+  return Array.from(document.querySelectorAll(".derived-column-card")).map((card) => {
+    const source = card.querySelector(".derived-source-column").value.trim();
+    const prefix = card.querySelector(".derived-prefix").value.trim();
+    const suffix = card.querySelector(".derived-suffix").value.trim();
+    const separator = card.querySelector(".derived-separator").value;
+    const mode = card.querySelector(".derived-position-mode").value;
+    const target = card.querySelector(".derived-position-target").value.trim();
+    const transforms = Array.from(card.querySelectorAll(".derived-transform-row")).map(transformPayload);
+    return {
+      source,
+      name: { prefix, suffix, separator },
+      position: { mode, target },
+      transforms,
+    };
+  });
+}
+
+function transformPayload(row) {
+  const operation = row.querySelector(".derived-transform-operation").value;
+  const value = row.querySelector(".derived-transform-value").value;
+  const extra = row.querySelector(".derived-transform-extra").value;
+  if (operation === "replace_text") {
+    return { operation, old: value, new: extra };
+  }
+  if (["pad_left", "pad_right"].includes(operation)) {
+    return { operation, count: value, fill: extra || " " };
+  }
+  if (["take_first", "take_last", "remove_first", "remove_last"].includes(operation)) {
+    return { operation, count: value };
+  }
+  if (["add_prefix", "add_suffix", "extract_before", "extract_after", "default_if_blank"].includes(operation)) {
+    return { operation, text: value };
+  }
+  return { operation };
+}
+
+function addDerivedColumn(initial = {}) {
+  const template = byId("derivedColumnTemplate");
+  const card = template.content.firstElementChild.cloneNode(true);
+  state.derivedColumnId += 1;
+  card.dataset.derivedId = String(state.derivedColumnId);
+  const source = card.querySelector(".derived-source-column");
+  const target = card.querySelector(".derived-position-target");
+  [source, target].forEach((input) => bindColumnSearchInput(input, () => updateDerivedCard(card)));
+  if (initial.source) source.value = initial.source;
+  card.querySelector(".derived-prefix").value = initial.name?.prefix || "";
+  card.querySelector(".derived-suffix").value = initial.name?.suffix || "";
+  card.querySelector(".derived-separator").value = initial.name?.separator ?? "_";
+  card.querySelector(".derived-position-mode").value = initial.position?.mode || "append";
+  card.querySelector(".derived-position-target").value = initial.position?.target || "";
+  card.querySelector(".remove-derived-column").addEventListener("click", () => {
+    card.remove();
+    updateDerivedEmptyState();
+  });
+  card.querySelector(".add-derived-transform").addEventListener("click", () => addDerivedTransform(card));
+  card.querySelectorAll(".derived-prefix, .derived-suffix, .derived-separator, .derived-position-mode").forEach((input) => {
+    input.addEventListener("input", () => updateDerivedCard(card));
+    input.addEventListener("change", () => updateDerivedCard(card));
+  });
+  byId("derivedColumnsList").appendChild(card);
+  (initial.transforms || [{ operation: "trim" }]).forEach((transform) => addDerivedTransform(card, transform));
+  applyLanguage();
+  updateDerivedCard(card);
+  updateDerivedEmptyState();
+}
+
+function addDerivedTransform(card, initial = {}) {
+  const template = byId("derivedTransformTemplate");
+  const row = template.content.firstElementChild.cloneNode(true);
+  const operation = row.querySelector(".derived-transform-operation");
+  const value = row.querySelector(".derived-transform-value");
+  const extra = row.querySelector(".derived-transform-extra");
+  operation.value = initial.operation || "trim";
+  value.value = initial.text || initial.old || initial.count || "";
+  extra.value = initial.new || initial.fill || "";
+  operation.addEventListener("change", () => {
+    updateTransformRow(row);
+    updateDerivedCard(card);
+  });
+  [value, extra].forEach((input) => input.addEventListener("input", () => updateDerivedCard(card)));
+  row.querySelector(".remove-derived-transform").addEventListener("click", () => {
+    row.remove();
+    updateDerivedCard(card);
+  });
+  card.querySelector(".derived-transforms").appendChild(row);
+  updateTransformRow(row);
+  updateDerivedCard(card);
+}
+
+function updateTransformRow(row) {
+  const operation = row.querySelector(".derived-transform-operation").value;
+  const value = row.querySelector(".derived-transform-value");
+  const extra = row.querySelector(".derived-transform-extra");
+  const noValue = [
+    "trim",
+    "remove_extra_spaces",
+    "uppercase",
+    "lowercase",
+    "title_case",
+    "keep_digits",
+    "keep_letters",
+    "remove_accents",
+    "remove_punctuation",
+    "remove_spaces",
+    "format_cpf",
+    "format_cnpj",
+    "format_phone",
+  ].includes(operation);
+  value.classList.toggle("hidden", noValue);
+  extra.classList.toggle("hidden", noValue || !["replace_text", "pad_left", "pad_right"].includes(operation));
+  if (operation === "replace_text") {
+    value.placeholder = t("transformValue");
+    extra.placeholder = t("transformNewValue");
+  } else if (["pad_left", "pad_right"].includes(operation)) {
+    value.placeholder = t("transformCount");
+    extra.placeholder = t("transformFill");
+  } else if (["take_first", "take_last", "remove_first", "remove_last"].includes(operation)) {
+    value.placeholder = t("transformCount");
+  } else if (["extract_before", "extract_after"].includes(operation)) {
+    value.placeholder = t("transformSeparator");
+  } else if (operation === "default_if_blank") {
+    value.placeholder = t("transformDefault");
+  } else {
+    value.placeholder = t("transformValue");
+  }
+}
+
+function updateDerivedCard(card) {
+  const source = card.querySelector(".derived-source-column").value.trim();
+  const name = formatDerivedName(
+    source,
+    card.querySelector(".derived-prefix").value.trim(),
+    card.querySelector(".derived-suffix").value.trim(),
+    card.querySelector(".derived-separator").value,
+  );
+  card.querySelector(".derived-preview").textContent = name;
+  const transformLabels = Array.from(card.querySelectorAll(".derived-transform-operation"))
+    .map((select) => select.options[select.selectedIndex]?.textContent.trim())
+    .filter(Boolean);
+  const summary = source
+    ? t("derivedSummary").replace("{name}", name).replace("{source}", source)
+    : t("derivedSummaryEmpty");
+  card.querySelector(".derived-summary").textContent = transformLabels.length
+    ? `${summary} ${transformLabels.join(", ")}.`
+    : summary;
+}
+
+function updateDerivedEmptyState() {
+  byId("noDerivedColumnsText").classList.toggle("hidden", Boolean(document.querySelector(".derived-column-card")));
+}
+
+function bindColumnSearchInput(input, onChange) {
+  prepareColumnSearch(input);
+  updateColumnOptions(input);
+  input.addEventListener("focus", () => updateColumnOptions(input));
+  input.addEventListener("input", () => {
+    updateColumnOptions(input);
+    onChange();
+  });
+  input.addEventListener("keydown", (event) => {
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      moveColumnSuggestion(input, 1);
+    } else if (event.key === "ArrowUp") {
+      event.preventDefault();
+      moveColumnSuggestion(input, -1);
+    } else if (event.key === "Enter") {
+      event.preventDefault();
+      chooseActiveColumnSuggestion(input) || chooseFirstColumnSuggestion(input);
+      onChange();
+    } else if (event.key === "Tab") {
+      event.preventDefault();
+      moveColumnSuggestion(input, event.shiftKey ? -1 : 1);
+    } else if (event.key === "Escape") {
+      closeColumnSuggestions(input);
+    }
+  });
+  input.addEventListener("blur", () => {
+    setTimeout(() => closeColumnSuggestions(input), 120);
+  });
+  input.addEventListener("change", onChange);
+}
+
 function payload() {
   const format = byId("formatSelect").value;
   const rawFilter = byId("rawFilterInput").value.trim();
   const nullValue = byId("nullValueInput").value;
   return {
     input_path: state.inputPath,
+    input_paths: state.inputPaths,
     output_path: byId("outputPathInput").value.trim(),
     output_format: format,
     filters:
@@ -614,11 +1079,16 @@ function payload() {
         ? { mode: "raw", raw: rawFilter }
         : { mode: "visual", combine: byId("combineSelect").value, conditions: visualConditions() },
     select: linesFromTextarea("selectColumnsInput"),
+    derived_columns: visualDerivedColumns(),
     renames: linesFromTextarea("renamesInput"),
     dedupe: byId("dedupeInput").checked,
     dedupe_keys: linesFromTextarea("dedupeKeyInput"),
     sort: linesFromTextarea("sortInput"),
     case_insensitive_columns: byId("caseInsensitiveInput").checked,
+    zip_passwords: linesFromTextarea("zipPasswordsInput"),
+    all_excel_sheets: byId("allExcelSheetsInput").checked,
+    reuse_schema: byId("reuseSchemaInput").checked,
+    delete_zip_after_extract: byId("deleteZipInput").checked,
     report_path: byId("reportPathInput").value.trim(),
     rejects_path: byId("rejectsPathInput").value.trim(),
     csv_options: {
@@ -636,10 +1106,18 @@ async function inspectInput() {
   }
   setStatus(t("readyTitle"), t("inspecting"), "running");
   showDetails("");
-  const data = handleResponse(await state.api.inspect_csv(payload()));
-  byId("inputSizeText").textContent = formatBytes(data.size_bytes);
-  setColumns(data.columns);
-  setStatus(t("readyTitle"), `${data.columns.length} ${t("columnsLoaded")}`, "done");
+  showFriendlyError(null);
+  try {
+    const data = handleResponse(await state.api.inspect_csv(payload()));
+    byId("inputSizeText").textContent = formatBytes(data.size_bytes);
+    state.resolvedInputs = data.inputs || [];
+    renderQueue();
+    showInputWarnings(data.warnings || []);
+    setColumns(data.columns);
+    setStatus(t("readyTitle"), `${data.columns.length} ${t("columnsLoaded")}`, "done");
+  } catch (error) {
+    await maybePromptForZipPasswordAndRetryInspect(error);
+  }
 }
 
 async function validateFilter() {
@@ -665,14 +1143,55 @@ async function runFilter() {
   }
   setStatus(t("readyTitle"), t("running"), "running");
   showDetails("");
+  showFriendlyError(null);
+  resetResultCards();
   byId("runBtn").disabled = true;
   byId("openFolderBtn").classList.add("hidden");
   try {
     const data = handleResponse(await state.api.start_filter_run(payload()));
     pollJob(data.job_id);
-  } catch (_error) {
-    byId("runBtn").disabled = false;
+  } catch (error) {
+    const retried = await maybePromptForZipPasswordAndRetry(error);
+    if (!retried) {
+      byId("runBtn").disabled = false;
+    }
   }
+}
+
+async function maybePromptForZipPasswordAndRetry(error) {
+  if (await promptForZipPassword(error)) {
+    await runFilter();
+    return true;
+  }
+  return false;
+}
+
+async function maybePromptForZipPasswordAndRetryInspect(error) {
+  if (await promptForZipPassword(error)) {
+    await inspectInput();
+    return true;
+  }
+  return false;
+}
+
+async function promptForZipPassword(error) {
+  if (!isZipPasswordError(error)) {
+    return false;
+  }
+  const password = window.prompt(t("zipPasswordAsk"));
+  if (!password) {
+    return false;
+  }
+  const field = byId("zipPasswordsInput");
+  field.value = field.value ? `${field.value}\n${password}` : password;
+  return true;
+}
+
+function isZipPasswordError(error) {
+  if (!error) {
+    return false;
+  }
+  return error.type === "ZipPasswordRequiredError" || String(error.message || error).toLowerCase().includes("zip");
 }
 
 function pollJob(jobId) {
@@ -695,7 +1214,13 @@ function pollJob(jobId) {
 function updateJobStatus(job) {
   if (job.error) {
     setStatus(t("error"), job.error.message, "error");
+    showFriendlyError(job.error);
     showDetails(job.error.details || job.error);
+    if (isZipPasswordError(job.error)) {
+      setTimeout(() => {
+        maybePromptForZipPasswordAndRetry(job.error);
+      }, 50);
+    }
     return;
   }
   if (job.running) {
@@ -704,11 +1229,69 @@ function updateJobStatus(job) {
   }
   const report = job.report || {};
   state.outputPaths = report.output_paths || [];
+  const failed = report.failed_inputs || (report.errors || []).length || 0;
+  if (failed) {
+    const message = state.outputPaths.length ? t("queuePartialDone") : t("queueAllFailed");
+    setStatus(t("error"), message, "error");
+    showFriendlyError({
+      message,
+      details: JSON.stringify(report.errors || report, null, 2),
+    });
+    showResultCards(report);
+    showDetails(report);
+    if (state.outputPaths.length) {
+      byId("openFolderBtn").classList.remove("hidden");
+    }
+    return;
+  }
   setStatus(t("readyTitle"), `${t("done")} ${report.output_rows || 0} ${t("rowsWritten")}`, "done");
+  showResultCards(report);
   showDetails(report);
   if (state.outputPaths.length) {
     byId("openFolderBtn").classList.remove("hidden");
   }
+}
+
+function resetResultCards() {
+  byId("resultCards").classList.add("hidden");
+  byId("outputList").classList.add("hidden");
+  byId("outputList").innerHTML = "";
+  ["filesCreatedValue", "rowsSavedValue", "filesProcessedValue", "warningsValue", "filesFailedValue"].forEach((id) => {
+    byId(id).textContent = "0";
+  });
+}
+
+function showResultCards(report) {
+  const paths = report.output_paths || [];
+  const runs = report.runs || [];
+  const warnings = report.warnings || [];
+  const failed = report.failed_inputs || (report.errors || []).length || 0;
+  byId("filesCreatedValue").textContent = String(paths.length);
+  byId("rowsSavedValue").textContent = String(report.output_rows || 0);
+  byId("filesProcessedValue").textContent = String(report.processed_inputs || (runs.length || (paths.length ? 1 : 0)));
+  byId("warningsValue").textContent = String(warnings.length);
+  byId("filesFailedValue").textContent = String(failed);
+  byId("resultCards").classList.remove("hidden");
+
+  const outputList = byId("outputList");
+  outputList.innerHTML = "";
+  paths.forEach((path) => {
+    const row = document.createElement("button");
+    row.type = "button";
+    row.className = "output-row";
+    row.textContent = path;
+    row.addEventListener("click", async () => handleResponse(await state.api.open_output_folder(path)));
+    outputList.appendChild(row);
+  });
+  (report.errors || []).forEach((error) => {
+    const row = document.createElement("div");
+    row.className = "output-row output-error";
+    const source = error.input_path ? `<strong>${escapeHtml(error.input_path)}</strong>` : "";
+    const message = escapeHtml(error.message || t("error"));
+    row.innerHTML = `${source}<span>${message}</span>`;
+    outputList.appendChild(row);
+  });
+  outputList.classList.toggle("hidden", !paths.length && !(report.errors || []).length);
 }
 
 function phaseLabel(phase) {
@@ -742,6 +1325,16 @@ function setFilterMode(mode) {
   byId("advancedFilterPanel").classList.toggle("hidden", mode !== "advanced");
 }
 
+function setOutputFormat(format) {
+  byId("formatSelect").value = format;
+  document.querySelectorAll("[data-format-card]").forEach((card) => {
+    const active = card.dataset.formatCard === format;
+    card.classList.toggle("active", active);
+    card.setAttribute("aria-pressed", active ? "true" : "false");
+  });
+  syncOutputSuffixWithFormat();
+}
+
 function syncOutputSuffixWithFormat() {
   const input = byId("outputPathInput");
   const path = input.value.trim();
@@ -749,17 +1342,24 @@ function syncOutputSuffixWithFormat() {
   if (!path) {
     return;
   }
-  const expectedSuffix = format === "xlsx" ? ".xlsx" : ".csv";
-  if (/\.(csv|xlsx)$/i.test(path) && !path.toLowerCase().endsWith(expectedSuffix)) {
-    setOutputPath(path.replace(/\.(csv|xlsx)$/i, expectedSuffix));
+  const suffixes = { csv: ".csv", xlsx: ".xlsx", parquet: ".parquet" };
+  const expectedSuffix = suffixes[format] || ".csv";
+  if (/\.(csv|xlsx|parquet)$/i.test(path) && !path.toLowerCase().endsWith(expectedSuffix)) {
+    setOutputPath(path.replace(/\.(csv|xlsx|parquet)$/i, expectedSuffix));
   }
 }
 
 function bindEvents() {
+  if (state.eventsBound) {
+    return;
+  }
+  state.eventsBound = true;
+
   byId("browseInputBtn").addEventListener("click", async () => {
-    const data = handleResponse(await state.api.choose_input_csv());
-    if (data.path) {
-      setInputPath(data.path);
+    const data = handleResponse(await state.api.choose_input_files());
+    const paths = data.paths && data.paths.length ? data.paths : data.path ? [data.path] : [];
+    if (paths.length) {
+      setInputPaths(paths);
       await inspectInput();
     }
   });
@@ -779,15 +1379,22 @@ function bindEvents() {
     if (data.path) byId("rejectsPathInput").value = data.path;
   });
 
-  byId("formatSelect").addEventListener("change", () => {
-    byId("excelNotice").classList.toggle("hidden", byId("formatSelect").value !== "xlsx");
-    syncOutputSuffixWithFormat();
+  byId("formatSelect").addEventListener("change", () => setOutputFormat(byId("formatSelect").value));
+  document.querySelectorAll("[data-format-card]").forEach((card) => {
+    card.addEventListener("click", () => setOutputFormat(card.dataset.formatCard));
   });
 
   byId("addFilterBtn").addEventListener("click", () => addFilterRow());
+  byId("addDerivedColumnBtn").addEventListener("click", () => addDerivedColumn());
+  byId("saveConfigBtn").addEventListener("click", async () => {
+    const data = handleResponse(await state.api.save_config(payload()));
+    if (data.path) {
+      setStatus(t("readyTitle"), `${t("configSaved")} ${data.path}`, "done");
+    }
+  });
   byId("visualTab").addEventListener("click", () => setFilterMode("visual"));
   byId("advancedTab").addEventListener("click", () => setFilterMode("advanced"));
-  byId("validateBtn").addEventListener("click", validateFilter);
+  byId("checkExpressionBtn").addEventListener("click", validateFilter);
   byId("runBtn").addEventListener("click", runFilter);
   byId("resetBtn").addEventListener("click", () => window.location.reload());
 
@@ -812,10 +1419,11 @@ function bindEvents() {
   dropZone.addEventListener("drop", async (event) => {
     event.preventDefault();
     dropZone.classList.remove("dragging");
-    const file = event.dataTransfer.files[0];
-    const path = file && (file.path || file.pywebviewFullPath);
-    if (path) {
-      setInputPath(path);
+    const paths = Array.from(event.dataTransfer.files || [])
+      .map((file) => file && (file.path || file.pywebviewFullPath))
+      .filter(Boolean);
+    if (paths.length) {
+      setInputPaths(paths);
       await inspectInput();
     } else {
       setStatus(t("readyTitle"), t("droppedFileNeedsPicker"));
@@ -828,10 +1436,15 @@ function bindEvents() {
       link.classList.add("active");
     });
   });
+  setOutputFormat(byId("formatSelect").value || "csv");
+  updateDerivedEmptyState();
 }
 
 async function initialize() {
   if (!window.pywebview || !window.pywebview.api) {
+    state.api = createBrowserFallbackApi();
+    applyLanguage();
+    bindEvents();
     setStatus("Pywebview", t("bridgeNotReady"), "error");
     return;
   }
@@ -849,6 +1462,9 @@ window.addEventListener("pywebviewready", initialize);
 window.addEventListener("load", () => {
   setTimeout(() => {
     if (!state.api) {
+      state.api = createBrowserFallbackApi();
+      applyLanguage();
+      bindEvents();
       setStatus("Pywebview", t("bridgeWaiting"), "running");
     }
   }, 600);

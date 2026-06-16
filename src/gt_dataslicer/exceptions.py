@@ -33,6 +33,18 @@ class CsvReadError(DataSlicerError):
     exit_code = 3
 
 
+class InputReadError(DataSlicerError):
+    """Raised when an input file cannot be resolved or read."""
+
+    exit_code = 3
+
+
+class ZipPasswordRequiredError(InputReadError):
+    """Raised when a ZIP archive needs a password that was not provided."""
+
+    exit_code = 3
+
+
 class QueryExecutionError(DataSlicerError):
     """Raised when DuckDB cannot execute the compiled query."""
 

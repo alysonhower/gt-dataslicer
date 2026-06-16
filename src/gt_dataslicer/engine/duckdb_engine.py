@@ -10,12 +10,15 @@ from typing import Any, Callable
 import duckdb
 
 from ..config import CsvOptions, FilterRunOptions, LookupSpec, SortSpec
+from ..derived import build_projection
 from ..exceptions import CsvReadError, FilterValidationError, QueryExecutionError
 from ..export.csv import CsvExportOptions, export_query_to_csv
 from ..export.excel import ExcelExportOptions, batched_rows, export_rows_to_xlsx
+from ..export.parquet import ParquetExportOptions, export_query_to_parquet
 from ..filters.compiler import CompileContext, LookupBinding, compile_filter, quote_identifier, quote_literal
 from ..filters.parser import combine_filters
 from ..i18n import tr
+from ..inputs import ResolvedInput, source_expression
 from ..report import RunReport
 
 
@@ -34,10 +37,17 @@ class DuckDBEngine:
 
     def inspect_csv(self, path: Path, csv_options: CsvOptions, *, typed_mode: bool = False) -> CsvSchema:
         source = self._read_csv_expr(path, csv_options, typed_mode=typed_mode)
+        return self._inspect_source(source, path)
+
+    def inspect_input(self, input_: ResolvedInput, csv_options: CsvOptions, *, typed_mode: bool = False) -> CsvSchema:
+        source = self._source_expr(input_, csv_options, typed_mode=typed_mode)
+        return self._inspect_source(source, input_.source_path)
+
+    def _inspect_source(self, source: str, path: Path) -> CsvSchema:
         try:
             description = self.connection.execute(f"DESCRIBE SELECT * FROM {source}").fetchall()
         except Exception as exc:  # noqa: BLE001
-            raise CsvReadError(f"Could not inspect CSV {path}: {exc}") from exc
+            raise CsvReadError(f"Could not inspect input {path}: {exc}") from exc
         columns = {row[0]: row[0] for row in description}
         types = {row[0]: str(row[1]) for row in description}
         return CsvSchema(columns=columns, types=types)
@@ -50,9 +60,22 @@ class DuckDBEngine:
     def resolve_column_types(self, schema: CsvSchema, options: FilterRunOptions) -> dict[str, str]:
         return self._resolve_column_types(schema, options)
 
-    def run_filter(self, options: FilterRunOptions, progress: Callable[[str], None] | None = None) -> RunReport:
+    def run_filter(
+        self,
+        options: FilterRunOptions,
+        progress: Callable[[str], None] | None = None,
+        *,
+        schema_override: CsvSchema | None = None,
+        column_types_override: dict[str, str] | None = None,
+    ) -> RunReport:
+        input_ = options.resolved_input or ResolvedInput(
+            path=options.input_path,
+            format="csv",
+            display_name=options.input_path.stem,
+            source_path=options.input_path,
+        )
         report = RunReport(
-            input_path=str(options.input_path),
+            input_path=input_.source_label,
             applied_filters=options.where,
             selected_columns=options.select,
             renamed_columns=options.renames,
@@ -60,6 +83,9 @@ class DuckDBEngine:
                 "typed_mode": options.typed_mode,
                 "strict_values": options.strict_values,
                 "output_format": options.output_format,
+                "input_format": input_.format,
+                "excel_sheet": input_.excel_sheet,
+                "zip_source": str(input_.zip_source) if input_.zip_source is not None else None,
                 "split_mode": options.split_mode,
                 "max_rows_per_sheet": options.max_rows_per_sheet,
             },
@@ -68,9 +94,9 @@ class DuckDBEngine:
 
         if progress is not None:
             progress("inspecting")
-        schema = self.inspect_csv(options.input_path, options.csv, typed_mode=options.typed_mode)
+        schema = schema_override or self.inspect_input(input_, options.csv, typed_mode=options.typed_mode)
         report.schema = schema.types
-        column_types = self.resolve_column_types(schema, options)
+        column_types = column_types_override or self.resolve_column_types(schema, options)
 
         if progress is not None:
             progress("validating")
@@ -91,12 +117,23 @@ class DuckDBEngine:
         resolved_renames = self._resolve_renames(schema, options.renames, options.case_insensitive_columns)
         report.renamed_columns = resolved_renames
         output_columns = [resolved_renames.get(column, column) for column in selected_columns]
-        query = self._build_query(
-            input_path=options.input_path,
-            csv_options=options.csv,
-            typed_mode=options.typed_mode,
+        projection = build_projection(
+            schema_columns=schema.columns,
             selected_columns=selected_columns,
             output_columns=output_columns,
+            derived_columns=options.derived_columns,
+            case_insensitive_columns=options.case_insensitive_columns,
+        )
+        report.engine_options["derived_columns"] = [
+            {"source": item.source_column, "output": item.output_name}
+            for item in projection.derived_columns
+        ]
+        query = self._build_query(
+            input_=input_,
+            csv_options=options.csv,
+            typed_mode=options.typed_mode,
+            select_items=projection.select_items,
+            required_columns=projection.required_source_columns,
             where_sql=compiled.sql,
             dedupe=options.dedupe,
             dedupe_keys=self._resolve_named_list(schema, options.dedupe_keys, options.case_insensitive_columns),
@@ -117,7 +154,7 @@ class DuckDBEngine:
             if progress is not None:
                 progress("exporting")
             if options.report_path is not None:
-                report.input_rows = self._count_rows(options.input_path, options.csv, options.typed_mode)
+                report.input_rows = self._count_rows(input_, options.csv, options.typed_mode)
             if options.output_format == "csv":
                 report.output_rows = export_query_to_csv(
                     self.connection,
@@ -127,10 +164,19 @@ class DuckDBEngine:
                 )
                 report.output_paths = [str(options.output_path)]
                 report.rejected_rows = self._rejected_row_count()
+            elif options.output_format == "parquet":
+                report.output_rows = export_query_to_parquet(
+                    self.connection,
+                    query=query,
+                    params=compiled.params,
+                    options=ParquetExportOptions(output_path=options.output_path),
+                )
+                report.output_paths = [str(options.output_path)]
+                report.rejected_rows = self._rejected_row_count()
             else:
                 cursor = self.connection.execute(query, compiled.params)
                 report.output_rows = export_rows_to_xlsx(
-                    headers=output_columns,
+                    headers=projection.output_columns,
                     rows=batched_rows(cursor, options.batch_size),
                     options=ExcelExportOptions(
                         output_path=options.output_path,
@@ -140,6 +186,7 @@ class DuckDBEngine:
                         sheets_per_file=options.sheets_per_file,
                     ),
                     report=report,
+                    formula_builders=projection.excel_formula_builders(),
                     finalize_report=lambda: setattr(report, "rejected_rows", self._rejected_row_count()),
                 )
             if options.rejects_path is not None:
@@ -182,6 +229,12 @@ class DuckDBEngine:
         if csv_options.max_line_size is not None:
             options.append(f"max_line_size={int(csv_options.max_line_size)}")
         return f"read_csv({quote_literal(str(path))}, {', '.join(options)})"
+
+    def _source_expr(self, input_: ResolvedInput, csv_options: CsvOptions, *, typed_mode: bool) -> str:
+        return source_expression(
+            input_,
+            csv_expr=lambda path: self._read_csv_expr(path, csv_options, typed_mode=typed_mode),
+        )
 
     def _register_lookups(
         self, lookups: list[LookupSpec], csv_options: CsvOptions, case_insensitive_columns: bool
@@ -236,25 +289,21 @@ class DuckDBEngine:
     def _build_query(
         self,
         *,
-        input_path: Path,
+        input_: ResolvedInput,
         csv_options: CsvOptions,
         typed_mode: bool,
-        selected_columns: list[str],
-        output_columns: list[str],
+        select_items: list[str],
+        required_columns: list[str],
         where_sql: str,
         dedupe: bool,
         dedupe_keys: list[str],
         sorts: list[SortSpec],
     ) -> str:
-        source = self._read_csv_expr(input_path, csv_options, typed_mode=typed_mode)
-        select_items = [
-            f"{quote_identifier(source_col)} AS {quote_identifier(output_col)}"
-            for source_col, output_col in zip(selected_columns, output_columns, strict=True)
-        ]
+        source = self._source_expr(input_, csv_options, typed_mode=typed_mode)
 
         if dedupe_keys:
             partition = ", ".join(quote_identifier(column) for column in dedupe_keys)
-            inner_columns = _unique_columns([*selected_columns, *(spec.column for spec in sorts)])
+            inner_columns = _unique_columns([*required_columns, *(spec.column for spec in sorts)])
             inner_select = ", ".join(f"{quote_identifier(column)}" for column in inner_columns)
             base = (
                 "SELECT "
@@ -271,8 +320,8 @@ class DuckDBEngine:
             query += f" ORDER BY {order_by}"
         return query
 
-    def _count_rows(self, input_path: Path, csv_options: CsvOptions, typed_mode: bool) -> int:
-        source = self._read_csv_expr(input_path, csv_options, typed_mode=typed_mode)
+    def _count_rows(self, input_: ResolvedInput, csv_options: CsvOptions, typed_mode: bool) -> int:
+        source = self._source_expr(input_, csv_options, typed_mode=typed_mode)
         return int(self.connection.execute(f"SELECT COUNT(*) FROM {source}").fetchone()[0])
 
     def _rejected_row_count(self) -> int | None:

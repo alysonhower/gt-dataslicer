@@ -45,6 +45,7 @@ def export_rows_to_xlsx(
     rows: Iterable[Sequence[Any]],
     options: ExcelExportOptions,
     report: RunReport,
+    formula_builders: dict[int, Callable[[int], str]] | None = None,
     finalize_report: Callable[[], None] | None = None,
 ) -> int:
     if len(headers) > EXCEL_MAX_COLUMNS:
@@ -62,7 +63,7 @@ def export_rows_to_xlsx(
         for row in rows:
             if state.data_rows_in_sheet >= data_capacity:
                 _rollover(state, options, headers)
-            _write_row(state.worksheet, state.row_index, row)
+            _write_row(state.worksheet, state.row_index, row, formula_builders=formula_builders)
             state.row_index += 1
             state.data_rows_in_sheet += 1
             row_count += 1
@@ -146,10 +147,19 @@ def _sheet_name(prefix: str, index: int) -> str:
     return f"{safe_prefix[:max_prefix]}{suffix}"
 
 
-def _write_row(worksheet: Any, row_index: int, values: Sequence[Any], *, header: bool = False) -> None:
+def _write_row(
+    worksheet: Any,
+    row_index: int,
+    values: Sequence[Any],
+    *,
+    header: bool = False,
+    formula_builders: dict[int, Callable[[int], str]] | None = None,
+) -> None:
     for col_index, value in enumerate(values):
         normalized = _normalize_cell(value)
-        if isinstance(normalized, str):
+        if formula_builders and col_index in formula_builders and not header:
+            worksheet.write_formula(row_index, col_index, formula_builders[col_index](row_index), None, normalized)
+        elif isinstance(normalized, str):
             worksheet.write_string(row_index, col_index, normalized)
         else:
             worksheet.write(row_index, col_index, normalized)

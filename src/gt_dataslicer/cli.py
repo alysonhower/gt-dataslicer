@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import getpass
 import sys
 from typing import Annotated
 
@@ -16,6 +17,7 @@ from .config import (
     merge_config_and_cli,
     select_preset,
 )
+from .derived import build_projection
 from .engine.duckdb_engine import DuckDBEngine
 from .exceptions import DataSlicerError
 from .filters.compiler import CompileContext, compile_filter
@@ -30,9 +32,15 @@ from .i18n import (
     tr,
 )
 from .logging_utils import configure_logging
+from .inputs import InputResolutionOptions, InputResolutionSession
+from .runner import run_filter_inputs
 
 
 console = Console()
+
+
+def _prompt_zip_password(path: Path) -> str | None:
+    return getpass.getpass(f"{tr('zip_password_prompt', path=path)} ")
 
 
 def _handle_error(exc: Exception) -> None:
@@ -87,12 +95,21 @@ def create_app(language: str = DEFAULT_LANGUAGE) -> typer.Typer:
     @localized_app.command("inspect", help=tr("command.inspect.help"), hidden=True)
     @localized_app.command("inspecionar", help=tr("command.inspect.help"))
     def inspect_command(
-        input_csv: Annotated[Path, typer.Argument(exists=True, dir_okay=False, readable=True, metavar="ARQUIVO_CSV")],
+        input_files: Annotated[
+            list[Path], typer.Argument(exists=True, dir_okay=False, readable=True, metavar="ARQUIVOS")
+        ],
         encoding: Annotated[str | None, typer.Option("--codificacao", "--encoding", metavar="TEXTO")] = None,
         delimiter: Annotated[str | None, typer.Option("--delimitador", "--delimiter", metavar="TEXTO")] = None,
         header: Annotated[
             bool | None, typer.Option("--cabecalho/--sem-cabecalho", "--header/--no-header")
         ] = None,
+        zip_password: Annotated[
+            list[str] | None, typer.Option("--senha-zip", "--zip-password", metavar="TEXTO")
+        ] = None,
+        prompt_zip_password: Annotated[
+            bool, typer.Option("--perguntar-senha-zip", "--prompt-zip-password")
+        ] = False,
+        all_excel_sheets: Annotated[bool, typer.Option("--todas-abas", "--all-excel-sheets")] = False,
         typed_mode: Annotated[
             bool, typer.Option("--modo-tipado", "--typed-mode", help=tr("option.typed_mode"))
         ] = False,
@@ -101,26 +118,37 @@ def create_app(language: str = DEFAULT_LANGUAGE) -> typer.Typer:
     ) -> None:
         configure_logging(log_level, json_logs)
         try:
-            schema = DuckDBEngine().inspect_csv(
-                input_csv,
-                CsvOptions(encoding=encoding, delimiter=delimiter, header=header),
-                typed_mode=typed_mode,
-            )
+            csv_options = CsvOptions(encoding=encoding, delimiter=delimiter, header=header)
+            with InputResolutionSession(
+                input_files,
+                options=InputResolutionOptions(
+                    zip_passwords=zip_password or [],
+                    prompt_zip_password=_prompt_zip_password if prompt_zip_password else None,
+                    excel_all_sheets=all_excel_sheets,
+                ),
+            ) as session:
+                schemas = [
+                    (input_, DuckDBEngine().inspect_input(input_, csv_options, typed_mode=typed_mode))
+                    for input_ in session.inputs
+                ]
         except Exception as exc:  # noqa: BLE001
             _handle_error(exc)
             return
 
-        table = Table(title=tr("schema_title", path=input_csv))
-        table.add_column(tr("schema_column"))
-        table.add_column(tr("schema_duckdb_type"))
-        for column, type_name in schema.types.items():
-            table.add_row(column, type_name)
-        console.print(table)
+        for input_, schema in schemas:
+            table = Table(title=tr("schema_title", path=input_.label))
+            table.add_column(tr("schema_column"))
+            table.add_column(tr("schema_duckdb_type"))
+            for column, type_name in schema.types.items():
+                table.add_row(column, type_name)
+            console.print(table)
 
     @localized_app.command("validate-filter", help=tr("command.validate_filter.help"), hidden=True)
     @localized_app.command("validar-filtro", help=tr("command.validate_filter.help"))
     def validate_filter_command(
-        input_csv: Annotated[Path, typer.Argument(exists=True, dir_okay=False, readable=True, metavar="ARQUIVO_CSV")],
+        input_files: Annotated[
+            list[Path], typer.Argument(exists=True, dir_okay=False, readable=True, metavar="ARQUIVOS")
+        ],
         where: Annotated[
             list[str] | None, typer.Option("--filtro", "--where", help=tr("option.where"), metavar="TEXTO")
         ] = None,
@@ -135,6 +163,31 @@ def create_app(language: str = DEFAULT_LANGUAGE) -> typer.Typer:
         type_: Annotated[
             list[str] | None, typer.Option("--tipo", "--type", help=tr("option.type"), metavar="TEXTO")
         ] = None,
+        derived_column: Annotated[
+            list[str] | None,
+            typer.Option("--coluna-derivada", "--derived-column", help=tr("option.derived_column"), metavar="JSON"),
+        ] = None,
+        derived_columns_file: Annotated[
+            Path | None,
+            typer.Option(
+                "--colunas-derivadas-arquivo",
+                "--derived-columns-file",
+                exists=True,
+                dir_okay=False,
+                metavar="CAMINHO",
+            ),
+        ] = None,
+        zip_password: Annotated[
+            list[str] | None, typer.Option("--senha-zip", "--zip-password", metavar="TEXTO")
+        ] = None,
+        prompt_zip_password: Annotated[
+            bool, typer.Option("--perguntar-senha-zip", "--prompt-zip-password")
+        ] = False,
+        delete_zip_after_extract: Annotated[
+            bool, typer.Option("--excluir-zip-apos-extrair", "--delete-zip-after-extract")
+        ] = False,
+        all_excel_sheets: Annotated[bool, typer.Option("--todas-abas", "--all-excel-sheets")] = False,
+        reuse_schema: Annotated[bool, typer.Option("--reutilizar-esquema", "--reuse-schema")] = False,
         case_insensitive_columns: Annotated[
             bool, typer.Option("--colunas-sem-diferenciar-caixa", "--case-insensitive-columns")
         ] = False,
@@ -150,7 +203,7 @@ def create_app(language: str = DEFAULT_LANGUAGE) -> typer.Typer:
         try:
             cfg = select_preset(load_config_file(config), preset)
             options = merge_config_and_cli(
-                input_path=input_csv,
+                input_path=input_files[0],
                 output_path=Path("dry-run"),
                 cli_output_format=None,
                 preset_config=cfg,
@@ -164,6 +217,8 @@ def create_app(language: str = DEFAULT_LANGUAGE) -> typer.Typer:
                 cli_sorts=[],
                 cli_lookups=lookup or [],
                 cli_types=type_ or [],
+                cli_derived_columns=derived_column or [],
+                derived_columns_file=derived_columns_file,
                 csv_options=CsvOptions(encoding=encoding, delimiter=delimiter, header=header),
                 sheet_prefix="Results",
                 max_rows_per_sheet=1_048_576,
@@ -177,22 +232,56 @@ def create_app(language: str = DEFAULT_LANGUAGE) -> typer.Typer:
                 strict_values=False,
                 batch_size=10_000,
             )
-            engine = DuckDBEngine()
-            schema = engine.inspect_csv(input_csv, options.csv, typed_mode=False)
-            column_types = engine.resolve_column_types(schema, options)
-            lookup_bindings = engine.register_lookups(
-                options.lookups, options.csv, case_insensitive_columns=options.case_insensitive_columns
-            )
-            expr = combine_filters(options.where)
-            compiled = compile_filter(
-                expr,
-                CompileContext(
-                    columns=schema.columns,
-                    column_types=column_types,
-                    lookups=lookup_bindings,
-                    case_insensitive_columns=case_insensitive_columns,
+            with InputResolutionSession(
+                input_files,
+                options=InputResolutionOptions(
+                    zip_passwords=zip_password or [],
+                    prompt_zip_password=_prompt_zip_password if prompt_zip_password else None,
+                    excel_all_sheets=all_excel_sheets,
                 ),
-            )
+            ) as session:
+                compiled = None
+                reusable_schema = None
+                reusable_column_types = None
+                for input_ in session.inputs:
+                    engine = DuckDBEngine()
+                    schema = reusable_schema or engine.inspect_input(input_, options.csv, typed_mode=False)
+                    if reuse_schema and reusable_schema is None:
+                        reusable_schema = schema
+                    column_types = reusable_column_types or engine.resolve_column_types(schema, options)
+                    if reuse_schema and reusable_column_types is None:
+                        reusable_column_types = column_types
+                    lookup_bindings = engine.register_lookups(
+                        options.lookups, options.csv, case_insensitive_columns=options.case_insensitive_columns
+                    )
+                    expr = combine_filters(options.where)
+                    compiled = compile_filter(
+                        expr,
+                        CompileContext(
+                            columns=schema.columns,
+                            column_types=column_types,
+                            lookups=lookup_bindings,
+                            case_insensitive_columns=case_insensitive_columns,
+                        ),
+                    )
+                    selected_columns = engine._resolve_selected_columns(  # noqa: SLF001 - shared validation path.
+                        schema,
+                        options.select,
+                        options.case_insensitive_columns,
+                    )
+                    resolved_renames = engine._resolve_renames(  # noqa: SLF001 - shared validation path.
+                        schema,
+                        options.renames,
+                        options.case_insensitive_columns,
+                    )
+                    output_columns = [resolved_renames.get(column, column) for column in selected_columns]
+                    build_projection(
+                        schema_columns=schema.columns,
+                        selected_columns=selected_columns,
+                        output_columns=output_columns,
+                        derived_columns=options.derived_columns,
+                        case_insensitive_columns=options.case_insensitive_columns,
+                    )
         except Exception as exc:  # noqa: BLE001
             _handle_error(exc)
             return
@@ -202,7 +291,9 @@ def create_app(language: str = DEFAULT_LANGUAGE) -> typer.Typer:
     @localized_app.command("filter", help=tr("command.filter.help"), hidden=True)
     @localized_app.command("filtrar", help=tr("command.filter.help"))
     def filter_command(
-        input_csv: Annotated[Path, typer.Argument(exists=True, dir_okay=False, readable=True, metavar="ARQUIVO_CSV")],
+        input_files: Annotated[
+            list[Path], typer.Argument(exists=True, dir_okay=False, readable=True, metavar="ARQUIVOS")
+        ],
         output: Annotated[
             Path, typer.Option("--saida", "-o", "--output", help=tr("option.output"), metavar="CAMINHO")
         ],
@@ -266,6 +357,17 @@ def create_app(language: str = DEFAULT_LANGUAGE) -> typer.Typer:
         lookup: Annotated[
             list[str] | None, typer.Option("--consulta", "--lookup", help=tr("option.lookup"), metavar="TEXTO")
         ] = None,
+        zip_password: Annotated[
+            list[str] | None, typer.Option("--senha-zip", "--zip-password", metavar="TEXTO")
+        ] = None,
+        prompt_zip_password: Annotated[
+            bool, typer.Option("--perguntar-senha-zip", "--prompt-zip-password")
+        ] = False,
+        delete_zip_after_extract: Annotated[
+            bool, typer.Option("--excluir-zip-apos-extrair", "--delete-zip-after-extract")
+        ] = False,
+        all_excel_sheets: Annotated[bool, typer.Option("--todas-abas", "--all-excel-sheets")] = False,
+        reuse_schema: Annotated[bool, typer.Option("--reutilizar-esquema", "--reuse-schema")] = False,
         report: Annotated[Path | None, typer.Option("--relatorio", "--report", metavar="CAMINHO")] = None,
         rejects: Annotated[Path | None, typer.Option("--rejeitados", "--rejects", metavar="CAMINHO")] = None,
         dry_run: Annotated[bool, typer.Option("--teste", "--dry-run")] = False,
@@ -274,6 +376,20 @@ def create_app(language: str = DEFAULT_LANGUAGE) -> typer.Typer:
         ] = False,
         type_: Annotated[
             list[str] | None, typer.Option("--tipo", "--type", help=tr("option.type"), metavar="TEXTO")
+        ] = None,
+        derived_column: Annotated[
+            list[str] | None,
+            typer.Option("--coluna-derivada", "--derived-column", help=tr("option.derived_column"), metavar="JSON"),
+        ] = None,
+        derived_columns_file: Annotated[
+            Path | None,
+            typer.Option(
+                "--colunas-derivadas-arquivo",
+                "--derived-columns-file",
+                exists=True,
+                dir_okay=False,
+                metavar="CAMINHO",
+            ),
         ] = None,
         typed_mode: Annotated[
             bool, typer.Option("--modo-tipado", "--typed-mode", help=tr("option.typed_mode"))
@@ -289,7 +405,7 @@ def create_app(language: str = DEFAULT_LANGUAGE) -> typer.Typer:
         try:
             cfg = select_preset(load_config_file(config), preset)
             options = merge_config_and_cli(
-                input_path=input_csv,
+                input_path=input_files[0],
                 output_path=output,
                 cli_output_format=format_,
                 preset_config=cfg,
@@ -303,6 +419,8 @@ def create_app(language: str = DEFAULT_LANGUAGE) -> typer.Typer:
                 cli_sorts=sort or [],
                 cli_lookups=lookup or [],
                 cli_types=type_ or [],
+                cli_derived_columns=derived_column or [],
+                derived_columns_file=derived_columns_file,
                 csv_options=CsvOptions(
                     encoding=encoding,
                     delimiter=delimiter,
@@ -328,14 +446,32 @@ def create_app(language: str = DEFAULT_LANGUAGE) -> typer.Typer:
                 typed_mode=typed_mode,
                 strict_values=strict_values,
                 batch_size=batch_size,
+                allow_output_directory=len(input_files) > 1 or (output.exists() and output.is_dir()),
             )
-            run_report = DuckDBEngine().run_filter(options)
+            with InputResolutionSession(
+                input_files,
+                options=InputResolutionOptions(
+                    zip_passwords=zip_password or [],
+                    prompt_zip_password=_prompt_zip_password if prompt_zip_password else None,
+                    delete_zip_after_extract=delete_zip_after_extract,
+                    excel_all_sheets=all_excel_sheets,
+                ),
+            ) as session:
+                run_report = run_filter_inputs(
+                    options,
+                    session.inputs,
+                    reuse_schema=reuse_schema,
+                    resolution_warnings=session.warnings,
+                )
             if report is not None:
                 run_report.write_json(report)
         except Exception as exc:  # noqa: BLE001
             _handle_error(exc)
             return
 
+        if getattr(run_report, "failed_inputs", 0):
+            console.print(f"[red]{tr('queue_failed', count=run_report.failed_inputs)}[/red]")
+            raise typer.Exit(1)
         if dry_run:
             console.print(f"[green]{tr('dry_run_succeeded')}[/green]")
             return

@@ -36,11 +36,11 @@
               <p class="eyebrow" data-i18n="stageOne">Etapa 1</p>
               <h2 data-i18n="chooseFile">Escolha o arquivo</h2>
             </div>
-            <button id="browseInputBtn" class="button primary" type="button" data-i18n="browseCsv">Procurar CSV</button>
+            <button id="browseInputBtn" class="button primary" type="button" data-i18n="browseInput">Procurar arquivo</button>
           </div>
 
           <div id="dropZone" class="drop-zone" tabindex="0">
-            <strong data-i18n="dropStrong">Arraste o CSV aqui</strong>
+            <strong data-i18n="dropStrong">Arraste o arquivo aqui</strong>
             <span data-i18n="dropHelp">ou use o botão para procurar no computador.</span>
           </div>
 
@@ -59,6 +59,16 @@
             </div>
           </div>
 
+          <div id="queuePanel" class="queue-panel hidden" aria-live="polite">
+            <h3 data-i18n="inputQueue">Arquivos na fila</h3>
+            <div id="queueList" class="queue-list"></div>
+          </div>
+
+          <div id="inputWarningsPanel" class="notice input-warnings hidden" aria-live="polite">
+            <strong data-i18n="warnings">Avisos</strong>
+            <ul id="inputWarningsList"></ul>
+          </div>
+
           <details class="advanced-line">
             <summary data-i18n="readOptions">Opções de leitura</summary>
             <div class="field-grid compact">
@@ -73,6 +83,22 @@
               <label>
                 <span data-i18n="nullValue">Valor nulo</span>
                 <input id="nullValueInput" type="text" placeholder="vazio" data-i18n-placeholder="emptyPlaceholder">
+              </label>
+              <label>
+                <span data-i18n="zipPasswords">Senhas de ZIP</span>
+                <textarea id="zipPasswordsInput" rows="3" placeholder="Uma senha por linha" data-i18n-placeholder="onePasswordPerLine"></textarea>
+              </label>
+              <label class="checkline">
+                <input id="allExcelSheetsInput" type="checkbox">
+                <span data-i18n="allExcelSheets">Processar todas as abas do Excel</span>
+              </label>
+              <label class="checkline">
+                <input id="reuseSchemaInput" type="checkbox">
+                <span data-i18n="reuseSchema">Reutilizar o esquema do primeiro arquivo</span>
+              </label>
+              <label class="checkline">
+                <input id="deleteZipInput" type="checkbox">
+                <span data-i18n="deleteZipAfterExtract">Excluir ZIP após extrair com sucesso</span>
               </label>
             </div>
           </details>
@@ -110,10 +136,9 @@
               <span data-i18n="advancedFilter">Filtro avançado</span>
               <textarea id="rawFilterInput" rows="6" spellcheck="false" placeholder='STATUS EM ("ATIVO", "SUSPENSO") E VALOR_TOTAL > 1000'></textarea>
             </label>
-          </div>
-
-          <div class="toolbar-row end">
-            <button id="validateBtn" class="button secondary" type="button" data-i18n="validateFilter">Validar filtro</button>
+            <div class="toolbar-row end">
+              <button id="checkExpressionBtn" class="button secondary" type="button" data-i18n="checkExpression">Verificar expressão</button>
+            </div>
           </div>
         </section>
 
@@ -126,23 +151,43 @@
             <button id="browseOutputBtn" class="button primary" type="button" data-i18n="chooseDestination">Escolher destino</button>
           </div>
 
-          <div class="field-grid">
-            <label>
-              <span data-i18n="format">Formato</span>
-              <select id="formatSelect">
-                <option value="csv">CSV</option>
-                <option value="xlsx">Excel</option>
-              </select>
-            </label>
-            <label class="wide">
-              <span data-i18n="saveAs">Salvar em</span>
-              <input id="outputPathInput" type="text" placeholder="Escolha onde salvar" data-i18n-placeholder="chooseSavePlaceholder">
-            </label>
+          <div class="format-card-grid" role="radiogroup" aria-label="Formato">
+            <button class="format-card active" type="button" data-format-card="csv" aria-pressed="true">
+              <strong data-i18n="formatCsvTitle">CSV</strong>
+            </button>
+            <button class="format-card" type="button" data-format-card="xlsx" aria-pressed="false">
+              <strong data-i18n="formatExcelTitle">Excel</strong>
+            </button>
+            <button class="format-card" type="button" data-format-card="parquet" aria-pressed="false">
+              <strong data-i18n="formatParquetTitle">Parquet</strong>
+            </button>
           </div>
 
-          <p id="excelNotice" class="notice hidden" data-i18n="excelNotice">
-            Arquivos Excel têm limite de linhas por aba. Se o resultado for muito grande, o DataSlicer dividirá em abas ou arquivos conforme as opções.
-          </p>
+          <select id="formatSelect" class="hidden" aria-label="Formato">
+            <option value="csv">CSV</option>
+            <option value="xlsx">Excel</option>
+            <option value="parquet">Parquet</option>
+          </select>
+
+          <label class="output-path-field">
+            <span data-i18n="saveAs">Salvar em</span>
+            <input id="outputPathInput" type="text" placeholder="Escolha onde salvar" data-i18n-placeholder="chooseSavePlaceholder">
+          </label>
+
+          <div class="derived-section">
+            <div class="mini-heading">
+              <div>
+                <h3 data-i18n="derivedColumnsTitle">Criar novas colunas</h3>
+                <p data-i18n="derivedColumnsHelp">Opcional: crie colunas limpas a partir das colunas filtradas.</p>
+              </div>
+              <button id="addDerivedColumnBtn" class="button secondary" type="button" data-i18n="addDerivedColumn">Adicionar coluna</button>
+            </div>
+            <div id="derivedColumnsList" class="derived-columns-list"></div>
+            <p id="noDerivedColumnsText" class="muted" data-i18n="noDerivedColumns">Nenhuma coluna nova será criada.</p>
+            <div class="toolbar-row end">
+              <button id="saveConfigBtn" class="button ghost" type="button" data-i18n="saveConfig">Salvar configuração</button>
+            </div>
+          </div>
 
           <details class="advanced-line">
             <summary data-i18n="advancedOptions">Opções avançadas</summary>
@@ -202,11 +247,39 @@
             <span id="statusDot" class="status-dot idle"></span>
             <div>
               <strong id="statusTitle">Pronto</strong>
-              <p id="statusText">Escolha um arquivo CSV para começar.</p>
+              <p id="statusText">Escolha um arquivo de entrada para começar.</p>
             </div>
           </div>
 
-          <pre id="detailsBox" class="details-box hidden"></pre>
+          <div id="resultCards" class="result-cards hidden" aria-live="polite">
+            <article class="result-card">
+              <span data-i18n="filesCreated">Arquivos gerados</span>
+              <strong id="filesCreatedValue">0</strong>
+            </article>
+            <article class="result-card">
+              <span data-i18n="rowsSaved">Linhas salvas</span>
+              <strong id="rowsSavedValue">0</strong>
+            </article>
+            <article class="result-card">
+              <span data-i18n="filesProcessed">Arquivos processados</span>
+              <strong id="filesProcessedValue">0</strong>
+            </article>
+            <article class="result-card warning-card">
+              <span data-i18n="warnings">Avisos</span>
+              <strong id="warningsValue">0</strong>
+            </article>
+            <article class="result-card error-card">
+              <span data-i18n="filesFailed">Não foi possível processar</span>
+              <strong id="filesFailedValue">0</strong>
+            </article>
+          </div>
+
+          <div id="outputList" class="output-list hidden"></div>
+          <div id="friendlyErrorBox" class="friendly-error hidden"></div>
+          <details id="technicalDetails" class="technical-details hidden">
+            <summary data-i18n="technicalDetails">Detalhes técnicos</summary>
+            <pre id="detailsBox"></pre>
+          </details>
 
           <div class="toolbar-row">
             <button id="openFolderBtn" class="button secondary hidden" type="button" data-i18n="openFolder">Abrir pasta</button>
@@ -229,8 +302,8 @@
           <option value="gte" data-i18n="opGte">maior ou igual a</option>
           <option value="lt" data-i18n="opLt">menor que</option>
           <option value="lte" data-i18n="opLte">menor ou igual a</option>
-          <option value="in" data-i18n="opIn">está na lista</option>
-          <option value="not_in" data-i18n="opNotIn">não está na lista</option>
+          <option value="in" data-i18n="opIn">é um destes valores</option>
+          <option value="not_in" data-i18n="opNotIn">não é nenhum destes valores</option>
           <option value="between" data-i18n="opBetween">entre</option>
           <option value="contains" data-i18n="opContains">contém</option>
           <option value="starts_with" data-i18n="opStartsWith">começa com</option>
@@ -256,6 +329,96 @@
       </div>
     </template>
 
-    <script src="./app.js?v=20260616-4"></script>
+    <template id="derivedColumnTemplate">
+      <article class="derived-column-card">
+        <div class="derived-card-header">
+          <strong class="derived-preview">Nova coluna</strong>
+          <button class="icon-button remove-derived-column" type="button" title="Remover coluna" data-i18n-title="removeDerivedColumn">x</button>
+        </div>
+        <div class="field-grid compact">
+          <label class="wide">
+            <span data-i18n="sourceColumn">Coluna de origem</span>
+            <div class="column-search">
+              <input class="filter-column derived-source-column" type="search" autocomplete="off" aria-label="Coluna de origem" aria-autocomplete="list" aria-expanded="false" aria-haspopup="listbox" placeholder="Buscar coluna" data-i18n-placeholder="columnSearchPlaceholder">
+              <div class="filter-column-suggestions hidden" role="listbox"></div>
+            </div>
+          </label>
+          <label>
+            <span data-i18n="namePrefix">Prefixo</span>
+            <input class="derived-prefix" type="text" placeholder="LIMPO" data-i18n-placeholder="prefixPlaceholder">
+          </label>
+          <label>
+            <span data-i18n="nameSuffix">Sufixo</span>
+            <input class="derived-suffix" type="text" placeholder="FORMATADO" data-i18n-placeholder="suffixPlaceholder">
+          </label>
+          <label>
+            <span data-i18n="nameSeparator">Separador</span>
+            <input class="derived-separator" type="text" placeholder="_" value="_">
+          </label>
+        </div>
+        <div class="derived-summary"></div>
+        <div class="derived-transforms"></div>
+        <div class="toolbar-row">
+          <button class="button ghost add-derived-transform" type="button" data-i18n="addTransformation">Adicionar transformação</button>
+        </div>
+        <details class="advanced-line compact-details">
+          <summary data-i18n="advancedOptions">Opções avançadas</summary>
+          <div class="field-grid compact">
+            <label>
+              <span data-i18n="derivedPosition">Posição</span>
+              <select class="derived-position-mode">
+                <option value="append" data-i18n="positionAppend">No fim da tabela</option>
+                <option value="before" data-i18n="positionBefore">Antes de uma coluna</option>
+                <option value="after" data-i18n="positionAfter">Depois de uma coluna</option>
+              </select>
+            </label>
+            <label class="wide">
+              <span data-i18n="positionTarget">Coluna de referência</span>
+              <div class="column-search">
+                <input class="filter-column derived-position-target" type="search" autocomplete="off" aria-label="Coluna de referência" aria-autocomplete="list" aria-expanded="false" aria-haspopup="listbox" placeholder="Buscar coluna" data-i18n-placeholder="columnSearchPlaceholder">
+                <div class="filter-column-suggestions hidden" role="listbox"></div>
+              </div>
+            </label>
+          </div>
+        </details>
+      </article>
+    </template>
+
+    <template id="derivedTransformTemplate">
+      <div class="derived-transform-row">
+        <select class="derived-transform-operation" aria-label="Transformação">
+          <option value="trim" data-i18n="txTrim">Aparar espaços</option>
+          <option value="remove_extra_spaces" data-i18n="txRemoveExtraSpaces">Remover espaços repetidos</option>
+          <option value="uppercase" data-i18n="txUppercase">Maiúsculas</option>
+          <option value="lowercase" data-i18n="txLowercase">Minúsculas</option>
+          <option value="title_case" data-i18n="txTitleCase">Título</option>
+          <option value="replace_text" data-i18n="txReplaceText">Substituir texto</option>
+          <option value="add_prefix" data-i18n="txAddPrefix">Adicionar texto antes</option>
+          <option value="add_suffix" data-i18n="txAddSuffix">Adicionar texto depois</option>
+          <option value="keep_digits" data-i18n="txKeepDigits">Manter só números</option>
+          <option value="keep_letters" data-i18n="txKeepLetters">Manter só letras</option>
+          <option value="remove_accents" data-i18n="txRemoveAccents">Remover acentos</option>
+          <option value="remove_punctuation" data-i18n="txRemovePunctuation">Remover pontuação e símbolos</option>
+          <option value="remove_spaces" data-i18n="txRemoveSpaces">Remover espaços</option>
+          <option value="pad_left" data-i18n="txPadLeft">Preencher à esquerda</option>
+          <option value="pad_right" data-i18n="txPadRight">Preencher à direita</option>
+          <option value="take_first" data-i18n="txTakeFirst">Pegar primeiros caracteres</option>
+          <option value="take_last" data-i18n="txTakeLast">Pegar últimos caracteres</option>
+          <option value="remove_first" data-i18n="txRemoveFirst">Remover primeiros caracteres</option>
+          <option value="remove_last" data-i18n="txRemoveLast">Remover últimos caracteres</option>
+          <option value="extract_before" data-i18n="txExtractBefore">Extrair antes de separador</option>
+          <option value="extract_after" data-i18n="txExtractAfter">Extrair depois de separador</option>
+          <option value="default_if_blank" data-i18n="txDefaultIfBlank">Usar padrão se vazio/nulo</option>
+          <option value="format_cpf" data-i18n="txFormatCpf">Formatar CPF</option>
+          <option value="format_cnpj" data-i18n="txFormatCnpj">Formatar CNPJ</option>
+          <option value="format_phone" data-i18n="txFormatPhone">Formatar telefone</option>
+        </select>
+        <input class="derived-transform-value" type="text" placeholder="Valor">
+        <input class="derived-transform-extra" type="text" placeholder="Novo valor">
+        <button class="icon-button remove-derived-transform" type="button" title="Remover transformação" data-i18n-title="removeTransformation">x</button>
+      </div>
+    </template>
+
+    <script src="./app.js?v=20260616-6"></script>
   </body>
 </html>

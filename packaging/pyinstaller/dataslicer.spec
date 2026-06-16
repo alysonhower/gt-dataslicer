@@ -24,6 +24,8 @@ a = Analysis(
     hiddenimports=[
         "duckdb",
         "lark",
+        "openpyxl",
+        "pyzipper",
         "yaml",
         "webview",
         "xlsxwriter",

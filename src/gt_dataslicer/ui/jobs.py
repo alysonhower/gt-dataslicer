@@ -9,13 +9,13 @@ from threading import Lock, Thread
 from typing import Callable
 from uuid import uuid4
 
-from ..report import RunReport
+from ..report import QueueRunReport, RunReport
 
 
 LOGGER = logging.getLogger(__name__)
 
 ProgressCallback = Callable[[str], None]
-JobRunner = Callable[[ProgressCallback], RunReport]
+JobRunner = Callable[[ProgressCallback], RunReport | QueueRunReport]
 
 
 class JobAlreadyRunningError(RuntimeError):
@@ -27,7 +27,7 @@ class JobStatus:
     job_id: str
     phase: str = "queued"
     running: bool = True
-    report: RunReport | None = None
+    report: RunReport | QueueRunReport | None = None
     error: dict[str, str] | None = None
     started_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     ended_at: datetime | None = None
@@ -97,7 +97,7 @@ class JobManager:
         *,
         phase: str | None = None,
         running: bool | None = None,
-        report: RunReport | None = None,
+        report: RunReport | QueueRunReport | None = None,
         error: dict[str, str] | None = None,
         ended: bool = False,
     ) -> None:
@@ -115,4 +115,3 @@ class JobManager:
                 job.ended_at = datetime.now(timezone.utc)
                 if self._active_job_id == job_id:
                     self._active_job_id = None
-
