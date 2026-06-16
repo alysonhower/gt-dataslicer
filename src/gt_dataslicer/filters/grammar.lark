@@ -1,0 +1,81 @@
+?start: expression
+
+?expression: or_expr
+?or_expr: and_expr (OR and_expr)*        -> or_expr
+?and_expr: not_expr (AND not_expr)*      -> and_expr
+?not_expr: NOT not_expr                  -> not_expr
+         | primary
+?primary: predicate
+        | "(" expression ")"             -> grouped
+
+?predicate: operand COMPARISON operand   -> comparison
+          | operand IN literal_list      -> in_predicate
+          | operand NOT IN literal_list  -> not_in_predicate
+          | operand IN lookup_ref        -> lookup_predicate
+          | operand NOT IN lookup_ref    -> not_lookup_predicate
+          | operand BETWEEN operand AND operand -> between_predicate
+          | operand IS null_empty        -> is_predicate
+          | operand IS NOT null_empty    -> is_not_predicate
+          | operand CONTAINS operand     -> contains_predicate
+          | operand STARTS_WITH operand  -> starts_with_predicate
+          | operand ENDS_WITH operand    -> ends_with_predicate
+          | operand REGEX operand        -> regex_predicate
+
+literal_list: "(" [literal ("," literal)*] ")"
+lookup_ref: LOOKUP
+
+?operand: date_literal
+        | datetime_literal
+        | literal
+        | column
+
+date_literal: DATE_FUNC "(" string ")"
+datetime_literal: DATETIME_FUNC "(" string ")"
+
+?literal: string                         -> string_lit
+        | SIGNED_NUMBER                  -> number_lit
+        | TRUE                           -> true_lit
+        | FALSE                          -> false_lit
+        | NULL                           -> null_lit
+
+?string: ESCAPED_STRING
+       | SINGLE_QUOTED_STRING
+
+?column: IDENT                           -> bare_column
+       | BRACKET_NAME                    -> bracket_column
+       | BACKTICK_NAME                   -> backtick_column
+
+null_empty: NULL                         -> null_kind
+          | EMPTY                        -> empty_kind
+          | BLANK                        -> blank_kind
+
+AND.3: /AND/i
+OR.3: /OR/i
+NOT.3: /NOT/i
+IN.3: /IN/i
+BETWEEN.3: /BETWEEN/i
+IS.3: /IS/i
+NULL.3: /NULL/i
+EMPTY.3: /EMPTY/i
+BLANK.3: /BLANK/i
+CONTAINS.3: /CONTAINS/i
+STARTS_WITH.3: /STARTS\s+WITH/i
+ENDS_WITH.3: /ENDS\s+WITH/i
+REGEX.3: /REGEX/i
+TRUE.3: /TRUE/i
+FALSE.3: /FALSE/i
+DATE_FUNC.3: /DATE/i
+DATETIME_FUNC.3: /DATETIME/i
+
+COMPARISON: "==" | "!=" | "<>" | ">=" | "<=" | "=" | ">" | "<"
+LOOKUP: "@" /[A-Za-z_][A-Za-z0-9_]*/
+BRACKET_NAME: "[" /([^\\\]]|\\.)*/ "]"
+BACKTICK_NAME: "`" /([^\\`]|\\.)*/ "`"
+IDENT: /[^\W\d]\w*/
+SINGLE_QUOTED_STRING: /'([^'\\]|\\.)*'/
+
+%import common.ESCAPED_STRING
+%import common.SIGNED_NUMBER
+%import common.WS
+%ignore WS
+
