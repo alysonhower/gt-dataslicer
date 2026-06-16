@@ -22,7 +22,7 @@ from .filters.parser import combine_filters
 from .logging_utils import configure_logging
 
 
-app = typer.Typer(no_args_is_help=True, help="Filter large CSV files and export matching rows to XLSX.")
+app = typer.Typer(no_args_is_help=True, help="Filter large CSV files and export matching rows to CSV or XLSX.")
 console = Console()
 
 
@@ -84,7 +84,8 @@ def validate_filter_command(
         cfg = select_preset(load_config_file(config), preset)
         options = merge_config_and_cli(
             input_path=input_csv,
-            output_path=Path("dry-run.xlsx"),
+            output_path=Path("dry-run"),
+            cli_output_format=None,
             preset_config=cfg,
             config_base_dir=config.resolve().parent if config is not None else None,
             cli_where=where or [],
@@ -135,7 +136,11 @@ def validate_filter_command(
 @app.command("filter")
 def filter_command(
     input_csv: Annotated[Path, typer.Argument(exists=True, dir_okay=False, readable=True)],
-    output: Annotated[Path, typer.Option("--output", "-o", help="Output .xlsx path.")],
+    output: Annotated[Path, typer.Option("--output", "-o", help="Output path. Defaults to CSV unless .xlsx is used.")],
+    format_: Annotated[
+        str | None,
+        typer.Option("--format", help="Output format: csv or xlsx. Overrides config output_format."),
+    ] = None,
     where: Annotated[list[str] | None, typer.Option("--where", help="Filter expression. Repeat to AND filters.")] = None,
     config: Annotated[Path | None, typer.Option("--config", exists=True, dir_okay=False)] = None,
     preset: Annotated[str | None, typer.Option("--preset")] = None,
@@ -173,13 +178,14 @@ def filter_command(
     log_level: Annotated[str, typer.Option("--log-level")] = "INFO",
     json_logs: Annotated[bool, typer.Option("--json-logs")] = False,
 ) -> None:
-    """Filter a CSV file and export matching rows to XLSX."""
+    """Filter a CSV file and export matching rows to CSV or XLSX."""
     configure_logging(log_level, json_logs)
     try:
         cfg = select_preset(load_config_file(config), preset)
         options = merge_config_and_cli(
             input_path=input_csv,
             output_path=output,
+            cli_output_format=format_,
             preset_config=cfg,
             config_base_dir=config.resolve().parent if config is not None else None,
             cli_where=where or [],

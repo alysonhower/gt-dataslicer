@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "gt-dataslicer"
 version = "0.1.0"
-description = "Filter very large CSV files with a safe expression DSL and export results to XLSX."
+description = "Filter very large CSV files with a safe expression DSL and export results to CSV or XLSX."
 readme = "README.md"
 requires-python = ">=3.12"
 license = "MIT"
@@ -37,4 +37,3 @@ packages = ["src/gt_dataslicer"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-q"
-

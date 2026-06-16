@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 import json
 from pathlib import Path
 import tomllib
-from typing import Any
+from typing import Any, Literal, cast
 
 import yaml
 
@@ -14,6 +14,8 @@ from .exceptions import ConfigError
 
 
 SUPPORTED_COLUMN_TYPES = {"string", "int", "integer", "decimal", "bool", "boolean", "date", "datetime"}
+OUTPUT_FORMATS = {"csv", "xlsx"}
+OutputFormat = Literal["csv", "xlsx"]
 
 
 @dataclass(slots=True)
@@ -49,6 +51,7 @@ class SortSpec:
 class FilterRunOptions:
     input_path: Path
     output_path: Path
+    output_format: OutputFormat = "csv"
     where: list[str] = field(default_factory=list)
     select: list[str] = field(default_factory=list)
     renames: dict[str, str] = field(default_factory=dict)
@@ -192,6 +195,60 @@ def parse_type_items(items: list[str]) -> dict[str, str]:
     return types
 
 
+def parse_output_format(value: Any, *, source: str) -> OutputFormat | None:
+    if value is None:
+        return None
+    if not isinstance(value, str):
+        raise ConfigError(f"{source} must be csv or xlsx.")
+    normalized = value.strip().lower()
+    if normalized not in OUTPUT_FORMATS:
+        valid = ", ".join(sorted(OUTPUT_FORMATS))
+        raise ConfigError(f"{source} must be one of: {valid}.")
+    return cast(OutputFormat, normalized)
+
+
+def resolve_output_target(
+    output_path: Path,
+    *,
+    cli_output_format: str | None,
+    config_output_format: Any,
+) -> tuple[Path, OutputFormat]:
+    cli_format = parse_output_format(cli_output_format, source="--format")
+    config_format = (
+        None
+        if cli_format is not None
+        else parse_output_format(config_output_format, source="Config key 'output_format'")
+    )
+    explicit_format = cli_format or config_format
+    suffix_format = _format_from_suffix(output_path)
+
+    if explicit_format is not None:
+        if suffix_format is not None and suffix_format != explicit_format:
+            raise ConfigError(
+                f"Output format '{explicit_format}' conflicts with output path suffix '{output_path.suffix}'."
+            )
+        if suffix_format is None:
+            if output_path.suffix:
+                raise ConfigError("Output path suffix must be .csv or .xlsx, or omit the suffix.")
+            output_path = output_path.with_suffix(f".{explicit_format}")
+        return output_path, explicit_format
+
+    if suffix_format is not None:
+        return output_path, suffix_format
+    if output_path.suffix:
+        raise ConfigError("Output path suffix must be .csv or .xlsx, or omit the suffix.")
+    return output_path.with_suffix(".csv"), "csv"
+
+
+def _format_from_suffix(path: Path) -> OutputFormat | None:
+    suffix = path.suffix.lower()
+    if suffix == ".csv":
+        return "csv"
+    if suffix == ".xlsx":
+        return "xlsx"
+    return None
+
+
 def normalize_column_type(type_name: str) -> str:
     if type_name == "integer":
         return "int"
@@ -212,6 +269,7 @@ def merge_config_and_cli(
     *,
     input_path: Path,
     output_path: Path,
+    cli_output_format: str | None,
     preset_config: dict[str, Any],
     config_base_dir: Path | None,
     cli_where: list[str],
@@ -236,6 +294,11 @@ def merge_config_and_cli(
     strict_values: bool,
     batch_size: int,
 ) -> FilterRunOptions:
+    output_path, output_format = resolve_output_target(
+        output_path,
+        cli_output_format=cli_output_format,
+        config_output_format=preset_config.get("output_format"),
+    )
     config_where = as_list(preset_config.get("where"), key="where")
     config_select = as_list(preset_config.get("select"), key="select")
     config_dedupe_keys = as_list(preset_config.get("dedupe_key") or preset_config.get("dedupe_keys"), key="dedupe_key")
@@ -277,6 +340,7 @@ def merge_config_and_cli(
     return FilterRunOptions(
         input_path=input_path,
         output_path=output_path,
+        output_format=output_format,
         where=[*config_where, *cli_where],
         select=select,
         renames=renames,
