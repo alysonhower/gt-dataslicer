@@ -4,4 +4,5 @@ __pycache__/
 .codex-remote-attachments/
 build/
 dist/
+manual-test-data/
 gtil-global-sub-brand-guidelines.pdf

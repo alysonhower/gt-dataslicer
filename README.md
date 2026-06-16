@@ -1,8 +1,8 @@
 # gt-dataslicer
 
-`gt-dataslicer` filtra arquivos CSV grandes e salva apenas as linhas que você quer.
+`gt-dataslicer` filtra arquivos grandes e salva apenas as linhas que você quer.
 
-Por padrão, o resultado sai em CSV. Se você quiser abrir no Excel, também pode salvar em XLSX.
+Por padrão, o resultado sai em CSV. Se você quiser abrir no Excel, salve em XLSX. Se o resultado for grande ou for usado por ferramentas de análise, salve em Parquet.
 
 ## Usar com tela visual
 
@@ -20,10 +20,12 @@ gt-dataslicer abrir
 
 Na tela visual você pode:
 
-- escolher o arquivo CSV;
-- montar filtros com campos e listas, sem escrever comandos;
+- escolher arquivos CSV, Parquet, Excel ou ZIP;
+- colocar vários arquivos em fila;
+- montar filtros com campos e valores, sem escrever comandos;
 - encontrar colunas rapidamente digitando parte do nome, mesmo em arquivos com muitas colunas;
-- salvar em CSV ou Excel;
+- salvar em CSV, Excel ou Parquet;
+- criar novas colunas limpas, como CPF só com números;
 - escolher colunas, remover duplicados e gerar relatório quando precisar.
 
 ## Gerar executável do DataSlicer
@@ -57,10 +59,46 @@ Salvar em CSV:
 gt-dataslicer filtrar input.csv --saida output.csv --filtro 'STATUS EM ("ATIVO", "SUSPENSO")'
 ```
 
+Filtrar Parquet:
+
+```bash
+gt-dataslicer filtrar input.parquet --saida output.csv --filtro 'STATUS = "ATIVO"'
+```
+
+Filtrar Excel:
+
+```bash
+gt-dataslicer filtrar input.xlsx --saida output.csv --filtro 'STATUS = "ATIVO"'
+```
+
+Filtrar todas as abas de um Excel:
+
+```bash
+gt-dataslicer filtrar input.xlsx --todas-abas --saida saidas --filtro 'STATUS = "ATIVO"'
+```
+
+Filtrar vários arquivos em sequência:
+
+```bash
+gt-dataslicer filtrar janeiro.csv fevereiro.parquet --saida filtrado.csv --filtro 'STATUS = "ATIVO"'
+```
+
+Filtrar arquivos dentro de um ZIP com senha:
+
+```bash
+gt-dataslicer filtrar dados.zip --senha-zip minha-senha --saida filtrado.csv --filtro 'STATUS = "ATIVO"'
+```
+
 Salvar em Excel:
 
 ```bash
 gt-dataslicer filtrar input.csv --saida output.xlsx --filtro 'STATUS = "ATIVO"'
+```
+
+Salvar em Parquet:
+
+```bash
+gt-dataslicer filtrar input.csv --saida output.parquet --filtro 'STATUS = "ATIVO"'
 ```
 
 Ver as colunas do arquivo:
@@ -73,6 +111,24 @@ Testar se um filtro está correto antes de gerar o arquivo:
 
 ```bash
 gt-dataslicer validar-filtro input.csv --filtro 'VALOR_TOTAL > 1000'
+```
+
+## Arquivos para teste manual
+
+Para testar a tela visual sem usar dados reais, você pode criar arquivos locais na pasta `manual-test-data/`.
+
+Essa pasta é ignorada pelo Git, então os arquivos de teste não entram nos commits. Um conjunto útil de arquivos é:
+
+```text
+manual-test-data\clientes.csv
+manual-test-data\clientes.parquet
+manual-test-data\clientes.xlsx
+```
+
+Use o mesmo filtro nos três formatos para comparar o resultado:
+
+```text
+CD_EMPRESA = 1 E ST_CONTRATO != "P" E CD_NATUREZA_OPERACAO NAO EM (14, 15) E CD_MODALIDADE <= 13
 ```
 
 ## Como escrever filtros
@@ -97,6 +153,8 @@ NOME contém "SILVA"
 CPF NÃO É NULO
 OBSERVACAO E VAZIO
 ```
+
+`STATUS EM ("ATIVO", "SUSPENSO")` quer dizer: o status é um destes valores. Na tela visual, escolha “é um destes valores” e separe os valores com vírgula.
 
 Você pode usar `E`, `OU` e `NÃO` para combinar regras:
 
@@ -133,6 +191,46 @@ gt-dataslicer filtrar input.csv --saida output.csv \
   --renomear NOME=Nome
 ```
 
+## Criar novas colunas
+
+Na tela visual, use “Criar novas colunas” para limpar ou formatar uma coluna sem escrever fórmula.
+
+Exemplos comuns:
+
+- manter só números de um CPF;
+- remover acentos de nomes;
+- deixar texto em maiúsculas;
+- adicionar um prefixo ou sufixo;
+- formatar CPF, CNPJ ou telefone.
+
+Pela CLI, use o mesmo formato de configuração da tela visual.
+
+Exemplo direto na linha de comando:
+
+```bash
+gt-dataslicer filtrar pessoas.csv --saida pessoas_limpas.csv \
+  --selecionar NOME \
+  --coluna-derivada '{"source":"CPF","name":{"prefix":"LIMPO","separator":"_"},"transforms":[{"operation":"keep_digits"}]}'
+```
+
+Exemplo com arquivo `derivadas.yaml`:
+
+```yaml
+derived_columns:
+  - source: CPF
+    name:
+      prefix: LIMPO
+      separator: "_"
+    transforms:
+      - operation: keep_digits
+```
+
+Rodando:
+
+```bash
+gt-dataslicer filtrar pessoas.csv --saida pessoas_limpas.csv --colunas-derivadas-arquivo derivadas.yaml
+```
+
 ## Idioma
 
 A CLI usa português por padrão.
@@ -167,7 +265,11 @@ Se uma coluna tiver espaço, acento, pontuação ou o mesmo nome de um operador,
 Você também pode:
 
 - usar arquivos de configuração com `--configuracao`;
-- usar listas externas com `--consulta`;
+- salvar configuração pela tela visual e reutilizar na CLI;
+- usar arquivos externos de consulta com `--consulta`;
+- ler arquivos Parquet, Excel `.xlsx` e ZIP;
+- salvar o resultado em Parquet com `--formato parquet` ou usando saída `.parquet`;
+- excluir o ZIP automaticamente depois de extrair com sucesso usando `--excluir-zip-apos-extrair`;
 - remover linhas duplicadas com `--deduplicar`;
 - ordenar o resultado com `--ordenar`;
 - gerar relatório com `--relatorio`;

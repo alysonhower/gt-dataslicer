@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "gt-dataslicer"
 version = "0.1.0"
-description = "Filter very large CSV files with a safe expression DSL and export results to CSV or XLSX."
+description = "Filter large CSV, Parquet, Excel, and ZIP-delivered files with a safe expression DSL."
 readme = "README.md"
 requires-python = ">=3.12"
 license = "MIT"
@@ -15,7 +15,9 @@ authors = [
 dependencies = [
   "duckdb>=1.1",
   "lark>=1.2",
+  "openpyxl>=3.1",
   "pywebview>=6.2.1",
+  "pyzipper>=0.3.6",
   "pyyaml>=6.0",
   "rich>=13.7",
   "typer>=0.12",
@@ -24,7 +26,6 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = [
-  "openpyxl>=3.1",
   "pytest>=8.2",
   "pytest-cov>=5.0",
 ]

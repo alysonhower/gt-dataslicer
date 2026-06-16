@@ -29,6 +29,8 @@ def test_package_metadata_includes_freeze_icon_dependencies() -> None:
     pyproject = PYPROJECT_PATH.read_text(encoding="utf-8")
 
     assert '"pillow>=10"' in pyproject
+    assert '"openpyxl>=3.1"' in pyproject
+    assert '"pyzipper>=0.3.6"' in pyproject
     assert '"icon.png" = "gt_dataslicer/ui/icon.png"' in pyproject
     assert '"src/gt_dataslicer/filters/grammar.lark" = "gt_dataslicer/filters/grammar.lark"' in pyproject
 
@@ -40,6 +42,8 @@ def test_pyinstaller_spec_configures_single_file_dataslicer_exe() -> None:
     assert "console=False" in spec
     assert "COLLECT(" not in spec
     assert "duckdb" in spec
+    assert "openpyxl" in spec
+    assert "pyzipper" in spec
     assert "webview" in spec
     assert "xlsxwriter" in spec
     assert "icon=str(icon_png)" in spec

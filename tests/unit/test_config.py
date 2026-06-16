@@ -29,6 +29,8 @@ def _merge_options(
         cli_sorts=[],
         cli_lookups=[],
         cli_types=[],
+        cli_derived_columns=[],
+        derived_columns_file=None,
         csv_options=CsvOptions(),
         sheet_prefix="Results",
         max_rows_per_sheet=1_048_576,
@@ -77,6 +79,22 @@ def test_cli_output_format_overrides_config_output_format(tmp_path: Path) -> Non
 
     assert options.output_format == "csv"
     assert options.output_path == tmp_path / "result.csv"
+
+
+def test_output_format_supports_parquet_from_config_and_suffix(tmp_path: Path) -> None:
+    options = _merge_options(
+        tmp_path,
+        output_name="result",
+        preset_config={"output_format": "parquet"},
+    )
+
+    assert options.output_format == "parquet"
+    assert options.output_path == tmp_path / "result.parquet"
+
+    suffix_options = _merge_options(tmp_path, output_name="result.parquet")
+
+    assert suffix_options.output_format == "parquet"
+    assert suffix_options.output_path == tmp_path / "result.parquet"
 
 
 def test_cli_output_format_ignores_invalid_config_output_format(tmp_path: Path) -> None:

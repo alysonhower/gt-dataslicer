@@ -10,12 +10,19 @@ from typing import Any, Literal, cast
 
 import yaml
 
+from .derived import (
+    DerivedColumnSpec,
+    load_derived_columns_file,
+    parse_derived_column_json_items,
+    parse_derived_columns,
+)
 from .exceptions import ConfigError
+from .inputs import ResolvedInput
 
 
 SUPPORTED_COLUMN_TYPES = {"string", "int", "integer", "decimal", "bool", "boolean", "date", "datetime"}
-OUTPUT_FORMATS = {"csv", "xlsx"}
-OutputFormat = Literal["csv", "xlsx"]
+OUTPUT_FORMATS = {"csv", "parquet", "xlsx"}
+OutputFormat = Literal["csv", "parquet", "xlsx"]
 
 
 @dataclass(slots=True)
@@ -52,6 +59,7 @@ class FilterRunOptions:
     input_path: Path
     output_path: Path
     output_format: OutputFormat = "csv"
+    resolved_input: ResolvedInput | None = None
     where: list[str] = field(default_factory=list)
     select: list[str] = field(default_factory=list)
     renames: dict[str, str] = field(default_factory=dict)
@@ -72,6 +80,7 @@ class FilterRunOptions:
     typed_mode: bool = False
     strict_values: bool = False
     batch_size: int = 10_000
+    derived_columns: list[DerivedColumnSpec] = field(default_factory=list)
 
 
 def load_config_file(path: Path | None) -> dict[str, Any]:
@@ -199,7 +208,7 @@ def parse_output_format(value: Any, *, source: str) -> OutputFormat | None:
     if value is None:
         return None
     if not isinstance(value, str):
-        raise ConfigError(f"{source} must be csv or xlsx.")
+        raise ConfigError(f"{source} must be csv, xlsx, or parquet.")
     normalized = value.strip().lower()
     if normalized not in OUTPUT_FORMATS:
         valid = ", ".join(sorted(OUTPUT_FORMATS))
@@ -212,6 +221,7 @@ def resolve_output_target(
     *,
     cli_output_format: str | None,
     config_output_format: Any,
+    allow_directory: bool = False,
 ) -> tuple[Path, OutputFormat]:
     cli_format = parse_output_format(cli_output_format, source="--format")
     config_format = (
@@ -222,6 +232,9 @@ def resolve_output_target(
     explicit_format = cli_format or config_format
     suffix_format = _format_from_suffix(output_path)
 
+    if allow_directory and output_path.exists() and output_path.is_dir():
+        return output_path, explicit_format or "csv"
+
     if explicit_format is not None:
         if suffix_format is not None and suffix_format != explicit_format:
             raise ConfigError(
@@ -229,14 +242,14 @@ def resolve_output_target(
             )
         if suffix_format is None:
             if output_path.suffix:
-                raise ConfigError("Output path suffix must be .csv or .xlsx, or omit the suffix.")
+                raise ConfigError("Output path suffix must be .csv, .xlsx, .parquet, or omit the suffix.")
             output_path = output_path.with_suffix(f".{explicit_format}")
         return output_path, explicit_format
 
     if suffix_format is not None:
         return output_path, suffix_format
     if output_path.suffix:
-        raise ConfigError("Output path suffix must be .csv or .xlsx, or omit the suffix.")
+        raise ConfigError("Output path suffix must be .csv, .xlsx, .parquet, or omit the suffix.")
     return output_path.with_suffix(".csv"), "csv"
 
 
@@ -246,6 +259,8 @@ def _format_from_suffix(path: Path) -> OutputFormat | None:
         return "csv"
     if suffix == ".xlsx":
         return "xlsx"
+    if suffix == ".parquet":
+        return "parquet"
     return None
 
 
@@ -281,6 +296,8 @@ def merge_config_and_cli(
     cli_sorts: list[str],
     cli_lookups: list[str],
     cli_types: list[str],
+    cli_derived_columns: list[str],
+    derived_columns_file: Path | None,
     csv_options: CsvOptions,
     sheet_prefix: str,
     max_rows_per_sheet: int,
@@ -293,11 +310,13 @@ def merge_config_and_cli(
     typed_mode: bool,
     strict_values: bool,
     batch_size: int,
+    allow_output_directory: bool = False,
 ) -> FilterRunOptions:
     output_path, output_format = resolve_output_target(
         output_path,
         cli_output_format=cli_output_format,
         config_output_format=preset_config.get("output_format"),
+        allow_directory=allow_output_directory,
     )
     config_where = as_list(preset_config.get("where"), key="where")
     config_select = as_list(preset_config.get("select"), key="select")
@@ -336,6 +355,11 @@ def merge_config_and_cli(
 
     config_lookup_specs = parse_lookup_items(config_lookups, base_dir=config_base_dir)
     cli_lookup_specs = parse_lookup_items(cli_lookups)
+    derived_columns = [
+        *parse_derived_columns(preset_config.get("derived_columns")),
+        *(load_derived_columns_file(derived_columns_file) if derived_columns_file is not None else []),
+        *parse_derived_column_json_items(cli_derived_columns),
+    ]
 
     return FilterRunOptions(
         input_path=input_path,
@@ -361,4 +385,5 @@ def merge_config_and_cli(
         typed_mode=typed_mode,
         strict_values=strict_values,
         batch_size=batch_size,
+        derived_columns=derived_columns,
     )

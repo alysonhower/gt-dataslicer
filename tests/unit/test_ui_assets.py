@@ -27,11 +27,25 @@ def test_browser_app_has_translation_hooks_for_static_text() -> None:
     script = APP_JS.read_text(encoding="utf-8")
 
     assert "data-i18n=\"chooseFile\"" in markup
+    assert "data-i18n=\"browseInput\"" in markup
     assert "data-i18n-placeholder=\"chooseSavePlaceholder\"" in markup
     assert "styles.css?v=" in markup
     assert "app.js?v=" in markup
     assert "function applyLanguage()" in script
     assert "document.querySelectorAll(\"[data-i18n]\")" in script
+
+
+def test_browser_app_surfaces_input_resolution_warnings() -> None:
+    markup = INDEX_HTML.read_text(encoding="utf-8")
+    script = APP_JS.read_text(encoding="utf-8")
+    styles = STYLES_CSS.read_text(encoding="utf-8")
+
+    assert "inputWarningsPanel" in markup
+    assert "inputWarningsList" in markup
+    assert "function showInputWarnings(warnings = [])" in script
+    assert "showInputWarnings(data.warnings || [])" in script
+    assert "showInputWarnings([])" in script
+    assert ".input-warnings" in styles
 
 
 def test_browser_app_defaults_numeric_operators_to_number() -> None:
@@ -46,11 +60,15 @@ def test_browser_app_defaults_numeric_operators_to_number() -> None:
 
 def test_browser_app_syncs_output_suffix_when_format_changes() -> None:
     script = APP_JS.read_text(encoding="utf-8")
+    markup = INDEX_HTML.read_text(encoding="utf-8")
 
     assert "function syncOutputSuffixWithFormat()" in script
-    assert "/\\.(csv|xlsx)$/i.test(path)" in script
-    assert 'format === "xlsx" ? ".xlsx" : ".csv"' in script
+    assert "/\\.(csv|xlsx|parquet)$/i.test(path)" in script
+    assert 'parquet: ".parquet"' in script
     assert "syncOutputSuffixWithFormat();" in script
+    assert 'data-format-card="csv"' in markup
+    assert 'data-format-card="xlsx"' in markup
+    assert 'data-format-card="parquet"' in markup
 
 
 def test_browser_app_filter_hint_uses_complete_visual_rules() -> None:
@@ -110,3 +128,61 @@ def test_browser_app_filter_columns_are_searchable() -> None:
     assert ".column-search" in styles
     assert ".filter-column-suggestions" in styles
     assert ".column-suggestion.active" in styles
+
+
+def test_browser_app_uses_noob_friendly_membership_labels() -> None:
+    markup = INDEX_HTML.read_text(encoding="utf-8")
+    script = APP_JS.read_text(encoding="utf-8")
+
+    assert "é um destes valores" in markup
+    assert "não é nenhum destes valores" in markup
+    assert "is one of these values" in script
+    assert "is none of these values" in script
+    assert "está na lista" not in markup
+    assert "está na lista" not in script
+    assert "is in list" not in script
+
+
+def test_browser_app_replaces_terminal_details_with_result_cards() -> None:
+    markup = INDEX_HTML.read_text(encoding="utf-8")
+    styles = STYLES_CSS.read_text(encoding="utf-8")
+    script = APP_JS.read_text(encoding="utf-8")
+
+    assert "resultCards" in markup
+    assert "friendlyErrorBox" in markup
+    assert "technicalDetails" in markup
+    assert "details-box" not in markup
+    assert "function showResultCards(report)" in script
+    assert "queuePartialDone" in script
+    assert "queueAllFailed" in script
+    assert "report.errors || []" in script
+    assert ".output-error" in styles
+    assert ".result-cards" in styles
+    assert "background: #161418" not in styles
+
+
+def test_browser_app_prompts_for_zip_password_during_inspection() -> None:
+    script = APP_JS.read_text(encoding="utf-8")
+
+    assert "async function maybePromptForZipPasswordAndRetryInspect(error)" in script
+    assert "await maybePromptForZipPasswordAndRetryInspect(error)" in script
+    assert "async function promptForZipPassword(error)" in script
+    assert "Object.assign(thrown, error)" in script
+
+
+def test_browser_app_has_visual_derived_columns_controls() -> None:
+    markup = INDEX_HTML.read_text(encoding="utf-8")
+    script = APP_JS.read_text(encoding="utf-8")
+    styles = STYLES_CSS.read_text(encoding="utf-8")
+
+    assert "derivedColumnTemplate" in markup
+    assert "derivedTransformTemplate" in markup
+    assert "Criar novas colunas" in markup
+    assert "function visualDerivedColumns()" in script
+    assert "derived_columns: visualDerivedColumns()" in script
+    assert "function addDerivedColumn" in script
+    assert "function transformPayload" in script
+    assert "saveConfigBtn" in markup
+    assert "state.api.save_config(payload())" in script
+    assert ".derived-column-card" in styles
+    assert ".format-card-grid" in styles
