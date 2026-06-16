@@ -4,6 +4,7 @@ const state = {
   inputPaths: [],
   outputPath: "",
   outputPaths: [],
+  outputNames: [],
   resolvedInputs: [],
   columns: [],
   language: "pt-BR",
@@ -32,6 +33,8 @@ const text = {
     columnsLoaded: "colunas carregadas.",
     columnSearchPlaceholder: "Buscar coluna",
     inputQueue: "Arquivos na fila",
+    outputName: "Nome de saída",
+    outputNamePlaceholder: "Opcional",
     zipPasswords: "Senhas de ZIP",
     onePasswordPerLine: "Uma senha por linha",
     allExcelSheets: "Processar todas as abas do Excel",
@@ -210,6 +213,8 @@ const text = {
     columnsLoaded: "columns loaded.",
     columnSearchPlaceholder: "Search column",
     inputQueue: "Files in queue",
+    outputName: "Output name",
+    outputNamePlaceholder: "Optional",
     zipPasswords: "ZIP passwords",
     onePasswordPerLine: "One password per line",
     allExcelSheets: "Process all Excel sheets",
@@ -491,6 +496,8 @@ function setInputPath(path) {
 function setInputPaths(paths) {
   state.inputPaths = (paths || []).filter(Boolean);
   state.inputPath = state.inputPaths[0] || "";
+  state.outputNames = [];
+  state.resolvedInputs = [];
   byId("inputPathText").textContent = state.inputPath || t("noFile");
   renderQueue();
   showInputWarnings([]);
@@ -548,7 +555,23 @@ function renderQueue(inputs = state.resolvedInputs) {
     const meta = [item.format, item.excel_sheet ? `aba: ${item.excel_sheet}` : "", item.zip_source ? "ZIP" : ""]
       .filter(Boolean)
       .join(" · ");
-    row.innerHTML = `<strong>${index + 1}. ${escapeHtml(label)}</strong><span>${escapeHtml(meta)}</span>`;
+    const title = document.createElement("strong");
+    title.textContent = `${index + 1}. ${label}`;
+    const metaText = document.createElement("span");
+    metaText.textContent = meta;
+    const outputLabel = document.createElement("label");
+    outputLabel.className = "queue-output-name";
+    const outputLabelText = document.createElement("span");
+    outputLabelText.textContent = t("outputName");
+    const outputInput = document.createElement("input");
+    outputInput.type = "text";
+    outputInput.value = state.outputNames[index] || item.output_name || "";
+    outputInput.placeholder = t("outputNamePlaceholder");
+    outputInput.addEventListener("input", () => {
+      state.outputNames[index] = outputInput.value;
+    });
+    outputLabel.append(outputLabelText, outputInput);
+    row.append(title, metaText, outputLabel);
     list.appendChild(row);
   });
   panel.classList.remove("hidden");
@@ -918,6 +941,11 @@ function transformPayload(row) {
   return { operation };
 }
 
+function outputNameItems() {
+  const count = (state.resolvedInputs && state.resolvedInputs.length) || state.inputPaths.length;
+  return Array.from({ length: count }, (_item, index) => (state.outputNames[index] || "").trim());
+}
+
 function addDerivedColumn(initial = {}) {
   const template = byId("derivedColumnTemplate");
   const card = template.content.firstElementChild.cloneNode(true);
@@ -1074,6 +1102,7 @@ function payload() {
     input_paths: state.inputPaths,
     output_path: byId("outputPathInput").value.trim(),
     output_format: format,
+    output_names: outputNameItems(),
     filters:
       state.filterMode === "advanced"
         ? { mode: "raw", raw: rawFilter }

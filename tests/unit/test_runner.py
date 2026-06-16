@@ -1,7 +1,10 @@
 from pathlib import Path
 
+import pytest
+
 from gt_dataslicer.config import FilterRunOptions
 from gt_dataslicer.engine.duckdb_engine import CsvSchema
+from gt_dataslicer.exceptions import ConfigError
 from gt_dataslicer.inputs import ResolvedInput
 from gt_dataslicer.report import RunReport
 from gt_dataslicer import runner as runner_module
@@ -45,3 +48,28 @@ def test_queue_reuse_schema_passes_first_schema_to_each_run(tmp_path: Path, monk
     assert FakeDuckDBEngine.inspect_calls == 1
     assert seen_schema_overrides == [schema, schema]
     assert report.output_rows == 2
+
+
+def test_queue_rejects_duplicate_custom_output_names(tmp_path: Path, monkeypatch) -> None:
+    first = tmp_path / "first.csv"
+    second = tmp_path / "second.csv"
+    first.write_text("A\n1\n", encoding="utf-8")
+    second.write_text("A\n2\n", encoding="utf-8")
+
+    class FakeDuckDBEngine:
+        def run_filter(self, *_args, **_kwargs):
+            raise AssertionError("duplicate output names should fail before exporting")
+
+    monkeypatch.setattr(runner_module, "DuckDBEngine", FakeDuckDBEngine)
+    options = FilterRunOptions(
+        input_path=first,
+        output_path=tmp_path / "filtered.csv",
+        output_names=["resultado", "resultado.csv"],
+    )
+    inputs = [
+        ResolvedInput(path=first, format="csv", display_name="first", source_path=first),
+        ResolvedInput(path=second, format="csv", display_name="second", source_path=second),
+    ]
+
+    with pytest.raises(ConfigError, match="same file"):
+        runner_module.run_filter_inputs(options, inputs)

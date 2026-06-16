@@ -177,6 +177,10 @@ def create_app(language: str = DEFAULT_LANGUAGE) -> typer.Typer:
                 metavar="CAMINHO",
             ),
         ] = None,
+        output_name: Annotated[
+            list[str] | None,
+            typer.Option("--nome-saida", "--output-name", help=tr("option.output_name"), metavar="NOME"),
+        ] = None,
         zip_password: Annotated[
             list[str] | None, typer.Option("--senha-zip", "--zip-password", metavar="TEXTO")
         ] = None,
@@ -219,6 +223,7 @@ def create_app(language: str = DEFAULT_LANGUAGE) -> typer.Typer:
                 cli_types=type_ or [],
                 cli_derived_columns=derived_column or [],
                 derived_columns_file=derived_columns_file,
+                cli_output_names=output_name or [],
                 csv_options=CsvOptions(encoding=encoding, delimiter=delimiter, header=header),
                 sheet_prefix="Results",
                 max_rows_per_sheet=1_048_576,
@@ -391,6 +396,10 @@ def create_app(language: str = DEFAULT_LANGUAGE) -> typer.Typer:
                 metavar="CAMINHO",
             ),
         ] = None,
+        output_name: Annotated[
+            list[str] | None,
+            typer.Option("--nome-saida", "--output-name", help=tr("option.output_name"), metavar="NOME"),
+        ] = None,
         typed_mode: Annotated[
             bool, typer.Option("--modo-tipado", "--typed-mode", help=tr("option.typed_mode"))
         ] = False,
@@ -421,6 +430,7 @@ def create_app(language: str = DEFAULT_LANGUAGE) -> typer.Typer:
                 cli_types=type_ or [],
                 cli_derived_columns=derived_column or [],
                 derived_columns_file=derived_columns_file,
+                cli_output_names=output_name or [],
                 csv_options=CsvOptions(
                     encoding=encoding,
                     delimiter=delimiter,

@@ -31,6 +31,7 @@ def _merge_options(
         cli_types=[],
         cli_derived_columns=[],
         derived_columns_file=None,
+        cli_output_names=[],
         csv_options=CsvOptions(),
         sheet_prefix="Results",
         max_rows_per_sheet=1_048_576,
