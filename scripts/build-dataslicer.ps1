@@ -12,6 +12,31 @@ Write-Host "Building DataSlicer.exe with PyInstaller..."
 $pythonCommand = Get-Command python -ErrorAction SilentlyContinue
 $uvCommand = Get-Command uv -ErrorAction SilentlyContinue
 
+function Get-RunningDataSlicerBuildProcesses {
+    if (-not (Test-Path $exePath)) {
+        return @()
+    }
+
+    $targetPath = [System.IO.Path]::GetFullPath($exePath)
+    return @(
+        Get-CimInstance Win32_Process -Filter "Name = 'DataSlicer.exe'" |
+            Where-Object {
+                $_.ExecutablePath -and
+                ([System.IO.Path]::GetFullPath($_.ExecutablePath) -ieq $targetPath)
+            }
+    )
+}
+
+function Assert-DataSlicerExecutableIsNotRunning {
+    $runningProcesses = @(Get-RunningDataSlicerBuildProcesses)
+    if ($runningProcesses.Count -eq 0) {
+        return
+    }
+
+    $processIds = ($runningProcesses | ForEach-Object { $_.ProcessId }) -join ", "
+    throw "DataSlicer.exe is currently running from $exePath (PID(s): $processIds). Close DataSlicer and run this script again."
+}
+
 function Invoke-PythonBuild {
     try {
         & python -m PyInstaller $specPath --noconfirm --clean
@@ -44,6 +69,8 @@ function Invoke-UvBuild {
 
 $buildSucceeded = $false
 
+Assert-DataSlicerExecutableIsNotRunning
+
 if ($pythonCommand) {
     $buildSucceeded = Invoke-PythonBuild
     if (-not $buildSucceeded -and $uvCommand) {
@@ -60,6 +87,7 @@ if (-not $pythonCommand -and -not $uvCommand) {
 }
 
 if (-not $buildSucceeded) {
+    Assert-DataSlicerExecutableIsNotRunning
     throw "DataSlicer.exe build failed. Install the freeze dependencies for Python or use uv with the freeze extra, then run this script again."
 }
 
