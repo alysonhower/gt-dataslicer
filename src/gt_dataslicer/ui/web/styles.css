@@ -111,6 +111,8 @@ h2 {
 .steps {
   position: sticky;
   top: 20px;
+  grid-column: 1;
+  grid-row: 1 / span 4;
   align-self: start;
   display: grid;
   gap: 8px;
@@ -133,6 +135,7 @@ h2 {
 }
 
 .panel {
+  grid-column: 2;
   margin-bottom: 18px;
   padding: 22px;
   background: var(--surface);
@@ -343,9 +346,21 @@ textarea {
 
 .filter-row {
   display: grid;
-  grid-template-columns: minmax(130px, 1.2fr) minmax(150px, 1fr) minmax(120px, 1fr) minmax(120px, 1fr) 110px 42px;
+  grid-template-columns: minmax(150px, 1.3fr) minmax(150px, 1fr) minmax(120px, 1fr) 110px 42px;
   gap: 8px;
   align-items: center;
+}
+
+.filter-row.is-between {
+  grid-template-columns: minmax(130px, 1.2fr) minmax(150px, 1fr) minmax(120px, 1fr) minmax(120px, 1fr) 110px 42px;
+}
+
+.filter-row.no-value {
+  grid-template-columns: minmax(160px, 1.2fr) minmax(180px, 1fr) 42px;
+}
+
+.filter-row .remove-filter {
+  justify-self: end;
 }
 
 .filter-row .filter-value2.hidden,
@@ -429,7 +444,13 @@ textarea {
 
   .steps {
     position: static;
+    grid-column: auto;
+    grid-row: auto;
     grid-template-columns: repeat(2, 1fr);
+  }
+
+  .panel {
+    grid-column: auto;
   }
 
   .field-grid,

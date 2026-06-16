@@ -260,7 +260,7 @@ function linesFromTextarea(id) {
 
 function setInputPath(path) {
   state.inputPath = path || "";
-  byId("inputPathText").textContent = state.inputPath || "Nenhum arquivo escolhido";
+  byId("inputPathText").textContent = state.inputPath || t("noFile");
 }
 
 function setOutputPath(path) {
@@ -326,6 +326,8 @@ function updateFilterRow(row) {
   if (row.dataset.typeTouched !== "true") {
     type.value = defaultTypeForOperator(operator);
   }
+  row.classList.toggle("no-value", noValue);
+  row.classList.toggle("is-between", between && !noValue);
   value.classList.toggle("hidden", noValue);
   type.classList.toggle("hidden", noValue);
   value2.classList.toggle("hidden", !between || noValue);
