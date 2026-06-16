@@ -8,6 +8,7 @@ ROOT = Path(__file__).resolve().parents[2]
 SPEC_PATH = ROOT / "packaging" / "pyinstaller" / "dataslicer.spec"
 LAUNCHER_PATH = ROOT / "packaging" / "pyinstaller" / "dataslicer_launcher.py"
 BUILD_SCRIPT_PATH = ROOT / "scripts" / "build-dataslicer.ps1"
+PYPROJECT_PATH = ROOT / "pyproject.toml"
 
 
 def test_pyinstaller_spec_includes_launcher_and_ui_assets() -> None:
@@ -16,8 +17,20 @@ def test_pyinstaller_spec_includes_launcher_and_ui_assets() -> None:
     assert "dataslicer_launcher.py" in spec
     assert 'project_root / "src" / "gt_dataslicer" / "ui" / "web"' in spec
     assert "gt_dataslicer/ui/web" in spec
+    assert 'project_root / "src" / "gt_dataslicer" / "filters" / "grammar.lark"' in spec
+    assert "gt_dataslicer/filters" in spec
+    assert 'project_root / "icon.png"' in spec
+    assert "gt_dataslicer/ui" in spec
     assert "gtil-global-sub-brand-guidelines.pdf" not in spec
     assert "tests" not in spec
+
+
+def test_package_metadata_includes_freeze_icon_dependencies() -> None:
+    pyproject = PYPROJECT_PATH.read_text(encoding="utf-8")
+
+    assert '"pillow>=10"' in pyproject
+    assert '"icon.png" = "gt_dataslicer/ui/icon.png"' in pyproject
+    assert '"src/gt_dataslicer/filters/grammar.lark" = "gt_dataslicer/filters/grammar.lark"' in pyproject
 
 
 def test_pyinstaller_spec_configures_single_file_dataslicer_exe() -> None:
@@ -29,6 +42,8 @@ def test_pyinstaller_spec_configures_single_file_dataslicer_exe() -> None:
     assert "duckdb" in spec
     assert "webview" in spec
     assert "xlsxwriter" in spec
+    assert "icon=str(icon_png)" in spec
+    assert "icon=None" not in spec
 
 
 def test_dataslicer_launcher_calls_ui_main(monkeypatch) -> None:
@@ -55,5 +70,12 @@ def test_build_script_uses_canonical_spec_and_expected_output() -> None:
     assert "$ErrorActionPreference = \"Stop\"" in script
     assert "packaging\\pyinstaller\\dataslicer.spec" in script
     assert "python -m PyInstaller" in script
+    assert "Get-Command python" in script
+    assert "Get-Command uv" in script
+    assert "Invoke-PythonBuild" in script
+    assert "Invoke-UvBuild" in script
+    assert "Falling back to uv" in script
+    assert "uv run --extra freeze python -m PyInstaller" in script
+    assert "-not $buildSucceeded -and $uvCommand" in script
     assert "--noconfirm --clean" in script
     assert "dist\\DataSlicer.exe" in script

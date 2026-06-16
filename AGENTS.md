@@ -12,6 +12,7 @@
 - Filter DSL: `filters/grammar.lark` -> `filters/parser.py` -> frozen AST dataclasses in `filters/ast.py` -> parameterized DuckDB SQL from `filters/compiler.py`. The grammar accepts English operators plus pt-BR aliases such as `E`, `OU`, `NAO`/`NÃO`, `EM`, `ENTRE`, `contém`, and `começa com`.
 - CSV export uses DuckDB `COPY TO` in `export/csv.py`; XLSX export streams `fetchmany()` batches through XlsxWriter in `export/excel.py`.
 - Desktop UI flow: static assets in `ui/web/` call `ui.api.DataSlicerApi` through Pywebview's JS bridge; the API converts visual filters into the existing DSL and builds the same `FilterRunOptions` used by the CLI.
+- The visual filter builder includes browser-side fuzzy column search for quickly locating columns; it must still submit exact selected/typed column names to the existing Python validation path.
 - Reports use `report.RunReport` and can be written as JSON by the CLI `--report` path.
 - Human-facing CLI text is centralized in `i18n.py`; do not translate stable config keys, report JSON keys, Python identifiers, or exception class names.
 
@@ -35,6 +36,8 @@ pytest tests/integration/test_cli.py
 hatch build
 python -m pip install -e .[dev,freeze]
 .\scripts\build-dataslicer.ps1
+# build script also supports machines with uv but no python command:
+uv run --extra freeze python -m PyInstaller packaging\pyinstaller\dataslicer.spec --noconfirm --clean
 ```
 CLI examples:
 ```bash
@@ -57,6 +60,7 @@ gt-dataslicer abrir
 - UI code must preserve the same pipeline boundary. Do not reimplement filtering, query assembly, CSV export, or XLSX export in JavaScript or UI-specific Python.
 - The visible desktop product name is `DataSlicer` with descriptor `Powered by Grant Thornton Brasil`. Do not expose the `GT` acronym, the Mobius symbol, or invented Grant Thornton logo assets in the UI.
 - Freezing is Windows-first and uses PyInstaller one-file mode through `packaging/pyinstaller/dataslicer.spec`; use the spec file instead of ad hoc PyInstaller commands.
+- Frozen builds must include `ui/web`, `ui/icon.png`, and `filters/grammar.lark` as data files. The built `dist\DataSlicer.exe` is self-contained and must not require Python or `uv` at runtime.
 - No async patterns or DI container are used. `DuckDBEngine` owns an in-memory DuckDB connection; instantiate directly unless a test needs monkeypatching.
 - Tests prefer real temp files via `tmp_path`, `pytest.raises`, and `typer.testing.CliRunner`; there is no shared `conftest.py`.
 
@@ -67,8 +71,8 @@ gt-dataslicer abrir
 - `src/gt_dataslicer/ui/app.py`: Pywebview window creation and desktop entry point.
 - `src/gt_dataslicer/ui/api.py`: JSON-safe bridge used by the static UI.
 - `src/gt_dataslicer/ui/web/`: desktop UI assets; keep copy simple, practical, and non-technical.
-- `packaging/pyinstaller/dataslicer.spec`: canonical build definition for `dist\DataSlicer.exe`; it must include `ui/web` assets and avoid test files/brand PDFs.
-- `scripts/build-dataslicer.ps1`: PowerShell wrapper for the PyInstaller build.
+- `packaging/pyinstaller/dataslicer.spec`: canonical build definition for `dist\DataSlicer.exe`; it must include UI assets, `filters/grammar.lark`, and the app icon while avoiding test files/brand PDFs.
+- `scripts/build-dataslicer.ps1`: PowerShell wrapper for the PyInstaller build; it uses `python` when available and falls back to `uv`.
 - `src/gt_dataslicer/i18n.py`: pt-BR/en-US message templates and user-facing error localization.
 - `src/gt_dataslicer/config.py`: config file loading, preset selection, CLI/config merge, output format resolution.
 - `src/gt_dataslicer/engine/duckdb_engine.py`: main CSV inspection/filter/export pipeline.
@@ -82,15 +86,17 @@ gt-dataslicer abrir
 - Build backend: Hatchling (`hatchling.build`); wheel package is `src/gt_dataslicer`.
 - Runtime dependencies: DuckDB, Lark, PyYAML, Pywebview, Rich, Typer, XlsxWriter.
 - Dev dependencies: pytest, pytest-cov, openpyxl.
-- Freeze dependencies: PyInstaller via `python -m pip install -e .[freeze]`.
+- Freeze dependencies: PyInstaller and Pillow via `python -m pip install -e .[freeze]`, or `uv run --extra freeze ...` on machines without a `python` command.
 - No formatter/linter/type-checker configuration is present; do not invent a new style tool unless explicitly requested.
 - No `docs/`, Makefile, tox/nox, pre-commit, or CI config exists in this repository.
 
 ## Testing & QA
 - Primary test command: `pytest`.
+- Do not repeatedly run the full test suite or rebuild `dist\DataSlicer.exe` after every small edit. During implementation, use static inspection or narrow targeted checks only when needed. Run the relevant tests and rebuild the app as the final verification step immediately before finishing.
 - Unit tests cover config precedence, bilingual DSL parsing, SQL compilation, engine row counts, and XLSX safety/summary behavior.
 - Integration tests use `CliRunner` for real CLI flows: filtering, validation, config presets, lookups, dedupe/sort, date casting, strict values, rejects, output formats, and localized CLI output.
 - For DSL changes, update parser and compiler tests together; grammar-only changes are incomplete without SQL validation coverage.
 - For CLI/config/i18n changes, add or update integration coverage in `tests/integration/test_cli.py` because option aliases, command aliases, language defaults, help text, and exit codes are user-facing.
 - For UI changes, test the Python bridge, visual filter conversion, job manager, and CLI launch routing. Do not require a live Pywebview window in automated tests; monkeypatch `webview.create_window` and `webview.start` when launch behavior needs coverage.
+- For UI asset changes, prefer targeted static checks/tests during development. Defer the full pytest run and PyInstaller rebuild until the final verification pass.
 - For freezing changes, test the launcher/spec/script as files and imports. Do not require a PyInstaller build in normal tests unless an explicit opt-in environment variable is added.
