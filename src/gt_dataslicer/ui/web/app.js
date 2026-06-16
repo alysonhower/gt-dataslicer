@@ -332,6 +332,7 @@ function updateColumnOptions(input) {
     option.textContent = column;
     option.title = column;
     option.dataset.value = column;
+    option.tabIndex = -1;
     option.addEventListener("mousedown", (event) => event.preventDefault());
     option.addEventListener("click", () => chooseColumnSuggestion(input, column));
     suggestions.appendChild(option);
@@ -343,6 +344,7 @@ function updateColumnOptions(input) {
 function closeColumnSuggestions(input) {
   const suggestions = input.parentElement.querySelector(".filter-column-suggestions");
   suggestions.classList.add("hidden");
+  suggestions.querySelectorAll(".column-suggestion").forEach((option) => option.classList.remove("active"));
   input.setAttribute("aria-expanded", "false");
   input.dataset.activeIndex = "-1";
   input.removeAttribute("aria-activedescendant");
@@ -396,6 +398,17 @@ function chooseActiveColumnSuggestion(input) {
   return true;
 }
 
+function chooseFirstColumnSuggestion(input) {
+  const suggestions = input.parentElement.querySelector(".filter-column-suggestions");
+  const firstOption = suggestions.querySelector(".column-suggestion");
+  if (!firstOption) {
+    closeColumnSuggestions(input);
+    return false;
+  }
+  chooseColumnSuggestion(input, firstOption.dataset.value);
+  return true;
+}
+
 function normalizeForSearch(value) {
   return String(value)
     .normalize("NFD")
@@ -403,44 +416,54 @@ function normalizeForSearch(value) {
     .toLowerCase();
 }
 
+function columnSearchParts(value) {
+  const normalized = normalizeForSearch(value).trim();
+  const tokens = normalized.split(/[^a-z0-9]+/).filter(Boolean);
+  return {
+    normalized,
+    compact: tokens.join(""),
+    initials: tokens.map((token) => token[0]).join(""),
+    tokens,
+  };
+}
+
+function everyQueryTokenMatches(candidateTokens, queryTokens, matcher) {
+  return queryTokens.length > 0 && queryTokens.every((queryToken) => candidateTokens.some((candidateToken) => matcher(candidateToken, queryToken)));
+}
+
 function fuzzyScore(candidate, query) {
-  const normalizedCandidate = normalizeForSearch(candidate);
-  const normalizedQuery = normalizeForSearch(query).trim();
-  if (!normalizedQuery) {
+  const candidateParts = columnSearchParts(candidate);
+  const queryParts = columnSearchParts(query);
+  if (!queryParts.compact) {
     return 0;
   }
-  if (normalizedCandidate === normalizedQuery) {
+  if (candidateParts.normalized === queryParts.normalized || candidateParts.compact === queryParts.compact) {
     return 100000;
   }
-  if (normalizedCandidate.startsWith(normalizedQuery)) {
-    return 80000 - normalizedCandidate.length;
+  if (candidateParts.normalized.startsWith(queryParts.normalized) || candidateParts.compact.startsWith(queryParts.compact)) {
+    return 90000 - candidateParts.compact.length;
   }
-  const containsIndex = normalizedCandidate.indexOf(normalizedQuery);
+  if (candidateParts.tokens.some((token) => token === queryParts.compact)) {
+    return 85000 - candidateParts.compact.length;
+  }
+  if (everyQueryTokenMatches(candidateParts.tokens, queryParts.tokens, (candidateToken, queryToken) => candidateToken.startsWith(queryToken))) {
+    return 82000 - candidateParts.compact.length;
+  }
+  if (candidateParts.initials.startsWith(queryParts.compact)) {
+    return 78000 - candidateParts.compact.length;
+  }
+  if (candidateParts.normalized.includes(queryParts.normalized)) {
+    return 72000 - candidateParts.normalized.indexOf(queryParts.normalized) * 20 - candidateParts.compact.length;
+  }
+  const containsIndex = candidateParts.compact.indexOf(queryParts.compact);
   if (containsIndex >= 0) {
-    return 60000 - containsIndex * 20 - normalizedCandidate.length;
+    return 68000 - containsIndex * 20 - candidateParts.compact.length;
+  }
+  if (everyQueryTokenMatches(candidateParts.tokens, queryParts.tokens, (candidateToken, queryToken) => candidateToken.includes(queryToken))) {
+    return 62000 - candidateParts.compact.length;
   }
 
-  let score = 0;
-  let queryIndex = 0;
-  let previousMatch = -1;
-  for (let candidateIndex = 0; candidateIndex < normalizedCandidate.length && queryIndex < normalizedQuery.length; candidateIndex += 1) {
-    if (normalizedCandidate[candidateIndex] !== normalizedQuery[queryIndex]) {
-      continue;
-    }
-    const consecutive = previousMatch === candidateIndex - 1;
-    const boundary = candidateIndex === 0 || "_ -./".includes(normalizedCandidate[candidateIndex - 1]);
-    score += 120;
-    if (consecutive) score += 70;
-    if (boundary) score += 40;
-    score -= Math.max(candidateIndex - previousMatch - 1, 0) * 2;
-    previousMatch = candidateIndex;
-    queryIndex += 1;
-  }
-
-  if (queryIndex !== normalizedQuery.length) {
-    return Number.NEGATIVE_INFINITY;
-  }
-  return score - normalizedCandidate.length;
+  return Number.NEGATIVE_INFINITY;
 }
 
 function rankedColumns(query) {
@@ -535,8 +558,12 @@ function addFilterRow(initial = {}) {
     } else if (event.key === "ArrowUp") {
       event.preventDefault();
       moveColumnSuggestion(column, -1);
-    } else if (event.key === "Enter" && chooseActiveColumnSuggestion(column)) {
+    } else if (event.key === "Enter") {
       event.preventDefault();
+      chooseActiveColumnSuggestion(column) || chooseFirstColumnSuggestion(column);
+    } else if (event.key === "Tab") {
+      event.preventDefault();
+      moveColumnSuggestion(column, event.shiftKey ? -1 : 1);
     } else if (event.key === "Escape") {
       closeColumnSuggestions(column);
     }

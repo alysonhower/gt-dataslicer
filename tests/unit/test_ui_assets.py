@@ -96,8 +96,14 @@ def test_browser_app_filter_columns_are_searchable() -> None:
     assert "function fuzzyScore(candidate, query)" in script
     assert "function rankedColumns(query)" in script
     assert "function moveColumnSuggestion(input, direction)" in script
+    assert "function chooseFirstColumnSuggestion(input)" in script
+    assert "function columnSearchParts(value)" in script
+    assert 'option.classList.remove("active")' in script
     assert 'suggestions.classList.contains("hidden")' in script
     assert 'event.key === "ArrowDown"' in script
+    assert 'event.key === "Tab"' in script
+    assert "event.shiftKey ? -1 : 1" in script
+    assert "option.tabIndex = -1" in script
     assert ".slice(0, 50)" in script
     assert 'column.addEventListener("input"' in script
     assert 'column.addEventListener("keydown"' in script
