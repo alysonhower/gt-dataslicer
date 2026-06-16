@@ -1,3 +1,5 @@
+import csv as csv_module
+import json
 from pathlib import Path
 
 from openpyxl import load_workbook
@@ -30,9 +32,14 @@ def rows_from_xlsx(path: Path, sheet: str = "Results_001") -> list[tuple[object,
     return [tuple(row) for row in worksheet.iter_rows(values_only=True)]
 
 
+def rows_from_csv(path: Path) -> list[tuple[str, ...]]:
+    with path.open(newline="", encoding="utf-8") as file:
+        return [tuple(row) for row in csv_module.reader(file)]
+
+
 def test_filter_command_exports_matching_rows(tmp_path: Path) -> None:
     csv_path = tmp_path / "input.csv"
-    output_path = tmp_path / "output.xlsx"
+    output_path = tmp_path / "output.csv"
     report_path = tmp_path / "report.json"
     write_csv(csv_path)
 
@@ -55,9 +62,155 @@ def test_filter_command_exports_matching_rows(tmp_path: Path) -> None:
     )
 
     assert result.exit_code == 0, result.output
-    rows = rows_from_xlsx(output_path)
+    rows = rows_from_csv(output_path)
     assert rows == [("NOME", "VALOR_TOTAL"), ("JOAO SILVA", "1500")]
+    report = json.loads(report_path.read_text(encoding="utf-8"))
+    assert report["output_rows"] == 1
+    assert report["output_paths"] == [str(output_path)]
+    assert report["engine_options"]["output_format"] == "csv"
     assert report_path.exists()
+
+
+def test_filter_defaults_to_csv_when_output_has_no_suffix(tmp_path: Path) -> None:
+    csv_path = tmp_path / "input.csv"
+    output_path = tmp_path / "output"
+    write_csv(csv_path)
+
+    result = runner.invoke(
+        app,
+        [
+            "filter",
+            str(csv_path),
+            "-o",
+            str(output_path),
+            "--where",
+            'STATUS = "SUSPENSO"',
+            "--select",
+            "NOME",
+        ],
+    )
+
+    normalized_path = output_path.with_suffix(".csv")
+    assert result.exit_code == 0, result.output
+    assert not output_path.exists()
+    assert rows_from_csv(normalized_path) == [("NOME",), ("ANA LIMA",)]
+
+
+def test_filter_writes_xlsx_when_suffix_requests_excel(tmp_path: Path) -> None:
+    csv_path = tmp_path / "input.csv"
+    output_path = tmp_path / "output.xlsx"
+    write_csv(csv_path)
+
+    result = runner.invoke(
+        app,
+        [
+            "filter",
+            str(csv_path),
+            "-o",
+            str(output_path),
+            "--where",
+            'STATUS = "SUSPENSO"',
+            "--select",
+            "NOME",
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert rows_from_xlsx(output_path) == [("NOME",), ("ANA LIMA",)]
+
+
+def test_filter_format_xlsx_adds_missing_suffix(tmp_path: Path) -> None:
+    csv_path = tmp_path / "input.csv"
+    output_path = tmp_path / "output"
+    write_csv(csv_path)
+
+    result = runner.invoke(
+        app,
+        [
+            "filter",
+            str(csv_path),
+            "-o",
+            str(output_path),
+            "--format",
+            "xlsx",
+            "--where",
+            'STATUS = "SUSPENSO"',
+            "--select",
+            "NOME",
+        ],
+    )
+
+    normalized_path = output_path.with_suffix(".xlsx")
+    assert result.exit_code == 0, result.output
+    assert not output_path.exists()
+    assert rows_from_xlsx(normalized_path) == [("NOME",), ("ANA LIMA",)]
+
+
+def test_filter_rejects_explicit_format_suffix_conflict(tmp_path: Path) -> None:
+    csv_path = tmp_path / "input.csv"
+    output_path = tmp_path / "output.xlsx"
+    write_csv(csv_path)
+
+    result = runner.invoke(
+        app,
+        [
+            "filter",
+            str(csv_path),
+            "-o",
+            str(output_path),
+            "--format",
+            "csv",
+            "--where",
+            "CD_EMPRESA = 1",
+        ],
+    )
+
+    assert result.exit_code == 2
+    assert "conflicts with output path suffix" in result.output
+    assert not output_path.exists()
+
+
+def test_csv_output_supports_transforms_and_lookups(tmp_path: Path) -> None:
+    csv_path = tmp_path / "people.csv"
+    lookup_path = tmp_path / "ids.csv"
+    output_path = tmp_path / "output.csv"
+    csv_path.write_text(
+        "\n".join(
+            [
+                "ID,Name,Status",
+                "1,Alice,ACTIVE",
+                "2,Bob,ACTIVE",
+                "2,Bob,ACTIVE",
+                "3,Carol,INACTIVE",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    lookup_path.write_text("ID\n1\n2\n", encoding="utf-8")
+
+    result = runner.invoke(
+        app,
+        [
+            "filter",
+            str(csv_path),
+            "-o",
+            str(output_path),
+            "--where",
+            'ID IN @ids AND Status = "ACTIVE"',
+            "--lookup",
+            f"ids={lookup_path}:ID",
+            "--select",
+            "Name",
+            "--rename",
+            "Name=Person",
+            "--dedupe",
+            "--sort",
+            "Name",
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert rows_from_csv(output_path) == [("Person",), ("Alice",), ("Bob",)]
 
 
 def test_filter_supports_dates_regex_and_sheet_splitting(tmp_path: Path) -> None:

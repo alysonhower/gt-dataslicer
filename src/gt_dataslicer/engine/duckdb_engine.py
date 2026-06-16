@@ -11,6 +11,7 @@ import duckdb
 
 from ..config import CsvOptions, FilterRunOptions, LookupSpec, SortSpec
 from ..exceptions import CsvReadError, FilterValidationError, QueryExecutionError
+from ..export.csv import CsvExportOptions, export_query_to_csv
 from ..export.excel import ExcelExportOptions, batched_rows, export_rows_to_xlsx
 from ..filters.compiler import CompileContext, LookupBinding, compile_filter, quote_identifier, quote_literal
 from ..filters.parser import combine_filters
@@ -57,6 +58,7 @@ class DuckDBEngine:
             engine_options={
                 "typed_mode": options.typed_mode,
                 "strict_values": options.strict_values,
+                "output_format": options.output_format,
                 "split_mode": options.split_mode,
                 "max_rows_per_sheet": options.max_rows_per_sheet,
             },
@@ -107,20 +109,30 @@ class DuckDBEngine:
         try:
             if options.report_path is not None:
                 report.input_rows = self._count_rows(options.input_path, options.csv, options.typed_mode)
-            cursor = self.connection.execute(query, compiled.params)
-            report.output_rows = export_rows_to_xlsx(
-                headers=output_columns,
-                rows=batched_rows(cursor, options.batch_size),
-                options=ExcelExportOptions(
-                    output_path=options.output_path,
-                    sheet_prefix=options.sheet_prefix,
-                    max_rows_per_sheet=options.max_rows_per_sheet,
-                    split_mode=options.split_mode,
-                    sheets_per_file=options.sheets_per_file,
-                ),
-                report=report,
-                finalize_report=lambda: setattr(report, "rejected_rows", self._rejected_row_count()),
-            )
+            if options.output_format == "csv":
+                report.output_rows = export_query_to_csv(
+                    self.connection,
+                    query=query,
+                    params=compiled.params,
+                    options=CsvExportOptions(output_path=options.output_path),
+                )
+                report.output_paths = [str(options.output_path)]
+                report.rejected_rows = self._rejected_row_count()
+            else:
+                cursor = self.connection.execute(query, compiled.params)
+                report.output_rows = export_rows_to_xlsx(
+                    headers=output_columns,
+                    rows=batched_rows(cursor, options.batch_size),
+                    options=ExcelExportOptions(
+                        output_path=options.output_path,
+                        sheet_prefix=options.sheet_prefix,
+                        max_rows_per_sheet=options.max_rows_per_sheet,
+                        split_mode=options.split_mode,
+                        sheets_per_file=options.sheets_per_file,
+                    ),
+                    report=report,
+                    finalize_report=lambda: setattr(report, "rejected_rows", self._rejected_row_count()),
+                )
             if options.rejects_path is not None:
                 self._write_rejects(options.rejects_path)
         except duckdb.Error as exc:

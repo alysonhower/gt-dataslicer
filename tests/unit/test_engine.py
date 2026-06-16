@@ -8,7 +8,7 @@ from gt_dataslicer.engine.duckdb_engine import DuckDBEngine
 
 def test_filter_does_not_count_input_rows_without_report(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     csv_path = tmp_path / "input.csv"
-    output_path = tmp_path / "output.xlsx"
+    output_path = tmp_path / "output.csv"
     csv_path.write_text("A\n1\n2\n", encoding="utf-8")
     engine = DuckDBEngine()
 
@@ -32,7 +32,7 @@ def test_filter_does_not_count_input_rows_without_report(tmp_path: Path, monkeyp
 
 def test_filter_counts_input_rows_when_report_requested(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     csv_path = tmp_path / "input.csv"
-    output_path = tmp_path / "output.xlsx"
+    output_path = tmp_path / "output.csv"
     report_path = tmp_path / "report.json"
     csv_path.write_text("A\n1\n2\n", encoding="utf-8")
     engine = DuckDBEngine()
