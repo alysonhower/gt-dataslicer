@@ -31,7 +31,7 @@ from ..exceptions import FilterSyntaxError
 @lru_cache(maxsize=1)
 def _parser() -> Lark:
     grammar = resources.files("gt_dataslicer.filters").joinpath("grammar.lark").read_text(encoding="utf-8")
-    return Lark(grammar, parser="lalr", lexer="basic", propagate_positions=True)
+    return Lark(grammar, parser="lalr", lexer="contextual", propagate_positions=True)
 
 
 def parse_filter(expression: str) -> Expr:
@@ -122,6 +122,24 @@ class _FilterTransformer(Transformer):
 
     def is_not_predicate(self, left: Expr, _is: Token, _not: Token, kind: str) -> Expr:
         return NullCheck(left, kind, negated=True)
+
+    def is_pt_null_predicate(self, left: Expr, _token: Token) -> Expr:
+        return NullCheck(left, "null", negated=False)
+
+    def is_pt_empty_predicate(self, left: Expr, _token: Token) -> Expr:
+        return NullCheck(left, "empty", negated=False)
+
+    def is_pt_blank_predicate(self, left: Expr, _token: Token) -> Expr:
+        return NullCheck(left, "blank", negated=False)
+
+    def is_not_pt_null_predicate(self, left: Expr, _not: Token, _token: Token) -> Expr:
+        return NullCheck(left, "null", negated=True)
+
+    def is_not_pt_empty_predicate(self, left: Expr, _not: Token, _token: Token) -> Expr:
+        return NullCheck(left, "empty", negated=True)
+
+    def is_not_pt_blank_predicate(self, left: Expr, _not: Token, _token: Token) -> Expr:
+        return NullCheck(left, "blank", negated=True)
 
     def contains_predicate(self, left: Expr, _token: Token, right: Expr) -> Expr:
         return StringPredicate(left, "contains", right)

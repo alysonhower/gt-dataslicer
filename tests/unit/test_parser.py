@@ -4,7 +4,17 @@ from decimal import Decimal
 import pytest
 
 from gt_dataslicer.exceptions import FilterSyntaxError
-from gt_dataslicer.filters.ast import BooleanOp, Comparison, InPredicate, Literal, Not, NullCheck, StringPredicate
+from gt_dataslicer.filters.ast import (
+    BetweenPredicate,
+    BooleanOp,
+    Column,
+    Comparison,
+    InPredicate,
+    Literal,
+    Not,
+    NullCheck,
+    StringPredicate,
+)
 from gt_dataslicer.filters.parser import parse_filter
 
 
@@ -34,6 +44,74 @@ def test_parse_null_check() -> None:
     assert expr.negated is True
 
 
+def test_parse_pt_br_boolean_logic_and_membership() -> None:
+    expr = parse_filter("A = 1 E NÃO (B = 2 OU C NAO EM (3, 4))")
+
+    assert isinstance(expr, BooleanOp)
+    assert expr.op == "and"
+    assert isinstance(expr.children[1], Not)
+
+
+@pytest.mark.parametrize("expression", ["STATUS EM ('ATIVO')", "STATUS NAO EM ('ATIVO')", "STATUS NÃO EM ('ATIVO')"])
+def test_parse_pt_br_membership_aliases(expression: str) -> None:
+    expr = parse_filter(expression)
+
+    assert isinstance(expr, InPredicate)
+    assert expr.values == (Literal("ATIVO", "string"),)
+
+
+def test_parse_pt_br_between_alias() -> None:
+    expr = parse_filter('DATA_ADMISSAO ENTRE "2020-01-01" E "2023-12-31"')
+
+    assert isinstance(expr, BetweenPredicate)
+
+
+@pytest.mark.parametrize(
+    ("expression", "op"),
+    [
+        ('NOME contem "SILVA"', "contains"),
+        ('NOME contém "SILVA"', "contains"),
+        ('NOME comeca com "JO"', "starts_with"),
+        ('NOME começa com "JO"', "starts_with"),
+        ('NOME termina com "SILVA"', "ends_with"),
+    ],
+)
+def test_parse_pt_br_string_operator_aliases(expression: str, op: str) -> None:
+    expr = parse_filter(expression)
+
+    assert isinstance(expr, StringPredicate)
+    assert expr.op == op
+
+
+@pytest.mark.parametrize(
+    ("expression", "kind", "negated"),
+    [
+        ("CPF E NULO", "null", False),
+        ("CPF É NULO", "null", False),
+        ("CPF NAO E NULO", "null", True),
+        ("CPF NÃO É NULO", "null", True),
+        ("CPF E VAZIO", "empty", False),
+        ("CPF NÃO É VAZIO", "empty", True),
+        ("CPF E BRANCO", "blank", False),
+        ("CPF NAO E BRANCO", "blank", True),
+    ],
+)
+def test_parse_pt_br_null_empty_blank_aliases(expression: str, kind: str, negated: bool) -> None:
+    expr = parse_filter(expression)
+
+    assert isinstance(expr, NullCheck)
+    assert expr.kind == kind
+    assert expr.negated is negated
+
+
+@pytest.mark.parametrize("expression", ["[E] = 1", "[OU] = 1", "[NÃO] = 1", "`STATUS FINAL` = 'ATIVO'"])
+def test_parse_keyword_like_columns_when_escaped(expression: str) -> None:
+    expr = parse_filter(expression)
+
+    assert isinstance(expr, Comparison)
+    assert isinstance(expr.left, Column)
+
+
 def test_parse_explicit_date_and_datetime_literals() -> None:
     date_expr = parse_filter('DATA = date("2024-01-31")')
     datetime_expr = parse_filter('TS = datetime("2024-01-31T10:30:00")')
@@ -51,4 +129,4 @@ def test_invalid_explicit_date_has_user_error() -> None:
 
 def test_invalid_syntax_has_user_error() -> None:
     with pytest.raises(FilterSyntaxError):
-        parse_filter("A = AND")
+        parse_filter("A =")

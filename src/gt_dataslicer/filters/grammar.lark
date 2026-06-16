@@ -16,6 +16,12 @@
           | operand BETWEEN operand AND operand -> between_predicate
           | operand IS null_empty        -> is_predicate
           | operand IS NOT null_empty    -> is_not_predicate
+          | operand PT_NULL_CHECK        -> is_pt_null_predicate
+          | operand PT_EMPTY_CHECK       -> is_pt_empty_predicate
+          | operand PT_BLANK_CHECK       -> is_pt_blank_predicate
+          | operand NOT PT_NULL_CHECK    -> is_not_pt_null_predicate
+          | operand NOT PT_EMPTY_CHECK   -> is_not_pt_empty_predicate
+          | operand NOT PT_BLANK_CHECK   -> is_not_pt_blank_predicate
           | operand CONTAINS operand     -> contains_predicate
           | operand STARTS_WITH operand  -> starts_with_predicate
           | operand ENDS_WITH operand    -> ends_with_predicate
@@ -49,23 +55,26 @@ null_empty: NULL                         -> null_kind
           | EMPTY                        -> empty_kind
           | BLANK                        -> blank_kind
 
-AND.3: /AND/i
-OR.3: /OR/i
-NOT.3: /NOT/i
-IN.3: /IN/i
-BETWEEN.3: /BETWEEN/i
-IS.3: /IS/i
-NULL.3: /NULL/i
-EMPTY.3: /EMPTY/i
-BLANK.3: /BLANK/i
-CONTAINS.3: /CONTAINS/i
-STARTS_WITH.3: /STARTS\s+WITH/i
-ENDS_WITH.3: /ENDS\s+WITH/i
-REGEX.3: /REGEX/i
-TRUE.3: /TRUE/i
-FALSE.3: /FALSE/i
-DATE_FUNC.3: /DATE/i
-DATETIME_FUNC.3: /DATETIME/i
+AND.3: /(?:AND|E)(?!\w)/i
+OR.3: /(?:OR|OU)(?!\w)/i
+NOT.3: /(?:NOT|NAO|NÃO)(?!\w)/i
+IN.3: /(?:IN|EM)(?!\w)/i
+BETWEEN.3: /(?:BETWEEN|ENTRE)(?!\w)/i
+IS.3: /IS(?!\w)/i
+NULL.3: /(?:NULL|NULO)(?!\w)/i
+EMPTY.3: /(?:EMPTY|VAZIO)(?!\w)/i
+BLANK.3: /(?:BLANK|BRANCO)(?!\w)/i
+PT_NULL_CHECK.3: /(?:E|É)\s+NULO(?!\w)/i
+PT_EMPTY_CHECK.3: /(?:E|É)\s+VAZIO(?!\w)/i
+PT_BLANK_CHECK.3: /(?:E|É)\s+BRANCO(?!\w)/i
+CONTAINS.3: /(?:CONTAINS|CONTEM|CONTÉM)(?!\w)/i
+STARTS_WITH.3: /(?:STARTS\s+WITH|COMECA\s+COM|COMEÇA\s+COM)(?!\w)/i
+ENDS_WITH.3: /(?:ENDS\s+WITH|TERMINA\s+COM)(?!\w)/i
+REGEX.3: /REGEX(?!\w)/i
+TRUE.3: /TRUE(?!\w)/i
+FALSE.3: /FALSE(?!\w)/i
+DATE_FUNC.3: /DATE(?!\w)/i
+DATETIME_FUNC.3: /DATETIME(?!\w)/i
 
 COMPARISON: "==" | "!=" | "<>" | ">=" | "<=" | "=" | ">" | "<"
 LOOKUP: "@" /[A-Za-z_][A-Za-z0-9_]*/
@@ -78,4 +87,3 @@ SINGLE_QUOTED_STRING: /'([^'\\]|\\.)*'/
 %import common.SIGNED_NUMBER
 %import common.WS
 %ignore WS
-

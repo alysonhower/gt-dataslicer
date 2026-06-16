@@ -15,6 +15,7 @@ from ..export.csv import CsvExportOptions, export_query_to_csv
 from ..export.excel import ExcelExportOptions, batched_rows, export_rows_to_xlsx
 from ..filters.compiler import CompileContext, LookupBinding, compile_filter, quote_identifier, quote_literal
 from ..filters.parser import combine_filters
+from ..i18n import tr
 from ..report import RunReport
 
 
@@ -100,7 +101,7 @@ class DuckDBEngine:
 
         LOGGER.debug("Compiled query: %s", query)
         if options.sorts:
-            report.warnings.append("Sorting large filtered outputs can require substantial temporary disk space.")
+            report.warnings.append(tr("warning.sort_temp_disk"))
 
         if options.dry_run:
             report.finish()

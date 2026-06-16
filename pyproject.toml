@@ -29,7 +29,7 @@ dev = [
 ]
 
 [project.scripts]
-gt-dataslicer = "gt_dataslicer.cli:app"
+gt-dataslicer = "gt_dataslicer.cli:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/gt_dataslicer"]

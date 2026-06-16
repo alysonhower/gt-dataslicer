@@ -3,9 +3,10 @@ import json
 from pathlib import Path
 
 from openpyxl import load_workbook
+import pytest
 from typer.testing import CliRunner
 
-from gt_dataslicer.cli import app
+from gt_dataslicer.cli import app, create_app
 
 
 runner = CliRunner()
@@ -69,6 +70,52 @@ def test_filter_command_exports_matching_rows(tmp_path: Path) -> None:
     assert report["output_paths"] == [str(output_path)]
     assert report["engine_options"]["output_format"] == "csv"
     assert report_path.exists()
+
+
+def test_filter_command_accepts_pt_br_expression(tmp_path: Path) -> None:
+    csv_path = tmp_path / "input.csv"
+    output_path = tmp_path / "output.csv"
+    write_csv(csv_path)
+
+    result = runner.invoke(
+        app,
+        [
+            "filter",
+            str(csv_path),
+            "-o",
+            str(output_path),
+            "--where",
+            'CD_EMPRESA = 1 E ST_CONTRATO != "P" E CD_NATUREZA_OPERACAO NAO EM (14, 15) E CD_MODALIDADE <= 13',
+            "--select",
+            "NOME",
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert rows_from_csv(output_path) == [("NOME",), ("JOAO SILVA",)]
+
+
+def test_filter_command_accepts_pt_br_command_and_options(tmp_path: Path) -> None:
+    csv_path = tmp_path / "input.csv"
+    output_path = tmp_path / "output.csv"
+    write_csv(csv_path)
+
+    result = runner.invoke(
+        app,
+        [
+            "filtrar",
+            str(csv_path),
+            "--saida",
+            str(output_path),
+            "--filtro",
+            'STATUS EM ("ATIVO", "SUSPENSO")',
+            "--selecionar",
+            "NOME",
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert rows_from_csv(output_path) == [("NOME",), ("JOAO SILVA",), ("MARIA SILVA",), ("ANA LIMA",)]
 
 
 def test_filter_defaults_to_csv_when_output_has_no_suffix(tmp_path: Path) -> None:
@@ -166,7 +213,7 @@ def test_filter_rejects_explicit_format_suffix_conflict(tmp_path: Path) -> None:
     )
 
     assert result.exit_code == 2
-    assert "conflicts with output path suffix" in result.output
+    assert "conflita com o sufixo" in result.output
     assert not output_path.exists()
 
 
@@ -247,7 +294,82 @@ def test_validate_filter_command(tmp_path: Path) -> None:
     result = runner.invoke(app, ["validate-filter", str(csv_path), "--where", 'STATUS IN ("ATIVO", "SUSPENSO")'])
 
     assert result.exit_code == 0, result.output
+    assert "Filtro válido" in result.output
+
+
+def test_validate_filter_command_supports_en_us_language(tmp_path: Path) -> None:
+    csv_path = tmp_path / "input.csv"
+    write_csv(csv_path)
+
+    result = runner.invoke(
+        app,
+        ["--idioma", "en-US", "validar-filtro", str(csv_path), "--filtro", 'STATUS IN ("ATIVO", "SUSPENSO")'],
+    )
+
+    assert result.exit_code == 0, result.output
     assert "Filter is valid" in result.output
+
+
+def test_validate_filter_command_accepts_pt_br_command_and_option(tmp_path: Path) -> None:
+    csv_path = tmp_path / "input.csv"
+    write_csv(csv_path)
+
+    result = runner.invoke(app, ["validar-filtro", str(csv_path), "--filtro", 'STATUS EM ("ATIVO", "SUSPENSO")'])
+
+    assert result.exit_code == 0, result.output
+    assert "Filtro válido" in result.output
+
+
+def test_inspect_command_accepts_pt_br_command_and_option(tmp_path: Path) -> None:
+    csv_path = tmp_path / "input.csv"
+    write_csv(csv_path)
+
+    result = runner.invoke(app, ["inspecionar", str(csv_path), "--delimitador", ","])
+
+    assert result.exit_code == 0, result.output
+    assert "Coluna" in result.output
+    assert "CD_EMPRESA" in result.output
+
+
+def test_cli_help_defaults_to_pt_br() -> None:
+    result = runner.invoke(app, ["--help"])
+
+    assert result.exit_code == 0, result.output
+    assert "Filtra arquivos CSV grandes" in result.output
+    assert "filtrar" in result.output
+    assert "validar-filtro" in result.output
+    assert "--idioma" in result.output
+
+
+def test_filter_help_defaults_to_pt_br_option_names() -> None:
+    result = runner.invoke(app, ["filtrar", "--help"])
+
+    assert result.exit_code == 0, result.output
+    assert "--saida" in result.output
+    assert "--filtro" in result.output
+    assert "--selecionar" in result.output
+
+
+def test_cli_help_can_be_created_in_en_us() -> None:
+    result = runner.invoke(create_app("en-US"), ["--help"])
+
+    assert result.exit_code == 0, result.output
+    assert "Filter large CSV files" in result.output
+
+
+def test_create_app_rejects_invalid_pre_scanned_language() -> None:
+    with pytest.raises(ValueError, match="Idioma inválido"):
+        create_app("fr-FR")
+
+
+def test_invalid_cli_language_fails_clearly(tmp_path: Path) -> None:
+    csv_path = tmp_path / "input.csv"
+    write_csv(csv_path)
+
+    result = runner.invoke(app, ["--idioma", "fr-FR", "validar-filtro", str(csv_path), "--filtro", "CD_EMPRESA = 1"])
+
+    assert result.exit_code == 2
+    assert "Idioma inválido" in result.output
 
 
 def test_validate_filter_rejects_regex_duckdb_cannot_execute(tmp_path: Path) -> None:
@@ -257,7 +379,7 @@ def test_validate_filter_rejects_regex_duckdb_cannot_execute(tmp_path: Path) -> 
     result = runner.invoke(app, ["validate-filter", str(csv_path), "--where", r'NOME regex "(.)\\1"'])
 
     assert result.exit_code == 2
-    assert "Invalid regex pattern for DuckDB" in result.output
+    assert "Padrão regex inválido para DuckDB" in result.output
 
 
 def test_validate_filter_supports_explicit_date_literal(tmp_path: Path) -> None:
@@ -267,7 +389,7 @@ def test_validate_filter_supports_explicit_date_literal(tmp_path: Path) -> None:
     result = runner.invoke(app, ["validate-filter", str(csv_path), "--where", 'DATA_ADMISSAO = date("2021-05-01")'])
 
     assert result.exit_code == 0, result.output
-    assert "Filter is valid" in result.output
+    assert "Filtro válido" in result.output
 
 
 def test_validate_filter_invalid_explicit_date_is_user_facing(tmp_path: Path) -> None:
@@ -277,7 +399,7 @@ def test_validate_filter_invalid_explicit_date_is_user_facing(tmp_path: Path) ->
     result = runner.invoke(app, ["validate-filter", str(csv_path), "--where", 'DATA_ADMISSAO = date("2021-99-99")'])
 
     assert result.exit_code == 2
-    assert "Invalid date literal" in result.output
+    assert "Literal de data inválido" in result.output
     assert "Traceback" not in result.output
 
 
@@ -311,7 +433,7 @@ presets:
     )
 
     assert result.exit_code == 0, result.output
-    assert "Filter is valid" in result.output
+    assert "Filtro válido" in result.output
 
 
 def test_filter_resolves_relative_lookup_paths_from_config_directory(tmp_path: Path) -> None:
@@ -644,7 +766,7 @@ def test_strict_values_cast_errors_are_user_facing(tmp_path: Path) -> None:
     )
 
     assert result.exit_code == 1
-    assert "DuckDB query failed" in result.output
+    assert "Consulta DuckDB falhou" in result.output
     assert "Traceback" not in result.output
 
 
@@ -671,7 +793,7 @@ def test_rejects_requires_store_rejects_before_export(tmp_path: Path) -> None:
     )
 
     assert result.exit_code == 2
-    assert "--rejects requires --store-rejects" in result.output
+    assert "--rejects requer --store-rejects" in result.output
     assert not output_path.exists()
     assert not rejects_path.exists()
 
@@ -693,4 +815,4 @@ def test_validate_filter_rejects_missing_type_override_column(tmp_path: Path) ->
     )
 
     assert result.exit_code == 2
-    assert "Missing column 'MISSING'" in result.output
+    assert "Coluna ausente 'MISSING'" in result.output
