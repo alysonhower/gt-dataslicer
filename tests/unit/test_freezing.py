@@ -78,6 +78,8 @@ def test_build_script_uses_canonical_spec_and_expected_output() -> None:
     assert "Get-Command uv" in script
     assert "Invoke-PythonBuild" in script
     assert "Invoke-UvBuild" in script
+    assert "Assert-DataSlicerExecutableIsNotRunning" in script
+    assert "Close DataSlicer and run this script again" in script
     assert "Falling back to uv" in script
     assert "uv run --extra freeze python -m PyInstaller" in script
     assert "-not $buildSucceeded -and $uvCommand" in script
