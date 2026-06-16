@@ -75,15 +75,10 @@ const text = {
     chooseDestination: "Escolher destino",
     format: "Formato",
     formatCsvTitle: "CSV",
-    formatCsvHelp: "Melhor para a maioria dos casos e fácil de compartilhar.",
     formatExcelTitle: "Excel",
-    formatExcelHelp: "Útil para abrir o resultado direto no Excel.",
     formatParquetTitle: "Parquet",
-    formatParquetHelp: "Bom para bases grandes e ferramentas de análise.",
     saveAs: "Salvar em",
     chooseSavePlaceholder: "Escolha onde salvar",
-    excelNotice: "Arquivos Excel têm limite de linhas por aba. Se o resultado for muito grande, o DataSlicer dividirá em abas ou arquivos conforme as opções.",
-    parquetNotice: "Parquet é ótimo para bases grandes, mas pode não abrir diretamente no Excel.",
     derivedColumnsTitle: "Criar novas colunas",
     derivedColumnsHelp: "Opcional: crie colunas limpas a partir das colunas filtradas.",
     addDerivedColumn: "Adicionar coluna",
@@ -258,15 +253,10 @@ const text = {
     chooseDestination: "Choose destination",
     format: "Format",
     formatCsvTitle: "CSV",
-    formatCsvHelp: "Best for most cases and easy to share.",
     formatExcelTitle: "Excel",
-    formatExcelHelp: "Useful when you want to open the result directly in Excel.",
     formatParquetTitle: "Parquet",
-    formatParquetHelp: "Good for larger datasets and analytics tools.",
     saveAs: "Save as",
     chooseSavePlaceholder: "Choose where to save",
-    excelNotice: "Excel files have row limits per sheet. If the result is very large, DataSlicer will split it across sheets or files according to the options.",
-    parquetNotice: "Parquet is useful for large datasets, but may not open directly in Excel.",
     derivedColumnsTitle: "Create new columns",
     derivedColumnsHelp: "Optional: create cleaned columns from filtered columns.",
     addDerivedColumn: "Add column",
@@ -1342,8 +1332,6 @@ function setOutputFormat(format) {
     card.classList.toggle("active", active);
     card.setAttribute("aria-pressed", active ? "true" : "false");
   });
-  byId("excelNotice").classList.toggle("hidden", format !== "xlsx");
-  byId("parquetNotice").classList.toggle("hidden", format !== "parquet");
   syncOutputSuffixWithFormat();
 }
 

@@ -348,7 +348,7 @@ def _validate_transform_chain(transforms: list[TransformSpec], *, column_index: 
         operation = transform.operation
         if operation == "replace_text":
             _required_text(transform, "old", aliases=("find", "from"))
-            _required_text(transform, "new", aliases=("replace", "to", "with"))
+            _required_text(transform, "new", aliases=("replace", "to", "with"), allow_empty=True)
         elif operation in NO_PARAM_OPERATIONS:
             continue
         elif operation in TEXT_PARAM_OPERATIONS:
@@ -370,7 +370,7 @@ def _apply_transform_sql(expression: str, transform: TransformSpec) -> str:
     operation = transform.operation
     if operation == "replace_text":
         old = _text_param(transform, "old", aliases=("find", "from"))
-        new = _text_param(transform, "new", aliases=("replace", "to", "with"))
+        new = _text_param(transform, "new", aliases=("replace", "to", "with"), allow_empty=True)
         return f"replace({expression}, {quote_literal(old)}, {quote_literal(new)})"
     if operation == "uppercase":
         return f"upper({expression})"
@@ -543,7 +543,7 @@ def _apply_transform_excel(expression: str, transform: TransformSpec) -> str:
     operation = transform.operation
     if operation == "replace_text":
         old = _excel_string(_text_param(transform, "old", aliases=("find", "from")))
-        new = _excel_string(_text_param(transform, "new", aliases=("replace", "to", "with")))
+        new = _excel_string(_text_param(transform, "new", aliases=("replace", "to", "with"), allow_empty=True))
         return f"SUBSTITUTE({expression},{old},{new})"
     if operation == "uppercase":
         return f"UPPER({expression})"
@@ -569,18 +569,30 @@ def _excel_string(value: str) -> str:
     return '"' + value.replace('"', '""') + '"'
 
 
-def _required_text(transform: TransformSpec, key: str, *, aliases: tuple[str, ...] = ()) -> None:
-    _text_param(transform, key, aliases=aliases)
+def _required_text(
+    transform: TransformSpec,
+    key: str,
+    *,
+    aliases: tuple[str, ...] = (),
+    allow_empty: bool = False,
+) -> None:
+    _text_param(transform, key, aliases=aliases, allow_empty=allow_empty)
 
 
 def _required_count(transform: TransformSpec) -> None:
     _count_param(transform)
 
 
-def _text_param(transform: TransformSpec, key: str, *, aliases: tuple[str, ...] = ()) -> str:
+def _text_param(
+    transform: TransformSpec,
+    key: str,
+    *,
+    aliases: tuple[str, ...] = (),
+    allow_empty: bool = False,
+) -> str:
     for name in (key, *aliases):
         value = transform.params.get(name)
-        if value is not None and str(value) != "":
+        if value is not None and (allow_empty or str(value) != ""):
             return str(value)
     names = ", ".join((key, *aliases))
     raise ConfigError(f"Transform '{transform.operation}' requires one of: {names}.")

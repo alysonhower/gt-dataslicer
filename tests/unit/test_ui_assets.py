@@ -69,6 +69,16 @@ def test_browser_app_syncs_output_suffix_when_format_changes() -> None:
     assert 'data-format-card="csv"' in markup
     assert 'data-format-card="xlsx"' in markup
     assert 'data-format-card="parquet"' in markup
+    assert "formatCsvHelp" not in markup
+    assert "formatExcelHelp" not in markup
+    assert "formatParquetHelp" not in markup
+    assert "formatCsvHelp" not in script
+    assert "formatExcelHelp" not in script
+    assert "formatParquetHelp" not in script
+    assert "excelNotice" not in markup
+    assert "parquetNotice" not in markup
+    assert "excelNotice" not in script
+    assert "parquetNotice" not in script
 
 
 def test_browser_app_filter_hint_uses_complete_visual_rules() -> None:

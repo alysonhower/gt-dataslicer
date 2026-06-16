@@ -320,37 +320,36 @@ h2 {
 }
 
 .format-card-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12px;
+  display: inline-grid;
+  grid-template-columns: repeat(3, minmax(104px, auto));
+  gap: 4px;
+  padding: 4px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #f7f5fa;
 }
 
 .format-card {
-  display: grid;
-  gap: 6px;
-  min-height: 112px;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  padding: 14px;
-  background: #ffffff;
+  border: 0;
+  border-radius: 6px;
+  padding: 10px 18px;
+  background: transparent;
   color: var(--ink);
-  text-align: left;
+  text-align: center;
 }
 
 .format-card strong {
   color: var(--purple-dark);
-  font-size: 1.04rem;
-}
-
-.format-card span {
-  color: var(--muted);
-  font-size: 0.9rem;
-  font-weight: 500;
+  font-size: 0.98rem;
 }
 
 .format-card.active {
-  border-color: var(--purple);
-  box-shadow: inset 0 0 0 2px var(--purple);
+  background: var(--purple);
+  box-shadow: 0 1px 4px rgba(79, 45, 127, 0.18);
+}
+
+.format-card.active strong {
+  color: #ffffff;
 }
 
 .output-path-field,

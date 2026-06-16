@@ -154,15 +154,12 @@
           <div class="format-card-grid" role="radiogroup" aria-label="Formato">
             <button class="format-card active" type="button" data-format-card="csv" aria-pressed="true">
               <strong data-i18n="formatCsvTitle">CSV</strong>
-              <span data-i18n="formatCsvHelp">Melhor para a maioria dos casos e fácil de compartilhar.</span>
             </button>
             <button class="format-card" type="button" data-format-card="xlsx" aria-pressed="false">
               <strong data-i18n="formatExcelTitle">Excel</strong>
-              <span data-i18n="formatExcelHelp">Útil para abrir o resultado direto no Excel.</span>
             </button>
             <button class="format-card" type="button" data-format-card="parquet" aria-pressed="false">
               <strong data-i18n="formatParquetTitle">Parquet</strong>
-              <span data-i18n="formatParquetHelp">Bom para bases grandes e ferramentas de análise.</span>
             </button>
           </div>
 
@@ -176,13 +173,6 @@
             <span data-i18n="saveAs">Salvar em</span>
             <input id="outputPathInput" type="text" placeholder="Escolha onde salvar" data-i18n-placeholder="chooseSavePlaceholder">
           </label>
-
-          <p id="excelNotice" class="notice hidden" data-i18n="excelNotice">
-            Arquivos Excel têm limite de linhas por aba. Se o resultado for muito grande, o DataSlicer dividirá em abas ou arquivos conforme as opções.
-          </p>
-          <p id="parquetNotice" class="notice hidden" data-i18n="parquetNotice">
-            Parquet é ótimo para bases grandes, mas pode não abrir diretamente no Excel.
-          </p>
 
           <div class="derived-section">
             <div class="mini-heading">

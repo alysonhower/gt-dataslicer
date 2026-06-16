@@ -32,6 +32,7 @@ def _derived_value(source_value: object, transform: dict[str, object]) -> object
     ("source", "transform", "expected"),
     [
         ("abc", {"operation": "replace_text", "old": "a", "new": "X"}, "Xbc"),
+        ("123-45", {"operation": "replace_text", "old": "-", "new": ""}, "12345"),
         ("abc", {"operation": "uppercase"}, "ABC"),
         ("ABC", {"operation": "lowercase"}, "abc"),
         ("joao   silva", {"operation": "title_case"}, "Joao Silva"),
