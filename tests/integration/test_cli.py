@@ -95,6 +95,29 @@ def test_filter_command_accepts_pt_br_expression(tmp_path: Path) -> None:
     assert rows_from_csv(output_path) == [("NOME",), ("JOAO SILVA",)]
 
 
+def test_filter_command_accepts_pt_br_command_and_options(tmp_path: Path) -> None:
+    csv_path = tmp_path / "input.csv"
+    output_path = tmp_path / "output.csv"
+    write_csv(csv_path)
+
+    result = runner.invoke(
+        app,
+        [
+            "filtrar",
+            str(csv_path),
+            "--saida",
+            str(output_path),
+            "--filtro",
+            'STATUS EM ("ATIVO", "SUSPENSO")',
+            "--selecionar",
+            "NOME",
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert rows_from_csv(output_path) == [("NOME",), ("JOAO SILVA",), ("MARIA SILVA",), ("ANA LIMA",)]
+
+
 def test_filter_defaults_to_csv_when_output_has_no_suffix(tmp_path: Path) -> None:
     csv_path = tmp_path / "input.csv"
     output_path = tmp_path / "output"
@@ -280,11 +303,32 @@ def test_validate_filter_command_supports_en_us_language(tmp_path: Path) -> None
 
     result = runner.invoke(
         app,
-        ["--lang", "en-US", "validate-filter", str(csv_path), "--where", 'STATUS IN ("ATIVO", "SUSPENSO")'],
+        ["--idioma", "en-US", "validar-filtro", str(csv_path), "--filtro", 'STATUS IN ("ATIVO", "SUSPENSO")'],
     )
 
     assert result.exit_code == 0, result.output
     assert "Filter is valid" in result.output
+
+
+def test_validate_filter_command_accepts_pt_br_command_and_option(tmp_path: Path) -> None:
+    csv_path = tmp_path / "input.csv"
+    write_csv(csv_path)
+
+    result = runner.invoke(app, ["validar-filtro", str(csv_path), "--filtro", 'STATUS EM ("ATIVO", "SUSPENSO")'])
+
+    assert result.exit_code == 0, result.output
+    assert "Filtro válido" in result.output
+
+
+def test_inspect_command_accepts_pt_br_command_and_option(tmp_path: Path) -> None:
+    csv_path = tmp_path / "input.csv"
+    write_csv(csv_path)
+
+    result = runner.invoke(app, ["inspecionar", str(csv_path), "--delimitador", ","])
+
+    assert result.exit_code == 0, result.output
+    assert "Coluna" in result.output
+    assert "CD_EMPRESA" in result.output
 
 
 def test_cli_help_defaults_to_pt_br() -> None:
@@ -292,6 +336,18 @@ def test_cli_help_defaults_to_pt_br() -> None:
 
     assert result.exit_code == 0, result.output
     assert "Filtra arquivos CSV grandes" in result.output
+    assert "filtrar" in result.output
+    assert "validar-filtro" in result.output
+    assert "--idioma" in result.output
+
+
+def test_filter_help_defaults_to_pt_br_option_names() -> None:
+    result = runner.invoke(app, ["filtrar", "--help"])
+
+    assert result.exit_code == 0, result.output
+    assert "--saida" in result.output
+    assert "--filtro" in result.output
+    assert "--selecionar" in result.output
 
 
 def test_cli_help_can_be_created_in_en_us() -> None:
@@ -310,7 +366,7 @@ def test_invalid_cli_language_fails_clearly(tmp_path: Path) -> None:
     csv_path = tmp_path / "input.csv"
     write_csv(csv_path)
 
-    result = runner.invoke(app, ["--lang", "fr-FR", "validate-filter", str(csv_path), "--where", "CD_EMPRESA = 1"])
+    result = runner.invoke(app, ["--idioma", "fr-FR", "validar-filtro", str(csv_path), "--filtro", "CD_EMPRESA = 1"])
 
     assert result.exit_code == 2
     assert "Idioma inválido" in result.output

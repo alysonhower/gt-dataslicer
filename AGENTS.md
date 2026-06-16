@@ -1,10 +1,12 @@
 # Repository Guidelines
 
 ## Project Overview
-`gt-dataslicer` is a Python 3.12+ CLI for filtering large CSV files with a safe bilingual expression DSL and exporting matches to CSV or XLSX. It uses DuckDB for CSV scanning/filter execution, Lark for parsing, Typer/Rich for the localized CLI, and XlsxWriter for constant-memory Excel output. User-facing CLI text defaults to pt-BR and can switch to en-US with the global `--lang` option.
+`gt-dataslicer` is a Python 3.12+ CLI for filtering large CSV files with a safe bilingual expression DSL and exporting matches to CSV or XLSX. It uses DuckDB for CSV scanning/filter execution, Lark for parsing, Typer/Rich for the localized CLI, and XlsxWriter for constant-memory Excel output. User-facing CLI text defaults to pt-BR and can switch to en-US with the global `--idioma`/`--lang` option.
 
 ## Architecture & Data Flow
 - CLI entry point: `gt-dataslicer` -> `gt_dataslicer.cli:main`; tests may import the module-level `app` or call `create_app("en-US")`.
+- CLI commands are Portuguese-primary: `filtrar`, `inspecionar`, and `validar-filtro`. English aliases `filter`, `inspect`, and `validate-filter` remain supported but are hidden from the default command list.
+- CLI options are Portuguese-primary with English aliases kept for compatibility, for example `--saida/--output`, `--filtro/--where`, `--selecionar/--select`, `--relatorio/--report`, and `--rejeitados/--rejects`.
 - Flow: Typer command -> `config.py` merges config presets and CLI flags into `FilterRunOptions` -> `DuckDBEngine.run_filter()` inspects CSV schema, registers lookup CSVs, parses/compiles filters, builds the SELECT query, and delegates export.
 - Filter DSL: `filters/grammar.lark` -> `filters/parser.py` -> frozen AST dataclasses in `filters/ast.py` -> parameterized DuckDB SQL from `filters/compiler.py`. The grammar accepts English operators plus pt-BR aliases such as `E`, `OU`, `NAO`/`NÃO`, `EM`, `ENTRE`, `contém`, and `começa com`.
 - CSV export uses DuckDB `COPY TO` in `export/csv.py`; XLSX export streams `fetchmany()` batches through XlsxWriter in `export/excel.py`.
@@ -34,6 +36,8 @@ gt-dataslicer validate-filter input.csv --where 'STATUS EM ("ATIVO", "SUSPENSO")
 gt-dataslicer filter input.csv -o output.csv --where 'CD_EMPRESA = 1 E ST_CONTRATO != "P"'
 gt-dataslicer filter input.csv -o output --format xlsx --where 'STATUS = "ATIVO"'
 gt-dataslicer --lang en-US validate-filter input.csv --where 'STATUS IN ("ACTIVE", "SUSPENDED")'
+gt-dataslicer filtrar input.csv --saida output.csv --filtro 'STATUS EM ("ATIVO", "SUSPENSO")'
+gt-dataslicer --idioma en-US validar-filtro input.csv --filtro 'STATUS IN ("ACTIVE", "SUSPENDED")'
 ```
 
 ## Code Conventions & Common Patterns
@@ -46,7 +50,7 @@ gt-dataslicer --lang en-US validate-filter input.csv --where 'STATUS IN ("ACTIVE
 
 ## Important Files
 - `pyproject.toml`: hatchling build, dependencies, `gt-dataslicer` script, pytest config (`testpaths = ["tests"]`, `addopts = "-q"`).
-- `README.md`: user-facing CLI examples and output behavior.
+- `README.md`: user-facing examples and output behavior. Keep it simple, non-technical, and copy/paste oriented; avoid architecture details unless they directly help users.
 - `src/gt_dataslicer/cli.py`: localized app factory, `main()`, and commands `inspect`, `validate-filter`, and `filter`.
 - `src/gt_dataslicer/i18n.py`: pt-BR/en-US message templates and user-facing error localization.
 - `src/gt_dataslicer/config.py`: config file loading, preset selection, CLI/config merge, output format resolution.
@@ -69,4 +73,4 @@ gt-dataslicer --lang en-US validate-filter input.csv --where 'STATUS IN ("ACTIVE
 - Unit tests cover config precedence, bilingual DSL parsing, SQL compilation, engine row counts, and XLSX safety/summary behavior.
 - Integration tests use `CliRunner` for real CLI flows: filtering, validation, config presets, lookups, dedupe/sort, date casting, strict values, rejects, output formats, and localized CLI output.
 - For DSL changes, update parser and compiler tests together; grammar-only changes are incomplete without SQL validation coverage.
-- For CLI/config/i18n changes, add or update integration coverage in `tests/integration/test_cli.py` because option precedence, language defaults, help text, and exit codes are user-facing.
+- For CLI/config/i18n changes, add or update integration coverage in `tests/integration/test_cli.py` because option aliases, command aliases, language defaults, help text, and exit codes are user-facing.

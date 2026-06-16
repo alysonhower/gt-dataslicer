@@ -52,9 +52,9 @@ def _configure_language(language: str, *, fallback_language: str) -> None:
 
 def _pre_scan_language(args: list[str]) -> str:
     for index, arg in enumerate(args):
-        if arg == "--lang" and index + 1 < len(args):
+        if arg in {"--idioma", "--lang"} and index + 1 < len(args):
             return args[index + 1]
-        if arg.startswith("--lang="):
+        if arg.startswith("--idioma=") or arg.startswith("--lang="):
             return arg.split("=", 1)[1]
     return DEFAULT_LANGUAGE
 
@@ -70,19 +70,26 @@ def create_app(language: str = DEFAULT_LANGUAGE) -> typer.Typer:
 
     @localized_app.callback()
     def global_options(
-        lang: Annotated[str, typer.Option("--lang", help=tr("option.lang"))] = DEFAULT_LANGUAGE,
+        lang: Annotated[str, typer.Option("--idioma", "--lang", help=tr("option.lang"), metavar="IDIOMA")] = (
+            DEFAULT_LANGUAGE
+        ),
     ) -> None:
         _configure_language(lang, fallback_language=initial_language)
 
-    @localized_app.command("inspect", help=tr("command.inspect.help"))
+    @localized_app.command("inspect", help=tr("command.inspect.help"), hidden=True)
+    @localized_app.command("inspecionar", help=tr("command.inspect.help"))
     def inspect_command(
-        input_csv: Annotated[Path, typer.Argument(exists=True, dir_okay=False, readable=True)],
-        encoding: Annotated[str | None, typer.Option("--encoding")] = None,
-        delimiter: Annotated[str | None, typer.Option("--delimiter")] = None,
-        header: Annotated[bool | None, typer.Option("--header/--no-header")] = None,
-        typed_mode: Annotated[bool, typer.Option("--typed-mode", help=tr("option.typed_mode"))] = False,
-        log_level: Annotated[str, typer.Option("--log-level")] = "WARNING",
-        json_logs: Annotated[bool, typer.Option("--json-logs")] = False,
+        input_csv: Annotated[Path, typer.Argument(exists=True, dir_okay=False, readable=True, metavar="ARQUIVO_CSV")],
+        encoding: Annotated[str | None, typer.Option("--codificacao", "--encoding", metavar="TEXTO")] = None,
+        delimiter: Annotated[str | None, typer.Option("--delimitador", "--delimiter", metavar="TEXTO")] = None,
+        header: Annotated[
+            bool | None, typer.Option("--cabecalho/--sem-cabecalho", "--header/--no-header")
+        ] = None,
+        typed_mode: Annotated[
+            bool, typer.Option("--modo-tipado", "--typed-mode", help=tr("option.typed_mode"))
+        ] = False,
+        log_level: Annotated[str, typer.Option("--nivel-log", "--log-level", metavar="NIVEL")] = "WARNING",
+        json_logs: Annotated[bool, typer.Option("--logs-json", "--json-logs")] = False,
     ) -> None:
         configure_logging(log_level, json_logs)
         try:
@@ -102,20 +109,34 @@ def create_app(language: str = DEFAULT_LANGUAGE) -> typer.Typer:
             table.add_row(column, type_name)
         console.print(table)
 
-    @localized_app.command("validate-filter", help=tr("command.validate_filter.help"))
+    @localized_app.command("validate-filter", help=tr("command.validate_filter.help"), hidden=True)
+    @localized_app.command("validar-filtro", help=tr("command.validate_filter.help"))
     def validate_filter_command(
-        input_csv: Annotated[Path, typer.Argument(exists=True, dir_okay=False, readable=True)],
-        where: Annotated[list[str] | None, typer.Option("--where", help=tr("option.where"))] = None,
-        config: Annotated[Path | None, typer.Option("--config", exists=True, dir_okay=False)] = None,
-        preset: Annotated[str | None, typer.Option("--preset")] = None,
-        lookup: Annotated[list[str] | None, typer.Option("--lookup", help=tr("option.lookup"))] = None,
-        type_: Annotated[list[str] | None, typer.Option("--type", help=tr("option.type"))] = None,
-        case_insensitive_columns: Annotated[bool, typer.Option("--case-insensitive-columns")] = False,
-        encoding: Annotated[str | None, typer.Option("--encoding")] = None,
-        delimiter: Annotated[str | None, typer.Option("--delimiter")] = None,
-        header: Annotated[bool | None, typer.Option("--header/--no-header")] = None,
-        log_level: Annotated[str, typer.Option("--log-level")] = "WARNING",
-        json_logs: Annotated[bool, typer.Option("--json-logs")] = False,
+        input_csv: Annotated[Path, typer.Argument(exists=True, dir_okay=False, readable=True, metavar="ARQUIVO_CSV")],
+        where: Annotated[
+            list[str] | None, typer.Option("--filtro", "--where", help=tr("option.where"), metavar="TEXTO")
+        ] = None,
+        config: Annotated[
+            Path | None,
+            typer.Option("--configuracao", "--config", exists=True, dir_okay=False, metavar="CAMINHO"),
+        ] = None,
+        preset: Annotated[str | None, typer.Option("--predefinicao", "--preset", metavar="NOME")] = None,
+        lookup: Annotated[
+            list[str] | None, typer.Option("--consulta", "--lookup", help=tr("option.lookup"), metavar="TEXTO")
+        ] = None,
+        type_: Annotated[
+            list[str] | None, typer.Option("--tipo", "--type", help=tr("option.type"), metavar="TEXTO")
+        ] = None,
+        case_insensitive_columns: Annotated[
+            bool, typer.Option("--colunas-sem-diferenciar-caixa", "--case-insensitive-columns")
+        ] = False,
+        encoding: Annotated[str | None, typer.Option("--codificacao", "--encoding", metavar="TEXTO")] = None,
+        delimiter: Annotated[str | None, typer.Option("--delimitador", "--delimiter", metavar="TEXTO")] = None,
+        header: Annotated[
+            bool | None, typer.Option("--cabecalho/--sem-cabecalho", "--header/--no-header")
+        ] = None,
+        log_level: Annotated[str, typer.Option("--nivel-log", "--log-level", metavar="NIVEL")] = "WARNING",
+        json_logs: Annotated[bool, typer.Option("--logs-json", "--json-logs")] = False,
     ) -> None:
         configure_logging(log_level, json_logs)
         try:
@@ -170,50 +191,91 @@ def create_app(language: str = DEFAULT_LANGUAGE) -> typer.Typer:
         console.print(f"[green]{tr('filter_valid')}[/green]")
         console.print(compiled.sql)
 
-    @localized_app.command("filter", help=tr("command.filter.help"))
+    @localized_app.command("filter", help=tr("command.filter.help"), hidden=True)
+    @localized_app.command("filtrar", help=tr("command.filter.help"))
     def filter_command(
-        input_csv: Annotated[Path, typer.Argument(exists=True, dir_okay=False, readable=True)],
-        output: Annotated[Path, typer.Option("--output", "-o", help=tr("option.output"))],
+        input_csv: Annotated[Path, typer.Argument(exists=True, dir_okay=False, readable=True, metavar="ARQUIVO_CSV")],
+        output: Annotated[
+            Path, typer.Option("--saida", "-o", "--output", help=tr("option.output"), metavar="CAMINHO")
+        ],
         format_: Annotated[
             str | None,
-            typer.Option("--format", help=tr("option.format")),
+            typer.Option("--formato", "--format", help=tr("option.format"), metavar="FORMATO"),
         ] = None,
-        where: Annotated[list[str] | None, typer.Option("--where", help=tr("option.where"))] = None,
-        config: Annotated[Path | None, typer.Option("--config", exists=True, dir_okay=False)] = None,
-        preset: Annotated[str | None, typer.Option("--preset")] = None,
-        select: Annotated[list[str] | None, typer.Option("--select", help=tr("option.select"))] = None,
-        select_file: Annotated[Path | None, typer.Option("--select-file", exists=True, dir_okay=False)] = None,
-        rename: Annotated[list[str] | None, typer.Option("--rename", help=tr("option.rename"))] = None,
-        dedupe: Annotated[bool, typer.Option("--dedupe")] = False,
-        dedupe_key: Annotated[list[str] | None, typer.Option("--dedupe-key")] = None,
-        sort: Annotated[list[str] | None, typer.Option("--sort", help=tr("option.sort"))] = None,
-        encoding: Annotated[str | None, typer.Option("--encoding")] = None,
-        delimiter: Annotated[str | None, typer.Option("--delimiter")] = None,
-        quotechar: Annotated[str | None, typer.Option("--quotechar")] = None,
-        escapechar: Annotated[str | None, typer.Option("--escapechar")] = None,
-        header: Annotated[bool | None, typer.Option("--header/--no-header")] = None,
-        null_value: Annotated[list[str] | None, typer.Option("--null-value")] = None,
-        date_format: Annotated[str | None, typer.Option("--date-format")] = None,
-        timestamp_format: Annotated[str | None, typer.Option("--timestamp-format")] = None,
-        strict_csv: Annotated[bool, typer.Option("--strict-csv/--lenient-csv")] = True,
-        store_rejects: Annotated[bool, typer.Option("--store-rejects")] = False,
-        sample_size: Annotated[int | None, typer.Option("--sample-size")] = None,
-        max_line_size: Annotated[int | None, typer.Option("--max-line-size")] = None,
-        sheet_prefix: Annotated[str, typer.Option("--sheet-prefix")] = "Results",
-        max_rows_per_sheet: Annotated[int, typer.Option("--max-rows-per-sheet")] = 1_048_576,
-        split_mode: Annotated[str, typer.Option("--split-mode")] = "sheets",
-        sheets_per_file: Annotated[int, typer.Option("--sheets-per-file")] = 31,
-        lookup: Annotated[list[str] | None, typer.Option("--lookup", help=tr("option.lookup"))] = None,
-        report: Annotated[Path | None, typer.Option("--report")] = None,
-        rejects: Annotated[Path | None, typer.Option("--rejects")] = None,
-        dry_run: Annotated[bool, typer.Option("--dry-run")] = False,
-        case_insensitive_columns: Annotated[bool, typer.Option("--case-insensitive-columns")] = False,
-        type_: Annotated[list[str] | None, typer.Option("--type", help=tr("option.type"))] = None,
-        typed_mode: Annotated[bool, typer.Option("--typed-mode", help=tr("option.typed_mode"))] = False,
-        strict_values: Annotated[bool, typer.Option("--strict-values", help=tr("option.strict_values"))] = False,
-        batch_size: Annotated[int, typer.Option("--batch-size")] = 10_000,
-        log_level: Annotated[str, typer.Option("--log-level")] = "INFO",
-        json_logs: Annotated[bool, typer.Option("--json-logs")] = False,
+        where: Annotated[
+            list[str] | None, typer.Option("--filtro", "--where", help=tr("option.where"), metavar="TEXTO")
+        ] = None,
+        config: Annotated[
+            Path | None,
+            typer.Option("--configuracao", "--config", exists=True, dir_okay=False, metavar="CAMINHO"),
+        ] = None,
+        preset: Annotated[str | None, typer.Option("--predefinicao", "--preset", metavar="NOME")] = None,
+        select: Annotated[
+            list[str] | None, typer.Option("--selecionar", "--select", help=tr("option.select"), metavar="COLUNA")
+        ] = None,
+        select_file: Annotated[
+            Path | None,
+            typer.Option("--arquivo-selecao", "--select-file", exists=True, dir_okay=False, metavar="CAMINHO"),
+        ] = None,
+        rename: Annotated[
+            list[str] | None, typer.Option("--renomear", "--rename", help=tr("option.rename"), metavar="TEXTO")
+        ] = None,
+        dedupe: Annotated[bool, typer.Option("--deduplicar", "--dedupe")] = False,
+        dedupe_key: Annotated[
+            list[str] | None, typer.Option("--chave-deduplicacao", "--dedupe-key", metavar="COLUNA")
+        ] = None,
+        sort: Annotated[
+            list[str] | None, typer.Option("--ordenar", "--sort", help=tr("option.sort"), metavar="TEXTO")
+        ] = None,
+        encoding: Annotated[str | None, typer.Option("--codificacao", "--encoding", metavar="TEXTO")] = None,
+        delimiter: Annotated[str | None, typer.Option("--delimitador", "--delimiter", metavar="TEXTO")] = None,
+        quotechar: Annotated[str | None, typer.Option("--aspas", "--quotechar", metavar="TEXTO")] = None,
+        escapechar: Annotated[str | None, typer.Option("--escape", "--escapechar", metavar="TEXTO")] = None,
+        header: Annotated[
+            bool | None, typer.Option("--cabecalho/--sem-cabecalho", "--header/--no-header")
+        ] = None,
+        null_value: Annotated[
+            list[str] | None, typer.Option("--valor-nulo", "--null-value", metavar="TEXTO")
+        ] = None,
+        date_format: Annotated[str | None, typer.Option("--formato-data", "--date-format", metavar="TEXTO")] = None,
+        timestamp_format: Annotated[
+            str | None, typer.Option("--formato-timestamp", "--timestamp-format", metavar="TEXTO")
+        ] = None,
+        strict_csv: Annotated[
+            bool, typer.Option("--csv-estrito/--csv-flexivel", "--strict-csv/--lenient-csv")
+        ] = True,
+        store_rejects: Annotated[bool, typer.Option("--armazenar-rejeitados", "--store-rejects")] = False,
+        sample_size: Annotated[int | None, typer.Option("--tamanho-amostra", "--sample-size", metavar="NUMERO")] = None,
+        max_line_size: Annotated[
+            int | None, typer.Option("--tamanho-max-linha", "--max-line-size", metavar="NUMERO")
+        ] = None,
+        sheet_prefix: Annotated[str, typer.Option("--prefixo-aba", "--sheet-prefix", metavar="TEXTO")] = "Results",
+        max_rows_per_sheet: Annotated[
+            int, typer.Option("--max-linhas-por-aba", "--max-rows-per-sheet", metavar="NUMERO")
+        ] = 1_048_576,
+        split_mode: Annotated[str, typer.Option("--modo-divisao", "--split-mode", metavar="TEXTO")] = "sheets",
+        sheets_per_file: Annotated[int, typer.Option("--abas-por-arquivo", "--sheets-per-file", metavar="NUMERO")] = 31,
+        lookup: Annotated[
+            list[str] | None, typer.Option("--consulta", "--lookup", help=tr("option.lookup"), metavar="TEXTO")
+        ] = None,
+        report: Annotated[Path | None, typer.Option("--relatorio", "--report", metavar="CAMINHO")] = None,
+        rejects: Annotated[Path | None, typer.Option("--rejeitados", "--rejects", metavar="CAMINHO")] = None,
+        dry_run: Annotated[bool, typer.Option("--teste", "--dry-run")] = False,
+        case_insensitive_columns: Annotated[
+            bool, typer.Option("--colunas-sem-diferenciar-caixa", "--case-insensitive-columns")
+        ] = False,
+        type_: Annotated[
+            list[str] | None, typer.Option("--tipo", "--type", help=tr("option.type"), metavar="TEXTO")
+        ] = None,
+        typed_mode: Annotated[
+            bool, typer.Option("--modo-tipado", "--typed-mode", help=tr("option.typed_mode"))
+        ] = False,
+        strict_values: Annotated[
+            bool, typer.Option("--valores-estritos", "--strict-values", help=tr("option.strict_values"))
+        ] = False,
+        batch_size: Annotated[int, typer.Option("--tamanho-lote", "--batch-size", metavar="NUMERO")] = 10_000,
+        log_level: Annotated[str, typer.Option("--nivel-log", "--log-level", metavar="NIVEL")] = "INFO",
+        json_logs: Annotated[bool, typer.Option("--logs-json", "--json-logs")] = False,
     ) -> None:
         configure_logging(log_level, json_logs)
         try:
