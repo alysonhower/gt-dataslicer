@@ -563,8 +563,7 @@ textarea {
 }
 
 .filter-row .filter-value2.hidden,
-.filter-row .filter-value.hidden,
-.filter-row .filter-type.hidden {
+.filter-row .filter-value.hidden {
   display: none;
 }
 
