@@ -146,10 +146,6 @@ const text = {
     value: "Valor",
     finalValue: "Valor final",
     valueList: "Separe os valores com vírgula",
-    typeText: "texto",
-    typeNumber: "número",
-    typeDate: "data",
-    typeBool: "lógico",
     removeRule: "Remover regra",
     txTrim: "Aparar espaços",
     txRemoveExtraSpaces: "Remover espaços repetidos",
@@ -326,10 +322,6 @@ const text = {
     value: "Value",
     finalValue: "Final value",
     valueList: "Separate values with commas",
-    typeText: "text",
-    typeNumber: "number",
-    typeDate: "date",
-    typeBool: "boolean",
     removeRule: "Remove rule",
     txTrim: "Trim spaces",
     txRemoveExtraSpaces: "Remove repeated spaces",
@@ -773,16 +765,11 @@ function updateFilterRow(row) {
   const operator = row.querySelector(".filter-operator").value;
   const value = row.querySelector(".filter-value");
   const value2 = row.querySelector(".filter-value2");
-  const type = row.querySelector(".filter-type");
   const noValue = ["is_null", "is_not_null", "is_empty", "is_not_empty", "is_blank", "is_not_blank"].includes(operator);
   const between = operator === "between";
-  if (row.dataset.typeTouched !== "true") {
-    type.value = defaultTypeForOperator(operator);
-  }
   row.classList.toggle("no-value", noValue);
   row.classList.toggle("is-between", between && !noValue);
   value.classList.toggle("hidden", noValue);
-  type.classList.toggle("hidden", noValue);
   value2.classList.toggle("hidden", !between || noValue);
   value.placeholder = operator === "in" || operator === "not_in" ? t("valueList") : t("value");
 }
@@ -810,8 +797,12 @@ function conditionIsComplete(condition) {
   return Boolean(condition.value);
 }
 
-function defaultTypeForOperator(operator) {
+function inferredTypeForCondition(operator, value) {
   if (["gt", "gte", "lt", "lte"].includes(operator)) {
+    const text = String(value || "").trim();
+    if (/^\d{4}-\d{2}-\d{2}(?:[T ][0-2]\d:[0-5]\d(?::[0-5]\d(?:\.\d+)?)?)?$/.test(text)) {
+      return "auto";
+    }
     return "number";
   }
   if (operator === "between") {
@@ -827,7 +818,6 @@ function addFilterRow(initial = {}) {
   const operator = row.querySelector(".filter-operator");
   const value = row.querySelector(".filter-value");
   const value2 = row.querySelector(".filter-value2");
-  const valueType = row.querySelector(".filter-type");
 
   prepareColumnSearch(column);
   if (initial.column) column.value = initial.column;
@@ -835,10 +825,6 @@ function addFilterRow(initial = {}) {
   if (initial.operator) operator.value = initial.operator;
   if (initial.value) value.value = initial.value;
   if (initial.value2) value2.value = initial.value2;
-  if (initial.value_type) {
-    valueType.value = initial.value_type;
-    row.dataset.typeTouched = "true";
-  }
 
   column.addEventListener("focus", () => updateColumnOptions(column));
   column.addEventListener("input", () => {
@@ -872,9 +858,6 @@ function addFilterRow(initial = {}) {
   });
   value.addEventListener("input", updateFilterHint);
   value2.addEventListener("input", updateFilterHint);
-  valueType.addEventListener("change", () => {
-    row.dataset.typeTouched = "true";
-  });
   row.querySelector(".remove-filter").addEventListener("click", () => {
     row.remove();
     updateFilterHint();
@@ -891,7 +874,10 @@ function visualConditions() {
     operator: row.querySelector(".filter-operator").value,
     value: row.querySelector(".filter-value").value,
     value2: row.querySelector(".filter-value2").value,
-    value_type: row.querySelector(".filter-type").value,
+    value_type: inferredTypeForCondition(
+      row.querySelector(".filter-operator").value,
+      row.querySelector(".filter-value").value,
+    ),
   }));
 }
 

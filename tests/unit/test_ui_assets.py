@@ -48,14 +48,21 @@ def test_browser_app_surfaces_input_resolution_warnings() -> None:
     assert ".input-warnings" in styles
 
 
-def test_browser_app_defaults_numeric_operators_to_number() -> None:
+def test_browser_app_infers_value_type_without_showing_type_field() -> None:
     script = APP_JS.read_text(encoding="utf-8")
+    markup = INDEX_HTML.read_text(encoding="utf-8")
 
-    assert "function defaultTypeForOperator(operator)" in script
+    assert "filter-type" not in markup
+    assert "function inferredTypeForCondition(operator, value)" in script
     assert '[\"gt\", \"gte\", \"lt\", \"lte\"].includes(operator)' in script
-    assert 'return "number";' in script
     assert 'operator === "between"' in script
     assert 'return "auto";' in script
+    assert r"\d{4}-\d{2}-\d{2}(?:[T ][0-2]\d:[0-5]\d" in script
+    assert 'return "string";' in script
+    assert "/^-?(?:\\d+(?:\\.\\d*)?|\\.\\d+)$/.test(text)" not in script
+    assert "value_type: inferredTypeForCondition(" in script
+    assert 'row.querySelector(".filter-operator").value' in script
+    assert 'row.querySelector(".filter-value").value' in script
 
 
 def test_browser_app_syncs_output_suffix_when_format_changes() -> None:
