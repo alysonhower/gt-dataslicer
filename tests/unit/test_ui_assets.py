@@ -160,6 +160,24 @@ def test_browser_app_uses_noob_friendly_membership_labels() -> None:
     assert "is in list" not in script
 
 
+def test_browser_app_has_summary_controls_and_payload_fields() -> None:
+    markup = INDEX_HTML.read_text(encoding="utf-8")
+    script = APP_JS.read_text(encoding="utf-8")
+
+    assert 'id="summarizeInput"' in markup
+    assert 'id="summaryOnlyInput"' in markup
+    assert 'id="summaryFields"' in markup
+    assert 'id="summaryGroupByInput"' in markup
+    assert 'id="summaryTotalsInput"' in markup
+    assert "summaryGroupBy" in markup
+    assert "summaryTotals" in markup
+    assert "summarize" in script
+    assert "summary_only" in script
+    assert "summaryOnlyInput" in script
+    assert "function updateSummaryMode()" in script
+    assert "addEventListener(\"change\", updateSummaryMode)" in script
+
+
 def test_browser_app_replaces_terminal_details_with_result_cards() -> None:
     markup = INDEX_HTML.read_text(encoding="utf-8")
     styles = STYLES_CSS.read_text(encoding="utf-8")

@@ -13,6 +13,10 @@ def _merge_options(
     output_name: str,
     preset_config: dict[str, object] | None = None,
     cli_output_format: str | None = None,
+    cli_summarize: bool = False,
+    cli_summary_only: bool = False,
+    cli_summary_group_by: list[str] | None = None,
+    cli_summary_totals: list[str] | None = None,
 ):
     return merge_config_and_cli(
         input_path=tmp_path / "input.csv",
@@ -31,6 +35,10 @@ def _merge_options(
         cli_types=[],
         cli_derived_columns=[],
         derived_columns_file=None,
+        cli_summarize=cli_summarize,
+        cli_summary_only=cli_summary_only,
+        cli_summary_group_by=cli_summary_group_by or [],
+        cli_summary_totals=cli_summary_totals or [],
         cli_output_names=[],
         csv_options=CsvOptions(),
         sheet_prefix="Results",
@@ -45,6 +53,45 @@ def _merge_options(
         strict_values=False,
         batch_size=10_000,
     )
+
+
+def test_merge_config_enables_summary_when_summary_flags_are_set(tmp_path: Path) -> None:
+    options = _merge_options(
+        tmp_path,
+        output_name="result",
+        cli_summarize=True,
+        cli_summary_group_by=["STATUS"],
+        cli_summary_totals=["VALOR_TOTAL"],
+    )
+
+    assert options.summarize is True
+    assert options.summary_group_by == ["STATUS"]
+    assert options.summary_totals == ["VALOR_TOTAL"]
+    assert options.summary_only is False
+
+
+def test_merge_config_enables_summary_from_preset_summary_only(tmp_path: Path) -> None:
+    options = _merge_options(
+        tmp_path,
+        output_name="result",
+        preset_config={"summary_only": True},
+    )
+
+    assert options.summarize is True
+    assert options.summary_only is True
+    assert options.summary_group_by == []
+    assert options.summary_totals == []
+
+
+def test_merge_config_uses_summary_only_cli_flag(tmp_path: Path) -> None:
+    options = _merge_options(
+        tmp_path,
+        output_name="result",
+        cli_summary_only=True,
+    )
+
+    assert options.summarize is True
+    assert options.summary_only is True
 
 
 @pytest.mark.parametrize(

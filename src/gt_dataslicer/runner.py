@@ -29,16 +29,14 @@ def run_filter_inputs(
         raise ValueError("At least one resolved input is required.")
     warnings = resolution_warnings or []
     if len(inputs) == 1:
-        output_name = base_options.output_names[0] if base_options.output_names else None
-        output_path = output_path_for_input(
-            base_options.output_path,
-            inputs[0],
-            index=1,
-            total=1,
-            output_format=base_options.output_format,
-            output_name=output_name,
+        filtered_output_path, summary_output_path = _output_paths_for_input(base_options, inputs[0], index=1, total=1)
+        options = replace(
+            base_options,
+            input_path=inputs[0].source_path,
+            output_path=filtered_output_path,
+            summary_output_path=summary_output_path,
+            resolved_input=inputs[0],
         )
-        options = replace(base_options, input_path=inputs[0].source_path, output_path=output_path, resolved_input=inputs[0])
         report = DuckDBEngine().run_filter(options, progress=progress)
         report.warnings.extend(warnings)
         return report
@@ -53,15 +51,17 @@ def run_filter_inputs(
         reusable_schema = schema_engine.inspect_input(inputs[0], base_options.csv, typed_mode=base_options.typed_mode)
         reusable_column_types = schema_engine.resolve_column_types(reusable_schema, base_options)
 
-    output_paths = _queue_output_paths(base_options, inputs)
+    output_paths, summary_paths = _queue_output_paths(base_options, inputs)
 
     for index, (input_, output_path) in enumerate(zip(inputs, output_paths, strict=True), start=1):
         if progress is not None:
             progress(f"queue:{index}:{len(inputs)}")
+        output_summary_path = summary_paths[index - 1] if index <= len(summary_paths) else None
         options = replace(
             base_options,
             input_path=input_.source_path,
             output_path=output_path,
+            summary_output_path=output_summary_path,
             resolved_input=input_,
         )
         try:
@@ -81,26 +81,68 @@ def run_filter_inputs(
     return queue_report
 
 
-def _queue_output_paths(base_options: FilterRunOptions, inputs: list[ResolvedInput]) -> list[Path]:
-    output_paths = [
-        output_path_for_input(
-            base_options.output_path,
-            input_,
-            index=index,
-            total=len(inputs),
-            output_format=base_options.output_format,
-            output_name=base_options.output_names[index - 1] if index <= len(base_options.output_names) else None,
-        )
+def _output_paths_for_input(
+    base_options: FilterRunOptions,
+    input_: ResolvedInput,
+    *,
+    index: int,
+    total: int,
+) -> tuple[Path, Path | None]:
+    output_name = base_options.output_names[index - 1] if index <= len(base_options.output_names) else None
+    filtered_path = output_path_for_input(
+        base_options.output_path,
+        input_,
+        index=index,
+        total=total,
+        output_format=base_options.output_format,
+        output_name=output_name,
+        artifact="filtered",
+    )
+    if not base_options.summarize:
+        return filtered_path, None
+    if base_options.summary_only:
+        return filtered_path, filtered_path
+    summary_path = output_path_for_input(
+        base_options.output_path,
+        input_,
+        index=index,
+        total=total,
+        output_format=base_options.output_format,
+        output_name=output_name,
+        artifact="summary",
+    )
+    return filtered_path, summary_path
+
+
+def _queue_output_paths(base_options: FilterRunOptions, inputs: list[ResolvedInput]) -> tuple[list[Path], list[Path]]:
+    output_plan: list[tuple[int, ResolvedInput, Path, Path | None]] = [
+        (index, input_, *_output_paths_for_input(base_options, input_, index=index, total=len(inputs)))
         for index, input_ in enumerate(inputs, start=1)
     ]
-    seen: dict[str, str] = {}
-    for input_, output_path in zip(inputs, output_paths, strict=True):
+    filtered_paths = [filtered for _index, _input_, filtered, _summary in output_plan]
+    summary_paths = [summary for _index, _input_, _filtered, summary in output_plan if summary is not None]
+    _assert_no_output_path_conflicts(
+        [(index, path) for index, _input_, path, _summary in output_plan]
+        + [
+            (index, summary)
+            for index, _input_, _filtered, summary in output_plan
+            if summary is not None
+        ],
+    )
+    output_paths = filtered_paths
+    return output_paths, summary_paths
+
+
+def _assert_no_output_path_conflicts(output_paths: list[tuple[int, Path]]) -> None:
+    seen: dict[str, int] = {}
+    for input_index, output_path in output_paths:
+        if output_path is None:
+            continue
         key = str(output_path.resolve() if output_path.is_absolute() else output_path.absolute()).lower()
-        previous = seen.get(key)
-        if previous is not None:
+        previous_input_index = seen.get(key)
+        if previous_input_index is not None and previous_input_index != input_index:
             raise ConfigError(
                 "Output names resolve to the same file: "
-                f"{previous} and {input_.source_label} both use {output_path}."
+                f"input #{previous_input_index} and input #{input_index} both use {output_path}."
             )
-        seen[key] = input_.source_label
-    return output_paths
+        seen[key] = input_index

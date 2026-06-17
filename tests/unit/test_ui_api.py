@@ -142,6 +142,81 @@ def test_ui_api_runs_xlsx_export(tmp_path: Path) -> None:
     assert rows == [("Nome",), ("Ana Silva",), ("Camila Silva",)]
 
 
+def test_ui_api_runs_summary_and_summary_only_outputs(tmp_path: Path) -> None:
+    csv_path = tmp_path / "people.csv"
+    output_path = tmp_path / "filtered.csv"
+    write_people_csv(csv_path)
+    api = DataSlicerApi()
+
+    summary_response = api.start_filter_run(
+        {
+            "input_path": str(csv_path),
+            "output_path": str(output_path),
+            "output_format": "csv",
+            "csv_options": {"delimiter": ","},
+            "summarize": True,
+            "summary_group_by": ["Status"],
+            "summary_totals": ["Valor"],
+            "filters": {
+                "mode": "visual",
+                "conditions": [{"column": "Nome", "operator": "contains", "value": "Silva"}],
+            },
+        }
+    )
+
+    assert summary_response["ok"], summary_response
+    summary_data = summary_response["data"]
+    assert isinstance(summary_data, dict)
+    summary_job = wait_for_job(api, str(summary_data["job_id"]))
+    summary_report = summary_job["report"]
+    assert isinstance(summary_report, dict)
+    assert summary_report["output_rows"] == 2
+    assert summary_report["output_paths"] == [
+        str(output_path),
+        str(output_path.with_name("filtered_summary.csv")),
+    ]
+    assert output_path.read_text(encoding="utf-8").splitlines() == [
+        "ID,Nome,Status,Valor",
+        "1,Ana Silva,ATIVO,1500",
+        "3,Camila Silva,ATIVO,2500",
+    ]
+    assert output_path.with_name("filtered_summary.csv").read_text(encoding="utf-8").splitlines() in (
+        ["Status,total_Valor,count", "ATIVO,4000.0,2"],
+    )
+
+    summary_only_path = tmp_path / "only_summary.csv"
+    summary_only_response = api.start_filter_run(
+        {
+            "input_path": str(csv_path),
+            "output_path": str(summary_only_path),
+            "output_format": "csv",
+            "csv_options": {"delimiter": ","},
+            "summarize": True,
+            "summary_only": True,
+            "summary_group_by": ["Status"],
+            "summary_totals": ["Valor"],
+            "filters": {
+                "mode": "visual",
+                "combine": "or",
+                "conditions": [{"column": "Status", "operator": "equals", "value": "ATIVO"}],
+            },
+        }
+    )
+    assert summary_only_response["ok"], summary_only_response
+    summary_only_data = summary_only_response["data"]
+    assert isinstance(summary_only_data, dict)
+    summary_only_job = wait_for_job(api, str(summary_only_data["job_id"]))
+    summary_only_report = summary_only_job["report"]
+    assert isinstance(summary_only_report, dict)
+    assert summary_only_report["output_rows"] == 1
+    assert summary_only_report["output_paths"] == [str(summary_only_path)]
+    assert summary_only_path.read_text(encoding="utf-8").splitlines() == [
+        "Status,total_Valor,count",
+        "ATIVO,4000.0,2",
+    ]
+    assert not summary_only_path.with_name("only_summary_summary.csv").exists()
+
+
 def test_ui_api_runs_parquet_export_with_derived_column(tmp_path: Path) -> None:
     csv_path = tmp_path / "people.csv"
     output_path = tmp_path / "filtered.parquet"

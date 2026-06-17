@@ -145,6 +145,6 @@ def test_output_path_for_directory_queue_keeps_duplicate_stems_unique(tmp_path: 
         ]
 
     assert outputs == [
-        output_dir / "001_same_filtered.csv",
-        output_dir / "002_same_filtered.csv",
+        output_dir / "001_same.csv",
+        output_dir / "002_same.csv",
     ]
