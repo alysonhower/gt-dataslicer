@@ -348,6 +348,10 @@ def build_options_from_payload(
         cli_where=cli_where,
         cli_select=_string_list(payload.get("select") or payload.get("selected_columns")),
         select_file=_optional_path(payload.get("select_file")),
+        cli_summarize=bool(payload.get("summarize", False)),
+        cli_summary_only=bool(payload.get("summary_only", False)),
+        cli_summary_group_by=_string_list(payload.get("summary_group_by")),
+        cli_summary_totals=_string_list(payload.get("summary_totals")),
         cli_renames=_rename_items(payload.get("renames") or payload.get("rename")),
         cli_dedupe=bool(payload.get("dedupe", False)),
         cli_dedupe_keys=_string_list(payload.get("dedupe_keys") or payload.get("dedupe_key")),
@@ -408,6 +412,16 @@ def _config_from_payload(payload: dict[str, Any]) -> dict[str, object]:
     renames = _rename_items(payload.get("renames") or payload.get("rename"))
     if renames:
         config["rename"] = renames
+    if payload.get("summarize"):
+        config["summarize"] = bool(payload.get("summarize"))
+    if payload.get("summary_only"):
+        config["summary_only"] = True
+    summary_group_by = _string_list(payload.get("summary_group_by"))
+    if summary_group_by:
+        config["summary_group_by"] = summary_group_by
+    summary_totals = _string_list(payload.get("summary_totals"))
+    if summary_totals:
+        config["summary_totals"] = summary_totals
     if payload.get("dedupe"):
         config["dedupe"] = True
     dedupe_keys = _string_list(payload.get("dedupe_keys") or payload.get("dedupe_key"))

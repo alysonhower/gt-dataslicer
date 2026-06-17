@@ -76,6 +76,11 @@ const text = {
     checkExpression: "Verificar expressão",
     chooseOutputTitle: "Escolha a saída",
     chooseDestination: "Escolher destino",
+    summarize: "Gerar resumo",
+    summaryOnly: "Gerar apenas o resumo",
+    summaryGroupBy: "Agrupar por",
+    summaryTotals: "Somar colunas no resumo",
+    summaryColumnPlaceholder: "Uma coluna por linha",
     format: "Formato",
     formatCsvTitle: "CSV",
     formatExcelTitle: "Excel",
@@ -252,6 +257,11 @@ const text = {
     checkExpression: "Check expression",
     chooseOutputTitle: "Choose the output",
     chooseDestination: "Choose destination",
+    summarize: "Generate summary",
+    summaryOnly: "Generate only summary",
+    summaryGroupBy: "Group by",
+    summaryTotals: "Sum columns in summary",
+    summaryColumnPlaceholder: "One column per line",
     format: "Format",
     formatCsvTitle: "CSV",
     formatExcelTitle: "Excel",
@@ -517,12 +527,29 @@ function applyLanguage() {
   document.querySelectorAll(".derived-transform-row").forEach(updateTransformRow);
   document.querySelectorAll(".derived-column-card").forEach(updateDerivedCard);
   updateFilterHint();
+  updateSummaryMode();
   updateDerivedEmptyState();
 }
 
 function updateFilterHint() {
   const hasActiveRules = Array.from(document.querySelectorAll(".filter-row")).some(visualConditionIsComplete);
   byId("noFilterHint").classList.toggle("hidden", hasActiveRules);
+}
+
+function updateSummaryMode() {
+  const summarize = byId("summarizeInput").checked;
+  const summaryOnlyInput = byId("summaryOnlyInput");
+  const summaryFields = byId("summaryFields");
+  if (!summarize) {
+    summaryOnlyInput.checked = false;
+    summaryFields.classList.add("hidden");
+  } else {
+    summaryFields.classList.remove("hidden");
+  }
+  summaryOnlyInput.disabled = !summarize;
+  Array.from(summaryFields.querySelectorAll("input, textarea")).forEach((field) => {
+    field.disabled = !summarize;
+  });
 }
 
 function setColumns(columns) {
@@ -1082,6 +1109,8 @@ function bindColumnSearchInput(input, onChange) {
 function payload() {
   const format = byId("formatSelect").value;
   const rawFilter = byId("rawFilterInput").value.trim();
+  const summarize = byId("summarizeInput").checked;
+  const summaryOnly = byId("summaryOnlyInput").checked && summarize;
   const nullValue = byId("nullValueInput").value;
   return {
     input_path: state.inputPath,
@@ -1089,6 +1118,10 @@ function payload() {
     output_path: byId("outputPathInput").value.trim(),
     output_format: format,
     output_names: outputNameItems(),
+    summarize,
+    summary_only: summaryOnly,
+    summary_group_by: linesFromTextarea("summaryGroupByInput"),
+    summary_totals: linesFromTextarea("summaryTotalsInput"),
     filters:
       state.filterMode === "advanced"
         ? { mode: "raw", raw: rawFilter }
@@ -1412,6 +1445,13 @@ function bindEvents() {
   byId("checkExpressionBtn").addEventListener("click", validateFilter);
   byId("runBtn").addEventListener("click", runFilter);
   byId("resetBtn").addEventListener("click", () => window.location.reload());
+  byId("summarizeInput").addEventListener("change", updateSummaryMode);
+  byId("summaryOnlyInput").addEventListener("change", () => {
+    if (byId("summaryOnlyInput").checked) {
+      byId("summarizeInput").checked = true;
+    }
+    updateSummaryMode();
+  });
 
   byId("openFolderBtn").addEventListener("click", async () => {
     const firstPath = state.outputPaths[0] || byId("outputPathInput").value;

@@ -14,7 +14,7 @@ icon_png = project_root / "icon.png"
 
 a = Analysis(
     [str(launcher)],
-    pathex=[str(project_root), str(project_root / "src")],
+    pathex=[str(project_root / "src"), str(project_root)],
     binaries=[],
     datas=[
         (str(web_assets), "gt_dataslicer/ui/web"),

@@ -14,8 +14,16 @@ def utc_now() -> datetime:
 
 
 @dataclass(slots=True)
+class OutputArtifact:
+    kind: str
+    path: str
+    rows: int
+
+
+@dataclass(slots=True)
 class RunReport:
     input_path: str
+    artifacts: list[OutputArtifact] = field(default_factory=list)
     output_paths: list[str] = field(default_factory=list)
     input_rows: int | None = None
     output_rows: int = 0

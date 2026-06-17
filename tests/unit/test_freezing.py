@@ -15,6 +15,7 @@ def test_pyinstaller_spec_includes_launcher_and_ui_assets() -> None:
     spec = SPEC_PATH.read_text(encoding="utf-8")
 
     assert "dataslicer_launcher.py" in spec
+    assert 'pathex=[str(project_root / "src"), str(project_root)]' in spec
     assert 'project_root / "src" / "gt_dataslicer" / "ui" / "web"' in spec
     assert "gt_dataslicer/ui/web" in spec
     assert 'project_root / "src" / "gt_dataslicer" / "filters" / "grammar.lark"' in spec
@@ -78,10 +79,18 @@ def test_build_script_uses_canonical_spec_and_expected_output() -> None:
     assert "Get-Command uv" in script
     assert "Invoke-PythonBuild" in script
     assert "Invoke-UvBuild" in script
+    assert "Set-LocalSourceFirstOnPythonPath" in script
+    assert '$env:PYTHONPATH = $pathParts -join [System.IO.Path]::PathSeparator' in script
     assert "Assert-DataSlicerExecutableIsNotRunning" in script
+    assert "Remove-PreviousExecutable" in script
     assert "Close DataSlicer and run this script again" in script
     assert "Falling back to uv" in script
     assert "uv run --extra freeze python -m PyInstaller" in script
     assert "-not $buildSucceeded -and $uvCommand" in script
     assert "--noconfirm --clean" in script
     assert "dist\\DataSlicer.exe" in script
+    assert "Assert-BuiltExecutableContainsCurrentUiAssets" in script
+    assert "CArchiveReader" in script
+    assert "summarizeInput" in script
+    assert "summary_group_by" in script
+    assert "Bundled UI asset is stale or different" in script

@@ -192,6 +192,24 @@
           <details class="advanced-line">
             <summary data-i18n="advancedOptions">Opções avançadas</summary>
             <div class="field-grid">
+              <label class="checkline">
+                <input id="summarizeInput" type="checkbox">
+                <span data-i18n="summarize">Gerar resumo</span>
+              </label>
+              <label class="checkline">
+                <input id="summaryOnlyInput" type="checkbox">
+                <span data-i18n="summaryOnly">Gerar apenas o resumo</span>
+              </label>
+            </div>
+            <div id="summaryFields" class="field-grid">
+              <label>
+                <span data-i18n="summaryGroupBy">Agrupar por</span>
+                <textarea id="summaryGroupByInput" rows="4" placeholder="Uma coluna por linha" data-i18n-placeholder="summaryColumnPlaceholder"></textarea>
+              </label>
+              <label>
+                <span data-i18n="summaryTotals">Colunas para totalizar</span>
+                <textarea id="summaryTotalsInput" rows="4" placeholder="Uma coluna por linha" data-i18n-placeholder="summaryColumnPlaceholder"></textarea>
+              </label>
               <label>
                 <span data-i18n="columnsToSave">Colunas para salvar</span>
                 <textarea id="selectColumnsInput" rows="4" placeholder="Uma coluna por linha" data-i18n-placeholder="oneColumnPerLine"></textarea>
