@@ -17,17 +17,14 @@ from .config import (
     merge_config_and_cli,
     select_preset,
 )
-from .derived import build_projection
 from .engine.duckdb_engine import DuckDBEngine
 from .exceptions import DataSlicerError
-from .filters.compiler import CompileContext, compile_filter
-from .filters.parser import combine_filters
 from .i18n import (
     DEFAULT_LANGUAGE,
     SUPPORTED_LANGUAGES,
     get_language,
     invalid_language_message,
-    localize_error_message,
+    localize_error,
     set_language,
     tr,
 )
@@ -45,7 +42,7 @@ def _prompt_zip_password(path: Path) -> str | None:
 
 def _handle_error(exc: Exception) -> None:
     if isinstance(exc, DataSlicerError):
-        console.print(f"[red]{tr('error_prefix')}[/red] {localize_error_message(str(exc))}")
+        console.print(f"[red]{tr('error_prefix')}[/red] {localize_error(exc)}")
         raise typer.Exit(exc.exit_code) from exc
     raise exc
 
@@ -127,10 +124,10 @@ def create_app(language: str = DEFAULT_LANGUAGE) -> typer.Typer:
                     excel_all_sheets=all_excel_sheets,
                 ),
             ) as session:
-                schemas = [
-                    (input_, DuckDBEngine().inspect_input(input_, csv_options, typed_mode=typed_mode))
-                    for input_ in session.inputs
-                ]
+                schemas = []
+                for input_ in session.inputs:
+                    with DuckDBEngine() as engine:
+                        schemas.append((input_, engine.inspect_input(input_, csv_options, typed_mode=typed_mode)))
         except Exception as exc:  # noqa: BLE001
             _handle_error(exc)
             return
@@ -249,44 +246,19 @@ def create_app(language: str = DEFAULT_LANGUAGE) -> typer.Typer:
                 reusable_schema = None
                 reusable_column_types = None
                 for input_ in session.inputs:
-                    engine = DuckDBEngine()
-                    schema = reusable_schema or engine.inspect_input(input_, options.csv, typed_mode=False)
-                    if reuse_schema and reusable_schema is None:
-                        reusable_schema = schema
-                    column_types = reusable_column_types or engine.resolve_column_types(schema, options)
-                    if reuse_schema and reusable_column_types is None:
-                        reusable_column_types = column_types
-                    lookup_bindings = engine.register_lookups(
-                        options.lookups, options.csv, case_insensitive_columns=options.case_insensitive_columns
-                    )
-                    expr = combine_filters(options.where)
-                    compiled = compile_filter(
-                        expr,
-                        CompileContext(
-                            columns=schema.columns,
-                            column_types=column_types,
-                            lookups=lookup_bindings,
-                            case_insensitive_columns=case_insensitive_columns,
-                        ),
-                    )
-                    selected_columns = engine._resolve_selected_columns(  # noqa: SLF001 - shared validation path.
-                        schema,
-                        options.select,
-                        options.case_insensitive_columns,
-                    )
-                    resolved_renames = engine._resolve_renames(  # noqa: SLF001 - shared validation path.
-                        schema,
-                        options.renames,
-                        options.case_insensitive_columns,
-                    )
-                    output_columns = [resolved_renames.get(column, column) for column in selected_columns]
-                    build_projection(
-                        schema_columns=schema.columns,
-                        selected_columns=selected_columns,
-                        output_columns=output_columns,
-                        derived_columns=options.derived_columns,
-                        case_insensitive_columns=options.case_insensitive_columns,
-                    )
+                    with DuckDBEngine() as engine:
+                        prepared = engine.prepare_filter_query(
+                            input_,
+                            options,
+                            schema_override=reusable_schema,
+                            column_types_override=reusable_column_types,
+                            materialize_source=False,
+                        )
+                        if reuse_schema and reusable_schema is None:
+                            reusable_schema = prepared.schema
+                        if reuse_schema and reusable_column_types is None:
+                            reusable_column_types = prepared.column_types
+                        compiled = prepared.compiled_filter
         except Exception as exc:  # noqa: BLE001
             _handle_error(exc)
             return
@@ -406,6 +378,14 @@ def create_app(language: str = DEFAULT_LANGUAGE) -> typer.Typer:
         strict_values: Annotated[
             bool, typer.Option("--valores-estritos", "--strict-values", help=tr("option.strict_values"))
         ] = False,
+        spreadsheet_safe_csv: Annotated[
+            bool,
+            typer.Option(
+                "--csv-seguro-planilha",
+                "--spreadsheet-safe-csv",
+                help=tr("option.spreadsheet_safe_csv"),
+            ),
+        ] = False,
         batch_size: Annotated[int, typer.Option("--tamanho-lote", "--batch-size", metavar="NUMERO")] = 10_000,
         log_level: Annotated[str, typer.Option("--nivel-log", "--log-level", metavar="NIVEL")] = "INFO",
         json_logs: Annotated[bool, typer.Option("--logs-json", "--json-logs")] = False,
@@ -456,6 +436,7 @@ def create_app(language: str = DEFAULT_LANGUAGE) -> typer.Typer:
                 typed_mode=typed_mode,
                 strict_values=strict_values,
                 batch_size=batch_size,
+                cli_spreadsheet_safe_csv=spreadsheet_safe_csv,
                 allow_output_directory=len(input_files) > 1 or (output.exists() and output.is_dir()),
             )
             with InputResolutionSession(

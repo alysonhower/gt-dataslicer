@@ -7,7 +7,7 @@ from datetime import date, datetime
 from decimal import Decimal
 import difflib
 from functools import lru_cache
-from typing import Any
+from typing import Any, NoReturn
 
 import duckdb
 
@@ -109,7 +109,11 @@ class _Compiler:
             return self._compile_string_predicate(expr)
         if isinstance(expr, (Column, Literal)):
             return self._compile_operand(expr)
-        raise FilterValidationError(f"Unsupported expression node: {type(expr).__name__}")
+        _raise_validation_error(
+            f"Unsupported expression node: {type(expr).__name__}",
+            code="unsupported_expression_node",
+            node=type(expr).__name__,
+        )
 
     def _compile_comparison(self, expr: Comparison) -> _CompiledOperand:
         op = "!=" if expr.op == "<>" else ("=" if expr.op == "==" else expr.op)
@@ -122,7 +126,11 @@ class _Compiler:
 
     def _compile_null_comparison(self, left_expr: Expr, op: str, right_expr: Expr) -> _CompiledOperand:
         if op not in {"=", "!="}:
-            raise FilterValidationError("NULL can only be compared with = or !=. Use IS NULL for clarity.")
+            _raise_validation_error(
+                "NULL can only be compared with = or !=. Use IS NULL for clarity.",
+                code="null_comparison_operator",
+                operator=op,
+            )
 
         left_is_null = _is_null_literal(left_expr)
         right_is_null = _is_null_literal(right_expr)
@@ -144,7 +152,12 @@ class _Compiler:
 
     def _compile_in(self, expr: InPredicate) -> _CompiledOperand:
         if not expr.values:
-            return _CompiledOperand("TRUE" if expr.negated else "FALSE", [], "bool")
+            raise FilterValidationError("Membership filters require at least one value.", code="membership_empty")
+        if any(value.value is None for value in expr.values):
+            raise FilterValidationError(
+                "Membership lists cannot contain NULL. Use IS NULL or combine it with another filter.",
+                code="membership_null",
+            )
         desired_type = self._desired_list_type(expr.left, expr.values)
         left = self._compile_operand(expr.left, desired_type)
         values = [self._compile_operand(value, desired_type) for value in expr.values]
@@ -157,7 +170,12 @@ class _Compiler:
         lookup = self.context.lookups.get(expr.lookup_name)
         if lookup is None:
             available = ", ".join(sorted(self.context.lookups)) or "(none)"
-            raise FilterValidationError(f"Unknown lookup '@{expr.lookup_name}'. Available lookups: {available}")
+            _raise_validation_error(
+                f"Unknown lookup '@{expr.lookup_name}'. Available lookups: {available}",
+                code="unknown_lookup",
+                lookup=expr.lookup_name,
+                available=available,
+            )
         left = self._compile_operand(expr.left, "string")
         op = "NOT IN" if expr.negated else "IN"
         sql = (
@@ -186,7 +204,11 @@ class _Compiler:
         if expr.op == "regex":
             pattern = _literal_value(expr.right)
             if not isinstance(pattern, str):
-                raise FilterValidationError("regex requires a string pattern.")
+                _raise_validation_error(
+                    "regex requires a string pattern.",
+                    code="regex_pattern_type",
+                    operator=expr.op,
+                )
             _validate_duckdb_regex(pattern)
             return _CompiledOperand(
                 f"regexp_matches({left.sql}, {right.sql})",
@@ -195,7 +217,11 @@ class _Compiler:
             )
 
         if not isinstance(_literal_value(expr.right), str):
-            raise FilterValidationError(f"{expr.op.replace('_', ' ')} requires a string literal.")
+            _raise_validation_error(
+                f"{expr.op.replace('_', ' ')} requires a string literal.",
+                code="string_literal_required",
+                operator=expr.op,
+            )
         if expr.op == "contains":
             params = [*left.params, *[_escape_like_param(param) for param in right.params]]
             return _CompiledOperand(f"{left.sql} LIKE '%' || {right.sql} || '%' ESCAPE '\\'", params, "bool")
@@ -205,7 +231,11 @@ class _Compiler:
         if expr.op == "ends_with":
             params = [*left.params, *[_escape_like_param(param) for param in right.params]]
             return _CompiledOperand(f"{left.sql} LIKE '%' || {right.sql} ESCAPE '\\'", params, "bool")
-        raise FilterValidationError(f"Unsupported string operator: {expr.op}")
+        _raise_validation_error(
+            f"Unsupported string operator: {expr.op}",
+            code="unsupported_string_operator",
+            operator=expr.op,
+        )
 
     def _compile_operand(self, expr: Expr, desired_type: str | None = None) -> _CompiledOperand:
         if isinstance(expr, Column):
@@ -221,7 +251,11 @@ class _Compiler:
             type_name = desired_type or literal_to_type(expr)
             value = self._coerce_literal(expr, type_name)
             return _CompiledOperand("?", [value], type_name)
-        raise FilterValidationError(f"Expected a column or literal, got {type(expr).__name__}.")
+        _raise_validation_error(
+            f"Expected a column or literal, got {type(expr).__name__}.",
+            code="operand_type",
+            node=type(expr).__name__,
+        )
 
     def _resolve_column(self, requested: str) -> str:
         if requested in self.context.columns:
@@ -231,10 +265,18 @@ class _Compiler:
             if len(matches) == 1:
                 return matches[0]
             if len(matches) > 1:
-                raise FilterValidationError(f"Column '{requested}' is ambiguous under case-insensitive matching.")
+                raise FilterValidationError(
+                    f"Column '{requested}' is ambiguous under case-insensitive matching.",
+                    code="ambiguous_column",
+                    context={"column": requested},
+                )
         suggestions = difflib.get_close_matches(requested, list(self.context.columns.values()), n=3)
         hint = f" Did you mean: {', '.join(suggestions)}?" if suggestions else ""
-        raise FilterValidationError(f"Missing column '{requested}'.{hint}")
+        raise FilterValidationError(
+            f"Missing column '{requested}'.{hint}",
+            code="missing_column",
+            context={"column": requested, "suggestions": suggestions},
+        )
 
     def _desired_type(self, left: Expr, right: Expr, op: str, extra: Expr | None = None) -> str:
         candidates = [self._expr_type(left), self._expr_type(right)]
@@ -300,18 +342,30 @@ class _Compiler:
             try:
                 return Decimal(str(value))
             except Exception as exc:  # noqa: BLE001
-                raise FilterValidationError(f"Expected decimal literal, got {value!r}.") from exc
+                raise FilterValidationError(
+                    f"Expected decimal literal, got {value!r}.",
+                    code="literal_decimal",
+                    context={"value": repr(value)},
+                ) from exc
         if type_name == "int":
             try:
                 return int(value)
             except Exception as exc:  # noqa: BLE001
-                raise FilterValidationError(f"Expected integer literal, got {value!r}.") from exc
+                raise FilterValidationError(
+                    f"Expected integer literal, got {value!r}.",
+                    code="literal_integer",
+                    context={"value": repr(value)},
+                ) from exc
         if type_name == "bool":
             if isinstance(value, bool):
                 return value
             if isinstance(value, str) and value.lower() in {"true", "false"}:
                 return value.lower() == "true"
-            raise FilterValidationError(f"Expected boolean literal, got {value!r}.")
+            _raise_validation_error(
+                f"Expected boolean literal, got {value!r}.",
+                code="literal_boolean",
+                value=repr(value),
+            )
         if type_name == "date":
             if isinstance(value, datetime):
                 return value.date()
@@ -321,18 +375,44 @@ class _Compiler:
                 try:
                     return date.fromisoformat(value)
                 except ValueError as exc:
-                    raise FilterValidationError(f"Expected ISO date literal, got {value!r}.") from exc
+                    raise FilterValidationError(
+                        f"Expected ISO date literal, got {value!r}.",
+                        code="literal_iso_date",
+                        context={"value": repr(value)},
+                    ) from exc
         if type_name == "datetime":
             if isinstance(value, datetime):
+                if value.tzinfo is not None and value.utcoffset() is not None:
+                    raise FilterValidationError(
+                        "Timezone-aware datetime literals are not supported. "
+                        "Use a local ISO datetime without a timezone.",
+                        code="timezone_aware_datetime",
+                    )
                 return value
             if isinstance(value, date):
                 return datetime.combine(value, datetime.min.time())
             if isinstance(value, str):
                 try:
-                    return datetime.fromisoformat(value.removesuffix("Z"))
+                    parsed = datetime.fromisoformat(value)
                 except ValueError as exc:
-                    raise FilterValidationError(f"Expected ISO datetime literal, got {value!r}.") from exc
-        raise FilterValidationError(f"Cannot coerce {value!r} to {type_name}.")
+                    raise FilterValidationError(
+                        f"Expected ISO datetime literal, got {value!r}.",
+                        code="literal_iso_datetime",
+                        context={"value": repr(value)},
+                    ) from exc
+                if parsed.tzinfo is not None and parsed.utcoffset() is not None:
+                    raise FilterValidationError(
+                        "Timezone-aware datetime literals are not supported. "
+                        "Use a local ISO datetime without a timezone.",
+                        code="timezone_aware_datetime",
+                    )
+                return parsed
+        _raise_validation_error(
+            f"Cannot coerce {value!r} to {type_name}.",
+            code="literal_coerce_failed",
+            value=repr(value),
+            type=type_name,
+        )
 
 
 def _merge_params(parts: list[_CompiledOperand]) -> list[Any]:
@@ -379,4 +459,12 @@ def _validate_duckdb_regex(pattern: str) -> None:
         finally:
             connection.close()
     except duckdb.Error as exc:
-        raise FilterValidationError(f"Invalid regex pattern for DuckDB: {exc}") from exc
+        raise FilterValidationError(
+            f"Invalid regex pattern for DuckDB: {exc}",
+            code="invalid_regex_pattern",
+            context={"reason": str(exc)},
+        ) from exc
+
+
+def _raise_validation_error(message: str, *, code: str, **context: Any) -> NoReturn:
+    raise FilterValidationError(message, code=code, context=context)

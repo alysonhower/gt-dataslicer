@@ -8,7 +8,7 @@ import json
 from pathlib import Path
 import re
 import tomllib
-from typing import Any, Literal
+from typing import Any, Literal, NoReturn
 
 import yaml
 from xlsxwriter.utility import xl_rowcol_to_cell
@@ -146,7 +146,11 @@ class DerivedProjection:
 
 def load_derived_columns_file(path: Path) -> list[DerivedColumnSpec]:
     if not path.exists():
-        raise ConfigError(f"Derived columns file not found: {path}")
+        raise ConfigError(
+            f"Derived columns file not found: {path}",
+            code="derived_columns_file_not_found",
+            context={"path": str(path)},
+        )
     suffix = path.suffix.lower()
     try:
         if suffix in {".yaml", ".yml"}:
@@ -156,11 +160,19 @@ def load_derived_columns_file(path: Path) -> list[DerivedColumnSpec]:
         elif suffix == ".toml":
             data = tomllib.loads(path.read_text(encoding="utf-8"))
         else:
-            raise ConfigError("Derived columns files must be YAML, JSON, or TOML.")
+            raise ConfigError(
+                "Derived columns files must be YAML, JSON, or TOML.",
+                code="derived_columns_file_type",
+                context={"suffix": suffix},
+            )
     except ConfigError:
         raise
     except Exception as exc:  # noqa: BLE001
-        raise ConfigError(f"Could not parse derived columns file {path}: {exc}") from exc
+        raise ConfigError(
+            f"Could not parse derived columns file {path}: {exc}",
+            code="derived_columns_file_parse",
+            context={"path": str(path), "reason": str(exc)},
+        ) from exc
     return parse_derived_columns(_extract_derived_columns(data))
 
 
@@ -171,7 +183,11 @@ def parse_derived_columns(value: Any) -> list[DerivedColumnSpec]:
     specs: list[DerivedColumnSpec] = []
     for index, raw in enumerate(raw_items, start=1):
         if not isinstance(raw, dict):
-            raise ConfigError(f"Derived column #{index} must be an object.")
+            _raise_config_error(
+                f"Derived column #{index} must be an object.",
+                code="derived_column_type",
+                index=index,
+            )
         specs.append(_parse_derived_column(raw, index=index))
     return specs
 
@@ -182,7 +198,11 @@ def parse_derived_column_json_items(items: Iterable[str]) -> list[DerivedColumnS
         try:
             decoded = json.loads(item)
         except json.JSONDecodeError as exc:
-            raise ConfigError(f"Invalid derived column JSON: {exc}") from exc
+            raise ConfigError(
+                f"Invalid derived column JSON: {exc}",
+                code="derived_column_json",
+                context={"reason": str(exc)},
+            ) from exc
         specs.extend(parse_derived_columns(decoded))
     return specs
 
@@ -212,9 +232,17 @@ def build_projection(
             required.append(source_column)
         output_name = spec.generated_name(source_column).strip()
         if not output_name:
-            raise FilterValidationError("Derived column name cannot be empty.")
+            raise FilterValidationError(
+                "Derived column name cannot be empty.",
+                code="derived_name_empty",
+                context={"source": spec.source},
+            )
         if output_name in [item.output_name for item in items]:
-            raise FilterValidationError(f"Derived column name '{output_name}' already exists.")
+            raise FilterValidationError(
+                f"Derived column name '{output_name}' already exists.",
+                code="derived_name_duplicate",
+                context={"name": output_name},
+            )
 
         expression = _compile_transform_chain(quote_identifier(source_column), spec.transforms)
         source_output_name = _source_output_name(source_column, selected_columns, output_columns)
@@ -260,13 +288,17 @@ def _extract_derived_columns(data: Any) -> list[Any]:
         return raw
     if isinstance(raw, dict):
         return [raw]
-    raise ConfigError("derived_columns must be a list of objects.")
+    _raise_config_error("derived_columns must be a list of objects.", code="derived_columns_type")
 
 
 def _parse_derived_column(raw: dict[str, Any], *, index: int) -> DerivedColumnSpec:
     source = str(raw.get("source") or raw.get("column") or "").strip()
     if not source:
-        raise ConfigError(f"Derived column #{index} requires a source column.")
+        _raise_config_error(
+            f"Derived column #{index} requires a source column.",
+            code="derived_source_required",
+            index=index,
+        )
 
     name_raw = raw.get("name") or {}
     output_name = _optional_text(raw.get("output_name") or raw.get("output"))
@@ -281,10 +313,14 @@ def _parse_derived_column(raw: dict[str, Any], *, index: int) -> DerivedColumnSp
         suffix = str(name_raw.get("suffix") or "")
         separator = str(name_raw.get("separator") or "")
     elif name_raw:
-        raise ConfigError(f"Derived column #{index} name must be text or an object.")
+        _raise_config_error(
+            f"Derived column #{index} name must be text or an object.",
+            code="derived_name_type",
+            index=index,
+        )
 
-    position = _parse_position(raw.get("position"))
-    transforms = [_parse_transform(item, column_index=index) for item in _extract_transforms(raw)]
+    position = _parse_position(raw.get("position"), column_index=index)
+    transforms = [_parse_transform(item, column_index=index) for item in _extract_transforms(raw, column_index=index)]
     _validate_transform_chain(transforms, column_index=index)
     return DerivedColumnSpec(
         source=source,
@@ -297,12 +333,16 @@ def _parse_derived_column(raw: dict[str, Any], *, index: int) -> DerivedColumnSp
     )
 
 
-def _extract_transforms(raw: dict[str, Any]) -> list[Any]:
+def _extract_transforms(raw: dict[str, Any], *, column_index: int) -> list[Any]:
     transforms = raw.get("transforms") or raw.get("transformations") or []
     if isinstance(transforms, str):
         return [{"operation": transforms}]
     if not isinstance(transforms, list):
-        raise ConfigError("Derived column transforms must be a list.")
+        _raise_config_error(
+            "Derived column transforms must be a list.",
+            code="derived_transforms_type",
+            index=column_index,
+        )
     return transforms
 
 
@@ -314,36 +354,68 @@ def _parse_transform(raw: Any, *, column_index: int) -> TransformSpec:
         operation = str(raw.get("operation") or raw.get("type") or "").strip()
         params = {str(key): value for key, value in raw.items() if key not in {"operation", "type"}}
     else:
-        raise ConfigError(f"Derived column #{column_index} transform must be text or an object.")
+        _raise_config_error(
+            f"Derived column #{column_index} transform must be text or an object.",
+            code="derived_transform_type",
+            index=column_index,
+        )
     operation = OPERATION_ALIASES.get(operation, operation)
     if not operation:
-        raise ConfigError(f"Derived column #{column_index} has a transform without operation.")
+        _raise_config_error(
+            f"Derived column #{column_index} has a transform without operation.",
+            code="derived_transform_operation_required",
+            index=column_index,
+        )
     return TransformSpec(operation=operation, params=params)
 
 
-def _parse_position(raw: Any) -> DerivedColumnPosition:
+def _parse_position(raw: Any, *, column_index: int) -> DerivedColumnPosition:
     if raw is None or raw == "":
         return DerivedColumnPosition()
     if isinstance(raw, str):
         mode = raw.strip().lower()
         if mode != "append":
-            raise ConfigError("Derived column position text must be 'append'.")
+            _raise_config_error(
+                "Derived column position text must be 'append'.",
+                code="derived_position_text",
+                index=column_index,
+                mode=mode,
+            )
         return DerivedColumnPosition()
     if not isinstance(raw, dict):
-        raise ConfigError("Derived column position must be an object.")
+        _raise_config_error(
+            "Derived column position must be an object.",
+            code="derived_position_type",
+            index=column_index,
+        )
     mode = str(raw.get("mode") or "append").strip().lower()
     if mode not in {"append", "before", "after"}:
-        raise ConfigError("Derived column position mode must be append, before, or after.")
+        _raise_config_error(
+            "Derived column position mode must be append, before, or after.",
+            code="derived_position_mode",
+            index=column_index,
+            mode=mode,
+        )
     target = _optional_text(raw.get("target") or raw.get("column"))
     if mode in {"before", "after"} and not target:
-        raise ConfigError("Derived column position before/after requires a target column.")
+        _raise_config_error(
+            "Derived column position before/after requires a target column.",
+            code="derived_position_target_required",
+            index=column_index,
+            mode=mode,
+        )
     return DerivedColumnPosition(mode=mode, target=target)
 
 
 def _validate_transform_chain(transforms: list[TransformSpec], *, column_index: int) -> None:
     seen_case = [item.operation for item in transforms if item.operation in CASE_OPERATIONS]
     if len(seen_case) > 1:
-        raise ConfigError(f"Derived column #{column_index} cannot combine case transformations.")
+        _raise_config_error(
+            f"Derived column #{column_index} cannot combine case transformations.",
+            code="derived_case_conflict",
+            index=column_index,
+            operations=", ".join(seen_case),
+        )
     for transform in transforms:
         operation = transform.operation
         if operation == "replace_text":
@@ -356,7 +428,11 @@ def _validate_transform_chain(transforms: list[TransformSpec], *, column_index: 
         elif operation in COUNT_PARAM_OPERATIONS:
             _required_count(transform)
         else:
-            raise ConfigError(f"Unsupported derived column transform: {operation}")
+            _raise_config_error(
+                f"Unsupported derived column transform: {operation}",
+                code="derived_transform_unsupported",
+                operation=operation,
+            )
 
 
 def _compile_transform_chain(base_expression: str, transforms: list[TransformSpec]) -> str:
@@ -431,7 +507,11 @@ def _apply_transform_sql(expression: str, transform: TransformSpec) -> str:
         return _format_cnpj_sql(expression)
     if operation == "format_phone":
         return _format_phone_sql(expression)
-    raise ConfigError(f"Unsupported derived column transform: {operation}")
+    _raise_config_error(
+        f"Unsupported derived column transform: {operation}",
+        code="derived_transform_unsupported",
+        operation=operation,
+    )
 
 
 def _format_cpf_sql(expression: str) -> str:
@@ -479,14 +559,26 @@ def _position_index(
         try:
             target_source = _resolve_column(schema_columns, target, case_insensitive_columns)
         except FilterValidationError as exc:
-            raise FilterValidationError(f"Derived column position target '{target}' was not found.") from exc
+            raise FilterValidationError(
+                f"Derived column position target '{target}' was not found.",
+                code="derived_position_target_missing",
+                context={"target": target},
+            ) from exc
         target_output = _source_output_name(target_source, selected_columns, output_columns)
     if target_output is None:
-        raise FilterValidationError(f"Derived column position target '{target}' is not in the output columns.")
+        raise FilterValidationError(
+            f"Derived column position target '{target}' is not in the output columns.",
+            code="derived_position_target_not_selected",
+            context={"target": target},
+        )
     for index, item in enumerate(items):
         if item.output_name == target_output:
             return index if position.mode == "before" else index + 1
-    raise FilterValidationError(f"Derived column position target '{target}' was not found.")
+    raise FilterValidationError(
+        f"Derived column position target '{target}' was not found.",
+        code="derived_position_target_missing",
+        context={"target": target},
+    )
 
 
 def _source_output_name(source: str, selected_columns: list[str], output_columns: list[str]) -> str | None:
@@ -504,8 +596,16 @@ def _resolve_column(columns: dict[str, str], requested: str, case_insensitive: b
         if len(matches) == 1:
             return matches[0]
         if len(matches) > 1:
-            raise FilterValidationError(f"Column '{requested}' is ambiguous under case-insensitive matching.")
-    raise FilterValidationError(f"Missing column '{requested}'.")
+            raise FilterValidationError(
+                f"Column '{requested}' is ambiguous under case-insensitive matching.",
+                code="ambiguous_column",
+                context={"column": requested},
+            )
+    raise FilterValidationError(
+        f"Missing column '{requested}'.",
+        code="missing_column",
+        context={"column": requested, "suggestions": []},
+    )
 
 
 def _excel_formula_builder(transforms: list[TransformSpec], source_index: int) -> Callable[[int], str] | None:
@@ -562,7 +662,11 @@ def _apply_transform_excel(expression: str, transform: TransformSpec) -> str:
     if operation in {"default_if_blank", "default_if_empty", "default_if_null"}:
         default = _excel_string(_text_param(transform, "text", aliases=("value", "default")))
         return f"IF(TRIM({expression})=\"\",{default},{expression})"
-    raise ConfigError(f"Unsupported Excel formula transform: {operation}")
+    _raise_config_error(
+        f"Unsupported Excel formula transform: {operation}",
+        code="derived_excel_transform_unsupported",
+        operation=operation,
+    )
 
 
 def _excel_string(value: str) -> str:
@@ -595,7 +699,12 @@ def _text_param(
         if value is not None and (allow_empty or str(value) != ""):
             return str(value)
     names = ", ".join((key, *aliases))
-    raise ConfigError(f"Transform '{transform.operation}' requires one of: {names}.")
+    _raise_config_error(
+        f"Transform '{transform.operation}' requires one of: {names}.",
+        code="derived_transform_text_required",
+        operation=transform.operation,
+        names=names,
+    )
 
 
 def _count_param(transform: TransformSpec) -> int:
@@ -603,9 +712,17 @@ def _count_param(transform: TransformSpec) -> int:
     try:
         count = int(raw)
     except (TypeError, ValueError) as exc:
-        raise ConfigError(f"Transform '{transform.operation}' requires a positive count.") from exc
+        raise ConfigError(
+            f"Transform '{transform.operation}' requires a positive count.",
+            code="derived_transform_count_required",
+            context={"operation": transform.operation},
+        ) from exc
     if count < 1:
-        raise ConfigError(f"Transform '{transform.operation}' requires a positive count.")
+        _raise_config_error(
+            f"Transform '{transform.operation}' requires a positive count.",
+            code="derived_transform_count_required",
+            operation=transform.operation,
+        )
     return count
 
 
@@ -635,3 +752,7 @@ def _affix_after(suffix: str, separator: str) -> str:
     if separator and not suffix.startswith(separator):
         return f"{separator}{suffix}"
     return suffix
+
+
+def _raise_config_error(message: str, *, code: str, **context: Any) -> NoReturn:
+    raise ConfigError(message, code=code, context=context)

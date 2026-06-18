@@ -27,7 +27,7 @@
           | operand ENDS_WITH operand    -> ends_with_predicate
           | operand REGEX operand        -> regex_predicate
 
-literal_list: "(" [literal ("," literal)*] ")"
+literal_list: "(" literal ("," literal)* ")"
 lookup_ref: LOOKUP
 
 ?operand: date_literal

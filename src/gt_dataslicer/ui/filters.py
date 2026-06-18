@@ -51,21 +51,6 @@ _OPERATOR_ALIASES = {
     "nao_branco": "is_not_blank",
 }
 
-_NO_VALUE_OPERATORS = {"is_null", "is_not_null", "is_empty", "is_not_empty", "is_blank", "is_not_blank"}
-_VALUE_OPERATORS = {
-    "equals",
-    "not_equals",
-    "gt",
-    "gte",
-    "lt",
-    "lte",
-    "contains",
-    "starts_with",
-    "ends_with",
-    "regex",
-}
-
-
 def build_filter_expression(filters_payload: dict[str, Any] | None) -> str:
     """Build a DSL expression from a raw or visual filter payload."""
 
@@ -76,9 +61,9 @@ def build_filter_expression(filters_payload: dict[str, Any] | None) -> str:
 
     conditions = payload.get("conditions") or []
     if not isinstance(conditions, list):
-        raise ConfigError("Visual filter conditions must be a list.")
+        raise ConfigError("Visual filter conditions must be a list.", code="visual_filter_conditions_type")
 
-    fragments = [condition_to_expression(condition) for condition in conditions if _has_condition_value(condition)]
+    fragments = [condition_to_expression(condition) for condition in conditions]
     if not fragments:
         return ""
 
@@ -91,42 +76,48 @@ def build_filter_expression(filters_payload: dict[str, Any] | None) -> str:
 
 def condition_to_expression(condition: dict[str, Any]) -> str:
     if not isinstance(condition, dict):
-        raise ConfigError("Visual filter condition must be an object.")
+        raise ConfigError("Visual filter condition must be an object.", code="visual_filter_condition_type")
     column = str(condition.get("column") or "").strip()
     if not column:
-        raise ConfigError("Visual filter condition is missing a column.")
+        raise ConfigError("Visual filter condition is missing a column.", code="visual_filter_missing_column")
     operator = _normalize_operator(condition.get("operator"))
     column_sql = quote_column(column)
     value_type = str(condition.get("value_type") or condition.get("valueType") or "string").strip().lower()
 
     if operator == "equals":
-        return f"{column_sql} = {_literal(condition.get('value'), value_type=value_type)}"
+        return f"{column_sql} = {_literal(_required_value(condition, 'value', column), value_type=value_type)}"
     if operator == "not_equals":
-        return f"{column_sql} != {_literal(condition.get('value'), value_type=value_type)}"
+        return f"{column_sql} != {_literal(_required_value(condition, 'value', column), value_type=value_type)}"
     if operator == "gt":
-        return f"{column_sql} > {_literal(condition.get('value'), value_type=value_type)}"
+        return f"{column_sql} > {_literal(_required_value(condition, 'value', column), value_type=value_type)}"
     if operator == "gte":
-        return f"{column_sql} >= {_literal(condition.get('value'), value_type=value_type)}"
+        return f"{column_sql} >= {_literal(_required_value(condition, 'value', column), value_type=value_type)}"
     if operator == "lt":
-        return f"{column_sql} < {_literal(condition.get('value'), value_type=value_type)}"
+        return f"{column_sql} < {_literal(_required_value(condition, 'value', column), value_type=value_type)}"
     if operator == "lte":
-        return f"{column_sql} <= {_literal(condition.get('value'), value_type=value_type)}"
+        return f"{column_sql} <= {_literal(_required_value(condition, 'value', column), value_type=value_type)}"
     if operator == "in":
         return _in_expression(column_sql, condition, value_type=value_type, negated=False)
     if operator == "not_in":
         return _in_expression(column_sql, condition, value_type=value_type, negated=True)
     if operator == "between":
-        lower = _literal(condition.get("value"), value_type=value_type)
-        upper = _literal(condition.get("value2"), value_type=value_type)
+        lower = _literal(
+            _required_value(condition, "value", column, reason="both values for between"),
+            value_type=value_type,
+        )
+        upper = _literal(
+            _required_value(condition, "value2", column, reason="both values for between"),
+            value_type=value_type,
+        )
         return f"{column_sql} ENTRE {lower} E {upper}"
     if operator == "contains":
-        return f"{column_sql} contém {_literal(condition.get('value'), value_type='string')}"
+        return f"{column_sql} contém {_literal(_required_value(condition, 'value', column), value_type='string')}"
     if operator == "starts_with":
-        return f"{column_sql} começa com {_literal(condition.get('value'), value_type='string')}"
+        return f"{column_sql} começa com {_literal(_required_value(condition, 'value', column), value_type='string')}"
     if operator == "ends_with":
-        return f"{column_sql} termina com {_literal(condition.get('value'), value_type='string')}"
+        return f"{column_sql} termina com {_literal(_required_value(condition, 'value', column), value_type='string')}"
     if operator == "regex":
-        return f"{column_sql} regex {_literal(condition.get('value'), value_type='string')}"
+        return f"{column_sql} regex {_literal(_required_value(condition, 'value', column), value_type='string')}"
     if operator == "is_null":
         return f"{column_sql} É NULO"
     if operator == "is_not_null":
@@ -139,7 +130,11 @@ def condition_to_expression(condition: dict[str, Any]) -> str:
         return f"{column_sql} É BRANCO"
     if operator == "is_not_blank":
         return f"{column_sql} NÃO É BRANCO"
-    raise ConfigError(f"Unsupported visual filter operator: {operator}")
+    raise ConfigError(
+        f"Unsupported visual filter operator: {operator}",
+        code="visual_filter_operator",
+        context={"operator": operator},
+    )
 
 
 def quote_column(column: str) -> str:
@@ -155,7 +150,11 @@ def _normalize_operator(operator: object) -> str:
     normalized = str(operator or "").strip().lower().replace("-", "_").replace(" ", "_")
     result = _OPERATOR_ALIASES.get(normalized)
     if result is None:
-        raise ConfigError(f"Unsupported visual filter operator: {operator}")
+        raise ConfigError(
+            f"Unsupported visual filter operator: {operator}",
+            code="visual_filter_operator",
+            context={"operator": str(operator or "")},
+        )
     return result
 
 
@@ -170,9 +169,28 @@ def _in_expression(column_sql: str, condition: dict[str, Any], *, value_type: st
     if values is None:
         values = _split_list_text(str(condition.get("value") or ""))
     if not isinstance(values, list):
-        raise ConfigError("IN values must be a list or comma-separated text.")
+        raise ConfigError("IN values must be a list or comma-separated text.", code="visual_filter_values_type")
+    if not values:
+        raise ConfigError("Membership filters require at least one value.", code="membership_empty")
     literal_list = ", ".join(_literal(value, value_type=value_type) for value in values)
     return f"{column_sql} {op} ({literal_list})"
+
+
+def _required_value(
+    condition: dict[str, Any],
+    field: str,
+    column: str,
+    *,
+    reason: str = "a value",
+) -> object:
+    value = condition.get(field)
+    if value is None or str(value).strip() == "":
+        raise ConfigError(
+            f"Visual filter condition for column '{column}' needs {reason}.",
+            code="visual_filter_missing_value",
+            context={"column": column, "reason": reason, "field": field},
+        )
+    return value
 
 
 def _literal(value: object, *, value_type: str) -> str:
@@ -187,7 +205,11 @@ def _literal(value: object, *, value_type: str) -> str:
         lowered = text.lower()
         if lowered in {"true", "false"}:
             return lowered
-        raise ConfigError(f"Expected boolean literal, got {value!r}.")
+        raise ConfigError(
+            f"Expected boolean literal, got {value!r}.",
+            code="visual_filter_boolean_literal",
+            context={"value": value},
+        )
     if value_type == "date":
         return f"date({quote_string(text)})"
     if value_type in {"datetime", "timestamp"}:
@@ -209,34 +231,13 @@ def _numeric_literal(text: str) -> str:
     try:
         Decimal(text)
     except InvalidOperation as exc:
-        raise ConfigError(f"Expected decimal literal, got {text!r}.") from exc
+        raise ConfigError(
+            f"Expected decimal literal, got {text!r}.",
+            code="visual_filter_decimal_literal",
+            context={"value": text},
+        ) from exc
     return text
 
 
 def _split_list_text(value: str) -> list[str]:
     return [item.strip() for item in value.split(",") if item.strip()]
-
-
-def _has_condition_value(condition: object) -> bool:
-    if not isinstance(condition, dict):
-        return False
-    column = str(condition.get("column") or "").strip()
-    if not column:
-        return False
-    try:
-        operator = _normalize_operator(condition.get("operator"))
-    except ConfigError:
-        return False
-    if operator in _NO_VALUE_OPERATORS:
-        return True
-    if operator == "between":
-        return bool(str(condition.get("value") or "").strip() and str(condition.get("value2") or "").strip())
-    if operator in {"in", "not_in"}:
-        return bool(
-            str(condition.get("lookup") or "").strip()
-            or condition.get("values")
-            or str(condition.get("value") or "").strip()
-        )
-    if operator in _VALUE_OPERATORS:
-        return bool(str(condition.get("value") or "").strip())
-    return False

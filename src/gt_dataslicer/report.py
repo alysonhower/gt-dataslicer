@@ -8,6 +8,8 @@ import json
 from pathlib import Path
 from typing import Any
 
+from .artifacts import write_text_atomic
+
 
 def utc_now() -> datetime:
     return datetime.now(timezone.utc)
@@ -47,8 +49,7 @@ class RunReport:
         return data
 
     def write_json(self, path: Path) -> None:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(json.dumps(self.to_dict(), indent=2, ensure_ascii=False), encoding="utf-8")
+        write_text_atomic(path, json.dumps(self.to_dict(), indent=2, ensure_ascii=False))
 
 
 @dataclass(slots=True)
@@ -101,5 +102,4 @@ class QueueRunReport:
         }
 
     def write_json(self, path: Path) -> None:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(json.dumps(self.to_dict(), indent=2, ensure_ascii=False), encoding="utf-8")
+        write_text_atomic(path, json.dumps(self.to_dict(), indent=2, ensure_ascii=False))

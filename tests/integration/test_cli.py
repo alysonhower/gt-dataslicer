@@ -9,6 +9,7 @@ from openpyxl import load_workbook
 import pytest
 from typer.testing import CliRunner
 
+import gt_dataslicer.cli as cli_module
 from gt_dataslicer.cli import app, create_app
 
 
@@ -123,6 +124,54 @@ def test_filter_command_accepts_pt_br_command_and_options(tmp_path: Path) -> Non
 
     assert result.exit_code == 0, result.output
     assert rows_from_csv(output_path) == [("NOME",), ("JOAO SILVA",), ("MARIA SILVA",), ("ANA LIMA",)]
+
+
+def test_csv_output_preserves_formula_like_text_by_default(tmp_path: Path) -> None:
+    csv_path = tmp_path / "input.csv"
+    output_path = tmp_path / "output.csv"
+    csv_path.write_text("Nome\n=1+1\n+cmd\n-10\n@user\n", encoding="utf-8")
+
+    result = runner.invoke(
+        app,
+        [
+            "filtrar",
+            str(csv_path),
+            "--saida",
+            str(output_path),
+            "--selecionar",
+            "Nome",
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert rows_from_csv(output_path) == [("Nome",), ("=1+1",), ("+cmd",), ("-10",), ("@user",)]
+
+
+def test_csv_output_can_be_made_spreadsheet_safe(tmp_path: Path) -> None:
+    csv_path = tmp_path / "input.csv"
+    output_path = tmp_path / "output.csv"
+    report_path = tmp_path / "report.json"
+    csv_path.write_text("Nome\n=1+1\n+cmd\n-10\n@user\nsafe\n", encoding="utf-8")
+
+    result = runner.invoke(
+        app,
+        [
+            "filtrar",
+            str(csv_path),
+            "--saida",
+            str(output_path),
+            "--selecionar",
+            "Nome",
+            "--csv-seguro-planilha",
+            "--relatorio",
+            str(report_path),
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert rows_from_csv(output_path) == [("Nome",), ("'=1+1",), ("'+cmd",), ("'-10",), ("'@user",), ("safe",)]
+    report = json.loads(report_path.read_text(encoding="utf-8"))
+    assert report["engine_options"]["spreadsheet_safe_csv"] is True
 
 
 def test_filter_command_supports_parquet_input(tmp_path: Path) -> None:
@@ -651,6 +700,15 @@ def test_validate_filter_command(tmp_path: Path) -> None:
     assert "Filtro válido" in result.output
 
 
+def test_validate_filter_command_uses_public_engine_preparation_boundary() -> None:
+    source = Path(cli_module.__file__).read_text(encoding="utf-8")
+
+    assert "prepare_filter_query" in source
+    assert "._resolve_selected_columns" not in source
+    assert "._resolve_renames" not in source
+    assert "compile_filter(" not in source
+
+
 def test_validate_filter_command_supports_en_us_language(tmp_path: Path) -> None:
     csv_path = tmp_path / "input.csv"
     write_csv(csv_path)
@@ -754,6 +812,28 @@ def test_validate_filter_invalid_explicit_date_is_user_facing(tmp_path: Path) ->
 
     assert result.exit_code == 2
     assert "Literal de data inválido" in result.output
+    assert "Traceback" not in result.output
+
+
+def test_validate_filter_localizes_structured_lookup_config_error(tmp_path: Path) -> None:
+    csv_path = tmp_path / "input.csv"
+    config_path = tmp_path / "filters.yaml"
+    write_csv(csv_path)
+    config_path.write_text(
+        "\n".join(
+            [
+                "where: CD_EMPRESA = 1",
+                "lookup:",
+                "  - 'active_ids=ids.csv:'",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    result = runner.invoke(app, ["validar-filtro", str(csv_path), "--config", str(config_path)])
+
+    assert result.exit_code == 2
+    assert "Lookup deve incluir NOME, CAMINHO e COLUNA: active_ids=ids.csv:" in result.output
     assert "Traceback" not in result.output
 
 
@@ -1070,6 +1150,59 @@ def test_dedupe_sort_can_use_non_exported_column(tmp_path: Path) -> None:
     assert result.exit_code == 0, result.output
     rows = rows_from_xlsx(output_path)
     assert rows == [("A",), ("y",), ("x",)]
+
+
+def test_key_dedupe_requires_sort_key(tmp_path: Path) -> None:
+    csv_path = tmp_path / "dedupe.csv"
+    output_path = tmp_path / "output.csv"
+    csv_path.write_text("A,C\nx,k1\ny,k1\n", encoding="utf-8")
+
+    result = runner.invoke(
+        app,
+        [
+            "filter",
+            str(csv_path),
+            "-o",
+            str(output_path),
+            "--delimiter",
+            ",",
+            "--dedupe-key",
+            "C",
+        ],
+    )
+
+    assert result.exit_code == 2
+    assert "deduplicação por chave requer" in result.output.lower()
+    assert not output_path.exists()
+
+
+def test_key_dedupe_uses_sort_key_to_choose_surviving_row(tmp_path: Path) -> None:
+    csv_path = tmp_path / "dedupe.csv"
+    output_path = tmp_path / "output.csv"
+    csv_path.write_text("A,B,C\nx,3,k1\nx,2,k1\ny,1,k2\n", encoding="utf-8")
+
+    result = runner.invoke(
+        app,
+        [
+            "filter",
+            str(csv_path),
+            "-o",
+            str(output_path),
+            "--delimiter",
+            ",",
+            "--select",
+            "A",
+            "--select",
+            "B",
+            "--sort",
+            "B:asc",
+            "--dedupe-key",
+            "C",
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert rows_from_csv(output_path) == [("A", "B"), ("y", "1"), ("x", "2")]
 
 
 def test_case_insensitive_rename_uses_resolved_column_name(tmp_path: Path) -> None:

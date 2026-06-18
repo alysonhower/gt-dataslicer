@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>DataSlicer</title>
-    <link rel="stylesheet" href="./styles.css?v=20260616-4">
+    <link rel="stylesheet" href="./styles.css?v=20260618-1">
   </head>
   <body>
     <div class="app-shell">
@@ -24,10 +24,22 @@
 
       <main class="workspace">
         <nav class="steps" aria-label="Etapas">
-          <a href="#step-file" class="step-link active" data-i18n="stepFile">1. Arquivo</a>
-          <a href="#step-filter" class="step-link" data-i18n="stepFilter">2. Filtro</a>
-          <a href="#step-output" class="step-link" data-i18n="stepOutput">3. Saída</a>
-          <a href="#step-run" class="step-link" data-i18n="stepRun">4. Gerar</a>
+          <a href="#step-file" class="step-link active" data-step-link="file" data-step-state="pending" aria-current="step">
+            <span class="step-title" data-i18n="stepFile">1. Arquivo</span>
+            <span class="step-summary" data-step-summary="file">Escolha o arquivo</span>
+          </a>
+          <a href="#step-filter" class="step-link" data-step-link="filter" data-step-state="ready">
+            <span class="step-title" data-i18n="stepFilter">2. Filtro</span>
+            <span class="step-summary" data-step-summary="filter">Sem regras</span>
+          </a>
+          <a href="#step-output" class="step-link" data-step-link="output" data-step-state="pending">
+            <span class="step-title" data-i18n="stepOutput">3. Saída</span>
+            <span class="step-summary" data-step-summary="output">Escolha o destino</span>
+          </a>
+          <a href="#step-run" class="step-link" data-step-link="run" data-step-state="pending">
+            <span class="step-title" data-i18n="stepRun">4. Gerar</span>
+            <span class="step-summary" data-step-summary="run">Aguardando etapas</span>
+          </a>
         </nav>
 
         <section id="step-file" class="panel">
@@ -39,7 +51,7 @@
             <button id="browseInputBtn" class="button primary" type="button" data-i18n="browseInput">Procurar arquivo</button>
           </div>
 
-          <div id="dropZone" class="drop-zone" tabindex="0">
+          <div id="dropZone" class="drop-zone" role="button" tabindex="0" aria-label="Procurar arquivo" data-i18n-aria-label="browseInput">
             <strong data-i18n="dropStrong">Arraste o arquivo aqui</strong>
             <span data-i18n="dropHelp">ou use o botão para procurar no computador.</span>
           </div>
@@ -69,34 +81,38 @@
             <ul id="inputWarningsList"></ul>
           </div>
 
-          <details class="advanced-line">
+          <details id="readOptionsDetails" class="advanced-line">
             <summary data-i18n="readOptions">Opções de leitura</summary>
             <div class="field-grid compact">
-              <label>
+              <label data-input-option-group="csv">
                 <span data-i18n="encoding">Codificação</span>
                 <input id="encodingInput" type="text" placeholder="utf-8">
               </label>
-              <label>
+              <label data-input-option-group="csv">
                 <span data-i18n="delimiter">Delimitador</span>
                 <input id="delimiterInput" type="text" maxlength="4" placeholder="auto">
               </label>
-              <label>
+              <label data-input-option-group="csv">
                 <span data-i18n="nullValue">Valor nulo</span>
                 <input id="nullValueInput" type="text" placeholder="vazio" data-i18n-placeholder="emptyPlaceholder">
               </label>
-              <label>
-                <span data-i18n="zipPasswords">Senhas de ZIP</span>
-                <textarea id="zipPasswordsInput" rows="3" placeholder="Uma senha por linha" data-i18n-placeholder="onePasswordPerLine"></textarea>
-              </label>
-              <label class="checkline">
+              <div class="zip-password-session" data-input-option-group="zip">
+                <span class="label-text" data-i18n="zipPasswords">Senhas de ZIP</span>
+                <span id="zipPasswordStatus" class="field-help" data-i18n="zipPasswordSessionOnly">Usadas só nesta execução. Não são salvas.</span>
+                <div class="toolbar-row compact-actions">
+                  <button id="addZipPasswordBtn" class="button ghost" type="button" data-i18n="addZipPassword">Adicionar senha</button>
+                  <button id="clearZipPasswordsBtn" class="button ghost" type="button" data-i18n="clearZipPasswords">Limpar senhas</button>
+                </div>
+              </div>
+              <label class="checkline" data-input-option-group="excel">
                 <input id="allExcelSheetsInput" type="checkbox">
                 <span data-i18n="allExcelSheets">Processar todas as abas do Excel</span>
               </label>
-              <label class="checkline">
+              <label class="checkline" data-input-option-group="queue">
                 <input id="reuseSchemaInput" type="checkbox">
                 <span data-i18n="reuseSchema">Reutilizar o esquema do primeiro arquivo</span>
               </label>
-              <label class="checkline">
+              <label class="checkline" data-input-option-group="zip">
                 <input id="deleteZipInput" type="checkbox">
                 <span data-i18n="deleteZipAfterExtract">Excluir ZIP após extrair com sucesso</span>
               </label>
@@ -110,13 +126,13 @@
               <p class="eyebrow" data-i18n="stageTwo">Etapa 2</p>
               <h2 data-i18n="buildFilter">Monte o filtro</h2>
             </div>
-            <div class="segmented" role="tablist" aria-label="Modo de filtro">
-              <button id="visualTab" class="segment active" type="button" data-i18n="visual">Visual</button>
-              <button id="advancedTab" class="segment" type="button" data-i18n="advanced">Avançado</button>
+            <div class="segmented" role="tablist" aria-label="Modo de filtro" data-i18n-aria-label="filterMode">
+              <button id="visualTab" class="segment active" type="button" role="tab" aria-selected="true" aria-controls="visualFilterPanel" tabindex="0" data-filter-tab="visual" data-i18n="visual">Visual</button>
+              <button id="advancedTab" class="segment" type="button" role="tab" aria-selected="false" aria-controls="advancedFilterPanel" tabindex="-1" data-filter-tab="advanced" data-i18n="advanced">Avançado</button>
             </div>
           </div>
 
-          <div id="visualFilterPanel">
+          <div id="visualFilterPanel" role="tabpanel" aria-labelledby="visualTab">
             <div class="toolbar-row">
               <label>
                 <span data-i18n="combineRules">Combinar regras</span>
@@ -131,11 +147,22 @@
             <div id="filterRows" class="filter-rows"></div>
           </div>
 
-          <div id="advancedFilterPanel" class="hidden">
+          <div id="advancedFilterPanel" class="hidden" role="tabpanel" aria-labelledby="advancedTab">
             <label>
               <span data-i18n="advancedFilter">Filtro avançado</span>
               <textarea id="rawFilterInput" rows="6" spellcheck="false" placeholder='STATUS EM ("ATIVO", "SUSPENSO") E VALOR_TOTAL > 1000'></textarea>
             </label>
+            <div class="lookup-section">
+              <div class="mini-heading">
+                <div>
+                  <h3 data-i18n="lookupFilesTitle">Consultas CSV</h3>
+                  <p data-i18n="lookupFilesHelp">Opcional: use CSVs de apoio no filtro avançado.</p>
+                </div>
+                <button id="addLookupBtn" class="button secondary" type="button" data-i18n="addLookup">Adicionar consulta</button>
+              </div>
+              <div id="lookupList" class="lookup-list"></div>
+              <p id="noLookupsText" class="muted" data-i18n="noLookups">Nenhuma consulta CSV será usada.</p>
+            </div>
             <div class="toolbar-row end">
               <button id="checkExpressionBtn" class="button secondary" type="button" data-i18n="checkExpression">Verificar expressão</button>
             </div>
@@ -151,19 +178,22 @@
             <button id="browseOutputBtn" class="button primary" type="button" data-i18n="chooseDestination">Escolher destino</button>
           </div>
 
-          <div class="format-card-grid" role="radiogroup" aria-label="Formato">
-            <button class="format-card active" type="button" data-format-card="csv" aria-pressed="true">
+          <div class="format-card-grid" role="radiogroup" aria-label="Formato" data-i18n-aria-label="format">
+            <button class="format-card active" type="button" role="radio" data-format-card="csv" aria-checked="true" tabindex="0">
               <strong data-i18n="formatCsvTitle">CSV</strong>
+              <span data-i18n="formatCsvHelp">Bom para compartilhar e abrir em planilhas.</span>
             </button>
-            <button class="format-card" type="button" data-format-card="xlsx" aria-pressed="false">
+            <button class="format-card" type="button" role="radio" data-format-card="xlsx" aria-checked="false" tabindex="-1">
               <strong data-i18n="formatExcelTitle">Excel</strong>
+              <span data-i18n="formatExcelHelp">Pronto para abrir no Excel, com divisão quando necessário.</span>
             </button>
-            <button class="format-card" type="button" data-format-card="parquet" aria-pressed="false">
+            <button class="format-card" type="button" role="radio" data-format-card="parquet" aria-checked="false" tabindex="-1">
               <strong data-i18n="formatParquetTitle">Parquet</strong>
+              <span data-i18n="formatParquetHelp">Melhor para bases grandes e ferramentas analíticas.</span>
             </button>
           </div>
 
-          <select id="formatSelect" class="hidden" aria-label="Formato">
+          <select id="formatSelect" class="hidden" aria-label="Formato" data-i18n-aria-label="format">
             <option value="csv">CSV</option>
             <option value="xlsx">Excel</option>
             <option value="parquet">Parquet</option>
@@ -172,6 +202,15 @@
           <label class="output-path-field">
             <span data-i18n="saveAs">Salvar em</span>
             <input id="outputPathInput" type="text" placeholder="Escolha onde salvar" data-i18n-placeholder="chooseSavePlaceholder">
+          </label>
+          <div id="splitXlsxNotice" class="notice output-artifact-notice hidden" aria-live="polite">
+            <strong data-i18n="splitXlsxNoticeTitle">Excel pode gerar mais de um arquivo</strong>
+            <p id="splitXlsxNoticeText"></p>
+          </div>
+
+          <label id="spreadsheetSafeCsvLine" class="checkline output-safety-line">
+            <input id="spreadsheetSafeCsvInput" type="checkbox">
+            <span data-i18n="spreadsheetSafeCsv">Proteger CSV ao abrir em planilhas</span>
           </label>
 
           <div class="derived-section">
@@ -185,51 +224,67 @@
             <div id="derivedColumnsList" class="derived-columns-list"></div>
             <p id="noDerivedColumnsText" class="muted" data-i18n="noDerivedColumns">Nenhuma coluna nova será criada.</p>
             <div class="toolbar-row end">
+              <button id="loadConfigBtn" class="button ghost" type="button" data-i18n="loadConfig">Carregar configuração</button>
               <button id="saveConfigBtn" class="button ghost" type="button" data-i18n="saveConfig">Salvar configuração</button>
             </div>
           </div>
 
           <details class="advanced-line">
             <summary data-i18n="advancedOptions">Opções avançadas</summary>
-            <div class="field-grid">
-              <label>
-                <span data-i18n="columnsToSave">Colunas para salvar</span>
-                <textarea id="selectColumnsInput" rows="4" placeholder="Uma coluna por linha" data-i18n-placeholder="oneColumnPerLine"></textarea>
-              </label>
-              <label>
-                <span data-i18n="renameColumns">Renomear colunas</span>
-                <textarea id="renamesInput" rows="4" placeholder="ANTIGO=Novo nome" data-i18n-placeholder="renamePlaceholder"></textarea>
-              </label>
-              <label>
-                <span data-i18n="sortBy">Ordenar por</span>
-                <input id="sortInput" type="text" placeholder="COLUNA ou COLUNA:desc" data-i18n-placeholder="sortPlaceholder">
-              </label>
-              <label>
-                <span data-i18n="dedupeKey">Chave de deduplicação</span>
-                <input id="dedupeKeyInput" type="text" placeholder="COLUNA" data-i18n-placeholder="columnPlaceholder">
-              </label>
-              <label class="checkline">
-                <input id="dedupeInput" type="checkbox">
-                <span data-i18n="removeDuplicates">Remover linhas duplicadas</span>
-              </label>
-              <label class="checkline">
-                <input id="caseInsensitiveInput" type="checkbox">
-                <span data-i18n="caseInsensitive">Não diferenciar maiúsculas em nomes de colunas</span>
-              </label>
-              <label>
-                <span data-i18n="jsonReport">Relatório JSON</span>
-                <div class="inline-field">
-                  <input id="reportPathInput" type="text" placeholder="Opcional" data-i18n-placeholder="optional">
-                  <button id="browseReportBtn" class="icon-button" type="button" title="Escolher relatório" data-i18n-title="chooseReport">...</button>
+            <div class="advanced-options-grid">
+              <section class="advanced-group" aria-labelledby="advancedColumnsTitle">
+                <h4 id="advancedColumnsTitle" data-i18n="advancedColumnsGroup">Colunas</h4>
+                <div class="field-grid">
+                  <label>
+                    <span data-i18n="columnsToSave">Colunas para salvar</span>
+                    <textarea id="selectColumnsInput" rows="4" placeholder="Uma coluna por linha" data-i18n-placeholder="oneColumnPerLine"></textarea>
+                  </label>
+                  <label>
+                    <span data-i18n="renameColumns">Renomear colunas</span>
+                    <textarea id="renamesInput" rows="4" placeholder="ANTIGO=Novo nome" data-i18n-placeholder="renamePlaceholder"></textarea>
+                  </label>
                 </div>
-              </label>
-              <label>
-                <span data-i18n="rejectsCsv">Rejeitados CSV</span>
-                <div class="inline-field">
-                  <input id="rejectsPathInput" type="text" placeholder="Opcional" data-i18n-placeholder="optional">
-                  <button id="browseRejectsBtn" class="icon-button" type="button" title="Escolher rejeitados" data-i18n-title="chooseRejects">...</button>
+              </section>
+              <section class="advanced-group" aria-labelledby="advancedOrganizationTitle">
+                <h4 id="advancedOrganizationTitle" data-i18n="advancedOrganizationGroup">Organização</h4>
+                <div class="field-grid">
+                  <label>
+                    <span data-i18n="sortBy">Ordenar por</span>
+                    <input id="sortInput" type="text" placeholder="COLUNA ou COLUNA:desc" data-i18n-placeholder="sortPlaceholder">
+                  </label>
+                  <label>
+                    <span data-i18n="dedupeKey">Chave de deduplicação</span>
+                    <input id="dedupeKeyInput" type="text" placeholder="COLUNA" data-i18n-placeholder="columnPlaceholder">
+                  </label>
+                  <label class="checkline">
+                    <input id="dedupeInput" type="checkbox">
+                    <span data-i18n="removeDuplicates">Remover linhas duplicadas</span>
+                  </label>
+                  <label class="checkline">
+                    <input id="caseInsensitiveInput" type="checkbox">
+                    <span data-i18n="caseInsensitive">Não diferenciar maiúsculas em nomes de colunas</span>
+                  </label>
                 </div>
-              </label>
+              </section>
+              <section class="advanced-group" aria-labelledby="advancedDiagnosticsTitle">
+                <h4 id="advancedDiagnosticsTitle" data-i18n="advancedDiagnosticsGroup">Diagnóstico</h4>
+                <div class="field-grid">
+                  <label>
+                    <span data-i18n="jsonReport">Relatório JSON</span>
+                    <div class="inline-field">
+                      <input id="reportPathInput" type="text" placeholder="Opcional" data-i18n-placeholder="optional">
+                      <button id="browseReportBtn" class="icon-button" type="button" title="Escolher relatório" aria-label="Escolher relatório" data-i18n-title="chooseReport" data-i18n-aria-label="chooseReport">...</button>
+                    </div>
+                  </label>
+                  <label>
+                    <span data-i18n="rejectsCsv">Rejeitados CSV</span>
+                    <div class="inline-field">
+                      <input id="rejectsPathInput" type="text" placeholder="Opcional" data-i18n-placeholder="optional">
+                      <button id="browseRejectsBtn" class="icon-button" type="button" title="Escolher rejeitados" aria-label="Escolher rejeitados" data-i18n-title="chooseRejects" data-i18n-aria-label="chooseRejects">...</button>
+                    </div>
+                  </label>
+                </div>
+              </section>
             </div>
           </details>
         </section>
@@ -240,7 +295,11 @@
               <p class="eyebrow" data-i18n="stageFour">Etapa 4</p>
               <h2 data-i18n="generateFile">Gerar arquivo</h2>
             </div>
-            <button id="runBtn" class="button primary" type="button" data-i18n="generateResult">Gerar resultado</button>
+            <div class="toolbar-row end">
+              <button id="cancelRunBtn" class="button secondary hidden" type="button" data-i18n="cancelRun">Cancelar</button>
+              <button id="previewRowsBtn" class="button secondary" type="button" data-i18n="previewRows">Ver prévia</button>
+              <button id="runBtn" class="button primary" type="button" data-i18n="generateResult">Gerar resultado</button>
+            </div>
           </div>
 
           <div class="status-strip" aria-live="polite">
@@ -249,6 +308,16 @@
               <strong id="statusTitle">Pronto</strong>
               <p id="statusText">Escolha um arquivo de entrada para começar.</p>
             </div>
+          </div>
+
+          <div id="previewPanel" class="preview-panel hidden" aria-live="polite">
+            <div class="mini-heading">
+              <div>
+                <h3 data-i18n="previewTitle">Prévia das linhas</h3>
+                <p id="previewMeta"></p>
+              </div>
+            </div>
+            <div id="previewTableWrap" class="preview-table-wrap"></div>
           </div>
 
           <div id="resultCards" class="result-cards hidden" aria-live="polite">
@@ -318,15 +387,41 @@
         </select>
         <input class="filter-value" type="text" placeholder="Valor" data-i18n-placeholder="value">
         <input class="filter-value2" type="text" placeholder="Valor final" data-i18n-placeholder="finalValue">
-        <button class="icon-button remove-filter" type="button" title="Remover regra" data-i18n-title="removeRule">x</button>
+        <button class="icon-button remove-filter" type="button" title="Remover regra" aria-label="Remover regra" data-i18n-title="removeRule" data-i18n-aria-label="removeRule">x</button>
       </div>
+    </template>
+
+    <template id="lookupTemplate">
+      <article class="lookup-card">
+        <div class="lookup-card-header">
+          <strong class="lookup-preview">Consulta CSV</strong>
+          <button class="icon-button remove-lookup" type="button" title="Remover consulta" aria-label="Remover consulta" data-i18n-title="removeLookup" data-i18n-aria-label="removeLookup">x</button>
+        </div>
+        <div class="field-grid compact">
+          <label>
+            <span data-i18n="lookupName">Nome</span>
+            <input class="lookup-name" type="text" placeholder="empresas" data-i18n-placeholder="lookupNamePlaceholder">
+          </label>
+          <label class="wide">
+            <span data-i18n="lookupPath">CSV de consulta</span>
+            <div class="inline-field">
+              <input class="lookup-path" type="text" placeholder="Escolha um CSV" data-i18n-placeholder="lookupPathPlaceholder">
+              <button class="icon-button browse-lookup-file" type="button" title="Escolher CSV" aria-label="Escolher CSV" data-i18n-title="chooseLookup" data-i18n-aria-label="chooseLookup">...</button>
+            </div>
+          </label>
+          <label>
+            <span data-i18n="lookupColumn">Coluna</span>
+            <input class="lookup-column" type="text" placeholder="ID" data-i18n-placeholder="lookupColumnPlaceholder">
+          </label>
+        </div>
+      </article>
     </template>
 
     <template id="derivedColumnTemplate">
       <article class="derived-column-card">
         <div class="derived-card-header">
           <strong class="derived-preview">Nova coluna</strong>
-          <button class="icon-button remove-derived-column" type="button" title="Remover coluna" data-i18n-title="removeDerivedColumn">x</button>
+          <button class="icon-button remove-derived-column" type="button" title="Remover coluna" aria-label="Remover coluna" data-i18n-title="removeDerivedColumn" data-i18n-aria-label="removeDerivedColumn">x</button>
         </div>
         <div class="field-grid compact">
           <label class="wide">
@@ -336,20 +431,22 @@
               <div class="filter-column-suggestions hidden" role="listbox"></div>
             </div>
           </label>
-          <label>
-            <span data-i18n="namePrefix">Prefixo</span>
-            <input class="derived-prefix" type="text" placeholder="LIMPO" data-i18n-placeholder="prefixPlaceholder">
-          </label>
-          <label>
-            <span data-i18n="nameSuffix">Sufixo</span>
-            <input class="derived-suffix" type="text" placeholder="FORMATADO" data-i18n-placeholder="suffixPlaceholder">
-          </label>
-          <label>
-            <span data-i18n="nameSeparator">Separador</span>
-            <input class="derived-separator" type="text" placeholder="_" value="_">
+          <label class="wide">
+            <span data-i18n="derivedOutputName">Nome da nova coluna</span>
+            <input class="derived-output-name" type="text" placeholder="Ex.: CPF limpo" data-i18n-placeholder="derivedOutputNamePlaceholder">
           </label>
         </div>
         <div class="derived-summary"></div>
+        <div class="derived-sample">
+          <label>
+            <span data-i18n="derivedSampleValue">Exemplo</span>
+            <input class="derived-sample-input" type="text" placeholder="Ex.: 123.456.789-01" data-i18n-placeholder="derivedSamplePlaceholder">
+          </label>
+          <div class="derived-sample-result" aria-live="polite">
+            <span><b data-i18n="derivedSampleBefore">Antes</b><code class="derived-sample-before">-</code></span>
+            <span><b data-i18n="derivedSampleAfter">Depois</b><code class="derived-sample-after">-</code></span>
+          </div>
+        </div>
         <div class="derived-transforms"></div>
         <div class="toolbar-row">
           <button class="button ghost add-derived-transform" type="button" data-i18n="addTransformation">Adicionar transformação</button>
@@ -357,6 +454,18 @@
         <details class="advanced-line compact-details">
           <summary data-i18n="advancedOptions">Opções avançadas</summary>
           <div class="field-grid compact">
+            <label>
+              <span data-i18n="namePrefix">Prefixo</span>
+              <input class="derived-prefix" type="text" placeholder="LIMPO" data-i18n-placeholder="prefixPlaceholder">
+            </label>
+            <label>
+              <span data-i18n="nameSuffix">Sufixo</span>
+              <input class="derived-suffix" type="text" placeholder="FORMATADO" data-i18n-placeholder="suffixPlaceholder">
+            </label>
+            <label>
+              <span data-i18n="nameSeparator">Separador</span>
+              <input class="derived-separator" type="text" placeholder="_" value="_">
+            </label>
             <label>
               <span data-i18n="derivedPosition">Posição</span>
               <select class="derived-position-mode">
@@ -380,38 +489,54 @@
     <template id="derivedTransformTemplate">
       <div class="derived-transform-row">
         <select class="derived-transform-operation" aria-label="Transformação">
-          <option value="trim" data-i18n="txTrim">Aparar espaços</option>
-          <option value="remove_extra_spaces" data-i18n="txRemoveExtraSpaces">Remover espaços repetidos</option>
-          <option value="uppercase" data-i18n="txUppercase">Maiúsculas</option>
-          <option value="lowercase" data-i18n="txLowercase">Minúsculas</option>
-          <option value="title_case" data-i18n="txTitleCase">Título</option>
-          <option value="replace_text" data-i18n="txReplaceText">Substituir texto</option>
-          <option value="add_prefix" data-i18n="txAddPrefix">Adicionar texto antes</option>
-          <option value="add_suffix" data-i18n="txAddSuffix">Adicionar texto depois</option>
-          <option value="keep_digits" data-i18n="txKeepDigits">Manter só números</option>
-          <option value="keep_letters" data-i18n="txKeepLetters">Manter só letras</option>
-          <option value="remove_accents" data-i18n="txRemoveAccents">Remover acentos</option>
-          <option value="remove_punctuation" data-i18n="txRemovePunctuation">Remover pontuação e símbolos</option>
-          <option value="remove_spaces" data-i18n="txRemoveSpaces">Remover espaços</option>
-          <option value="pad_left" data-i18n="txPadLeft">Preencher à esquerda</option>
-          <option value="pad_right" data-i18n="txPadRight">Preencher à direita</option>
-          <option value="take_first" data-i18n="txTakeFirst">Pegar primeiros caracteres</option>
-          <option value="take_last" data-i18n="txTakeLast">Pegar últimos caracteres</option>
-          <option value="remove_first" data-i18n="txRemoveFirst">Remover primeiros caracteres</option>
-          <option value="remove_last" data-i18n="txRemoveLast">Remover últimos caracteres</option>
-          <option value="extract_before" data-i18n="txExtractBefore">Extrair antes de separador</option>
-          <option value="extract_after" data-i18n="txExtractAfter">Extrair depois de separador</option>
-          <option value="default_if_blank" data-i18n="txDefaultIfBlank">Usar padrão se vazio/nulo</option>
-          <option value="format_cpf" data-i18n="txFormatCpf">Formatar CPF</option>
-          <option value="format_cnpj" data-i18n="txFormatCnpj">Formatar CNPJ</option>
-          <option value="format_phone" data-i18n="txFormatPhone">Formatar telefone</option>
+          <optgroup data-i18n-label="transformGroupClean" label="Limpar texto">
+            <option value="trim" data-i18n="txTrim">Aparar espaços</option>
+            <option value="remove_extra_spaces" data-i18n="txRemoveExtraSpaces">Remover espaços repetidos</option>
+            <option value="keep_digits" data-i18n="txKeepDigits">Manter só números</option>
+            <option value="keep_letters" data-i18n="txKeepLetters">Manter só letras</option>
+            <option value="remove_accents" data-i18n="txRemoveAccents">Remover acentos</option>
+            <option value="remove_punctuation" data-i18n="txRemovePunctuation">Remover pontuação e símbolos</option>
+            <option value="remove_spaces" data-i18n="txRemoveSpaces">Remover espaços</option>
+          </optgroup>
+          <optgroup data-i18n-label="transformGroupChange" label="Alterar texto">
+            <option value="uppercase" data-i18n="txUppercase">Maiúsculas</option>
+            <option value="lowercase" data-i18n="txLowercase">Minúsculas</option>
+            <option value="title_case" data-i18n="txTitleCase">Título</option>
+            <option value="replace_text" data-i18n="txReplaceText">Substituir texto</option>
+            <option value="add_prefix" data-i18n="txAddPrefix">Adicionar texto antes</option>
+            <option value="add_suffix" data-i18n="txAddSuffix">Adicionar texto depois</option>
+            <option value="pad_left" data-i18n="txPadLeft">Preencher à esquerda</option>
+            <option value="pad_right" data-i18n="txPadRight">Preencher à direita</option>
+            <option value="default_if_blank" data-i18n="txDefaultIfBlank">Usar padrão se vazio/nulo</option>
+          </optgroup>
+          <optgroup data-i18n-label="transformGroupExtract" label="Extrair texto">
+            <option value="take_first" data-i18n="txTakeFirst">Pegar primeiros caracteres</option>
+            <option value="take_last" data-i18n="txTakeLast">Pegar últimos caracteres</option>
+            <option value="remove_first" data-i18n="txRemoveFirst">Remover primeiros caracteres</option>
+            <option value="remove_last" data-i18n="txRemoveLast">Remover últimos caracteres</option>
+            <option value="extract_before" data-i18n="txExtractBefore">Extrair antes de separador</option>
+            <option value="extract_after" data-i18n="txExtractAfter">Extrair depois de separador</option>
+          </optgroup>
+          <optgroup data-i18n-label="transformGroupFormat" label="Formatar identificadores">
+            <option value="format_cpf" data-i18n="txFormatCpf">Formatar CPF</option>
+            <option value="format_cnpj" data-i18n="txFormatCnpj">Formatar CNPJ</option>
+            <option value="format_phone" data-i18n="txFormatPhone">Formatar telefone</option>
+          </optgroup>
         </select>
-        <input class="derived-transform-value" type="text" placeholder="Valor">
-        <input class="derived-transform-extra" type="text" placeholder="Novo valor">
-        <button class="icon-button remove-derived-transform" type="button" title="Remover transformação" data-i18n-title="removeTransformation">x</button>
+        <label class="derived-transform-param">
+          <span class="derived-transform-value-label" data-i18n="transformValue">Valor</span>
+          <input class="derived-transform-value" type="text" placeholder="Valor" data-i18n-placeholder="transformValue">
+        </label>
+        <label class="derived-transform-param">
+          <span class="derived-transform-extra-label" data-i18n="transformNewValue">Novo valor</span>
+          <input class="derived-transform-extra" type="text" placeholder="Novo valor" data-i18n-placeholder="transformNewValue">
+        </label>
+        <button class="icon-button move-derived-transform-up" type="button" title="Mover transformação para cima" aria-label="Mover transformação para cima" data-i18n-title="moveTransformationUp" data-i18n-aria-label="moveTransformationUp">&uarr;</button>
+        <button class="icon-button move-derived-transform-down" type="button" title="Mover transformação para baixo" aria-label="Mover transformação para baixo" data-i18n-title="moveTransformationDown" data-i18n-aria-label="moveTransformationDown">&darr;</button>
+        <button class="icon-button remove-derived-transform" type="button" title="Remover transformação" aria-label="Remover transformação" data-i18n-title="removeTransformation" data-i18n-aria-label="removeTransformation">x</button>
       </div>
     </template>
 
-    <script src="./app.js?v=20260616-6"></script>
+    <script src="./app.js?v=20260616-7"></script>
   </body>
 </html>

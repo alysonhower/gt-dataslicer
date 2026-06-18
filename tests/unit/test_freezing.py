@@ -9,6 +9,7 @@ SPEC_PATH = ROOT / "packaging" / "pyinstaller" / "dataslicer.spec"
 LAUNCHER_PATH = ROOT / "packaging" / "pyinstaller" / "dataslicer_launcher.py"
 BUILD_SCRIPT_PATH = ROOT / "scripts" / "build-dataslicer.ps1"
 PYPROJECT_PATH = ROOT / "pyproject.toml"
+RELEASE_REQUIREMENTS_PATH = ROOT / "requirements-release.txt"
 
 
 def test_pyinstaller_spec_includes_launcher_and_ui_assets() -> None:
@@ -33,6 +34,28 @@ def test_package_metadata_includes_freeze_icon_dependencies() -> None:
     assert '"pyzipper>=0.3.6"' in pyproject
     assert '"icon.png" = "gt_dataslicer/ui/icon.png"' in pyproject
     assert '"src/gt_dataslicer/filters/grammar.lark" = "gt_dataslicer/filters/grammar.lark"' in pyproject
+
+
+def test_release_dependency_baseline_lists_direct_dependencies() -> None:
+    requirements = RELEASE_REQUIREMENTS_PATH.read_text(encoding="utf-8")
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+
+    for package in [
+        "duckdb==",
+        "lark==",
+        "openpyxl==",
+        "pywebview==",
+        "pyzipper==",
+        "PyYAML==",
+        "rich==",
+        "typer==",
+        "XlsxWriter==",
+        "pytest==",
+        "pillow==",
+        "pyinstaller==",
+    ]:
+        assert package in requirements
+    assert "-c requirements-release.txt" in readme
 
 
 def test_pyinstaller_spec_configures_single_file_dataslicer_exe() -> None:

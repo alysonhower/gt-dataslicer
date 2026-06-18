@@ -37,6 +37,12 @@ python -m pip install -e .[dev,freeze]
 .\scripts\build-dataslicer.ps1
 ```
 
+Para repetir o conjunto direto de dependências usado na última verificação de release:
+
+```powershell
+python -m pip install -e .[dev,freeze] -c requirements-release.txt
+```
+
 Se você não tiver o comando `python`, mas tiver `uv`, o mesmo script usa `uv` automaticamente:
 
 ```powershell
@@ -59,6 +65,14 @@ Salvar em CSV:
 gt-dataslicer filtrar input.csv --saida output.csv --filtro 'STATUS EM ("ATIVO", "SUSPENSO")'
 ```
 
+O CSV padrão preserva os valores exatamente como dados. Se o arquivo será aberto em Excel ou outra planilha e você quer reduzir o risco de textos começando com `=`, `+`, `-`, `@`, tabulação ou quebra de linha virarem fórmulas, use:
+
+```bash
+gt-dataslicer filtrar input.csv --saida output.csv --csv-seguro-planilha
+```
+
+Esse modo prefixa apenas esses textos com `'`. Use só quando a prioridade for abrir o CSV em planilhas; para integração entre sistemas, prefira o CSV padrão.
+
 Filtrar Parquet:
 
 ```bash
@@ -70,6 +84,10 @@ Filtrar Excel:
 ```bash
 gt-dataslicer filtrar input.xlsx --saida output.csv --filtro 'STATUS = "ATIVO"'
 ```
+
+Se uma célula do Excel tiver fórmula, o DataSlicer usa o valor salvo no arquivo. Ele não recalcula fórmulas. Se uma fórmula ainda não tiver valor salvo, abra a planilha no Excel ou LibreOffice, recalcule, salve e tente de novo.
+
+Arquivos Excel com tamanho interno excessivo, abas demais selecionadas ou uma área usada declarada como grande demais são recusados com uma mensagem de orientação. Isso evita que uma planilha corrompida ou com linhas/colunas vazias até o limite do Excel trave a leitura.
 
 Filtrar todas as abas de um Excel:
 
@@ -94,6 +112,8 @@ Salvar em Excel:
 ```bash
 gt-dataslicer filtrar input.csv --saida output.xlsx --filtro 'STATUS = "ATIVO"'
 ```
+
+No XLSX, valores decimais e números inteiros muito longos podem ser salvos como texto para evitar perda silenciosa de precisão do Excel. Textos maiores que o limite de uma célula do Excel são recusados com uma mensagem clara em vez de serem cortados.
 
 Salvar em Parquet:
 
@@ -155,6 +175,8 @@ OBSERVACAO E VAZIO
 ```
 
 `STATUS EM ("ATIVO", "SUSPENSO")` quer dizer: o status é um destes valores. Na tela visual, escolha “é um destes valores” e separe os valores com vírgula.
+
+A lista precisa ter pelo menos um valor. Para procurar células vazias ou nulas, use os filtros próprios, como `CPF É NULO`, em vez de colocar `NULL` dentro de `EM (...)`.
 
 Você pode usar `E`, `OU` e `NÃO` para combinar regras:
 
@@ -271,9 +293,14 @@ Você também pode:
 - salvar o resultado em Parquet com `--formato parquet` ou usando saída `.parquet`;
 - excluir o ZIP automaticamente depois de extrair com sucesso usando `--excluir-zip-apos-extrair`;
 - remover linhas duplicadas com `--deduplicar`;
+- remover linhas duplicadas por chave com `--chave-deduplicacao` junto com `--ordenar`, para deixar claro qual linha fica;
 - ordenar o resultado com `--ordenar`;
 - gerar relatório com `--relatorio`;
 - salvar rejeições de leitura com `--rejeitados`.
+
+Em `--modo-tipado`, todas as colunas do CSV são validadas antes da exportação, mesmo quando `--selecionar` exporta apenas algumas delas. Assim, um valor inválido em uma coluna não selecionada ainda falha a execução ou aparece no arquivo de rejeições quando `--store-rejects` está ativo.
+
+O DataSlicer não permite salvar a saída, o relatório ou o arquivo de rejeições por cima do arquivo de entrada, de consultas externas ou entre si.
 
 Exemplo:
 

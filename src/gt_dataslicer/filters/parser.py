@@ -7,6 +7,7 @@ from datetime import date, datetime
 from decimal import Decimal
 from functools import lru_cache
 from importlib import resources
+import re
 from typing import Iterable
 
 from lark import Lark, Token, Transformer, UnexpectedInput, v_args
@@ -28,6 +29,9 @@ from .ast import (
 from ..exceptions import FilterSyntaxError
 
 
+_EMPTY_MEMBERSHIP_RE = re.compile(r"\b(?:IN|EM)\s*\(\s*\)", re.IGNORECASE)
+
+
 @lru_cache(maxsize=1)
 def _parser() -> Lark:
     grammar = resources.files("gt_dataslicer.filters").joinpath("grammar.lark").read_text(encoding="utf-8")
@@ -39,14 +43,24 @@ def parse_filter(expression: str) -> Expr:
         tree = _parser().parse(expression)
         return _FilterTransformer().transform(tree)
     except UnexpectedInput as exc:
+        if _EMPTY_MEMBERSHIP_RE.search(expression):
+            raise FilterSyntaxError("Membership filters require at least one value.", code="membership_empty") from exc
         context = exc.get_context(expression, span=60).strip()
-        raise FilterSyntaxError(f"Invalid filter syntax at line {exc.line}, column {exc.column}: {context}") from exc
+        raise FilterSyntaxError(
+            f"Invalid filter syntax at line {exc.line}, column {exc.column}: {context}",
+            code="filter_syntax_at_location",
+            context={"line": exc.line, "column": exc.column, "context": context},
+        ) from exc
     except VisitError as exc:
         if isinstance(exc.orig_exc, ValueError):
-            raise FilterSyntaxError(str(exc.orig_exc)) from exc
+            message = str(exc.orig_exc)
+            code, context = _syntax_error_details(message)
+            raise FilterSyntaxError(message, code=code, context=context) from exc
         raise
     except ValueError as exc:
-        raise FilterSyntaxError(str(exc)) from exc
+        message = str(exc)
+        code, context = _syntax_error_details(message)
+        raise FilterSyntaxError(message, code=code, context=context) from exc
 
 
 def combine_filters(filters: Iterable[str]) -> Expr | None:
@@ -56,6 +70,26 @@ def combine_filters(filters: Iterable[str]) -> Expr | None:
     if len(parsed) == 1:
         return parsed[0]
     return BooleanOp("and", tuple(parsed))
+
+
+def _syntax_error_details(message: str) -> tuple[str | None, dict[str, object]]:
+    if message == "Membership filters require at least one value.":
+        return "membership_empty", {}
+    if message == "Boolean expression is empty.":
+        return "boolean_expression_empty", {}
+    if message == "Expected a string literal.":
+        return "string_literal_expected", {}
+    if message == "date(...) requires a string literal.":
+        return "date_string_literal", {}
+    if message == "datetime(...) requires a string literal.":
+        return "datetime_string_literal", {}
+    if message.startswith("Invalid date literal: "):
+        return "invalid_date_literal", {"value": message.removeprefix("Invalid date literal: ")}
+    if message.startswith("Invalid datetime literal: "):
+        return "invalid_datetime_literal", {"value": message.removeprefix("Invalid datetime literal: ")}
+    if message.startswith("Timezone-aware datetime literals are not supported."):
+        return "timezone_aware_datetime", {}
+    return None, {}
 
 
 def _fold_boolean(op: str, items: list[object]) -> Expr:
@@ -154,6 +188,8 @@ class _FilterTransformer(Transformer):
         return StringPredicate(left, "regex", right)
 
     def literal_list(self, *items: Literal) -> list[Literal]:
+        if not items:
+            raise ValueError("Membership filters require at least one value.")
         return list(items)
 
     def lookup_ref(self, token: Token) -> str:
@@ -189,11 +225,16 @@ class _FilterTransformer(Transformer):
             value = _decode_string_literal(literal)
         except ValueError as exc:
             raise ValueError("datetime(...) requires a string literal.") from exc
-        text = value.removesuffix("Z")
         try:
-            return Literal(datetime.fromisoformat(text), "datetime")
+            parsed = datetime.fromisoformat(value)
         except ValueError as exc:
             raise ValueError(f"Invalid datetime literal: {value}") from exc
+        if parsed.tzinfo is not None and parsed.utcoffset() is not None:
+            raise ValueError(
+                "Timezone-aware datetime literals are not supported. "
+                "Use a local ISO datetime without a timezone."
+            )
+        return Literal(parsed, "datetime")
 
     def bare_column(self, token: Token) -> Column:
         return Column(str(token))

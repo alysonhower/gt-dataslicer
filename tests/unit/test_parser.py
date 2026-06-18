@@ -123,10 +123,34 @@ def test_parse_explicit_date_and_datetime_literals() -> None:
 
 
 def test_invalid_explicit_date_has_user_error() -> None:
-    with pytest.raises(FilterSyntaxError, match="Invalid date literal"):
+    with pytest.raises(FilterSyntaxError, match="Invalid date literal") as exc_info:
         parse_filter('DATA = date("2024-99-99")')
+    assert exc_info.value.code == "invalid_date_literal"
+    assert exc_info.value.context == {"value": "2024-99-99"}
+
+
+def test_empty_membership_list_is_rejected() -> None:
+    with pytest.raises(FilterSyntaxError, match="at least one value") as exc_info:
+        parse_filter("STATUS IN ()")
+    assert exc_info.value.code == "membership_empty"
+
+
+def test_timezone_aware_datetime_literal_is_rejected() -> None:
+    with pytest.raises(FilterSyntaxError, match="Timezone-aware datetime") as exc_info:
+        parse_filter('TS = datetime("2024-01-01T12:30:00Z")')
+    assert exc_info.value.code == "timezone_aware_datetime"
+
+
+def test_invalid_explicit_datetime_has_structured_error() -> None:
+    with pytest.raises(FilterSyntaxError, match="Invalid datetime literal") as exc_info:
+        parse_filter('TS = datetime("not-a-datetime")')
+    assert exc_info.value.code == "invalid_datetime_literal"
+    assert exc_info.value.context == {"value": "not-a-datetime"}
 
 
 def test_invalid_syntax_has_user_error() -> None:
-    with pytest.raises(FilterSyntaxError):
+    with pytest.raises(FilterSyntaxError) as exc_info:
         parse_filter("A =")
+    assert exc_info.value.code == "filter_syntax_at_location"
+    assert exc_info.value.context["line"] == 1
+    assert exc_info.value.context["column"] == 3

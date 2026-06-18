@@ -1,4 +1,5 @@
 from types import SimpleNamespace
+from threading import Event
 import sys
 
 from typer.testing import CliRunner
@@ -91,6 +92,43 @@ def test_dataslicer_entrypoint_sets_runtime_icon_on_linux(monkeypatch) -> None:
     assert calls["start"]["debug"] is False
     assert calls["start"]["http_server"] is True
     assert calls["start"]["icon"].endswith("icon.png")
+
+
+def test_window_close_guard_cancels_only_while_job_is_running() -> None:
+    handlers = []
+    scripts = []
+    notified = Event()
+
+    class FakeEvent:
+        def __iadd__(self, handler):
+            handlers.append(handler)
+            return self
+
+    class FakeApi:
+        running = True
+
+        def has_running_job(self) -> bool:
+            return self.running
+
+    api = FakeApi()
+    class FakeWindow:
+        events = SimpleNamespace(closing=FakeEvent())
+
+        def evaluate_js(self, script: str) -> None:
+            scripts.append(script)
+            notified.set()
+
+    window = FakeWindow()
+
+    ui_app._bind_close_guard(window, api)
+
+    assert len(handlers) == 1
+    assert handlers[0]() is False
+    assert notified.wait(timeout=2)
+    assert scripts == ["window.dataslicerNotifyCloseBlocked && window.dataslicerNotifyCloseBlocked()"]
+    api.running = False
+    assert handlers[0]() is True
+    assert len(scripts) == 1
 
 
 def test_runtime_icon_path_uses_packaged_png_on_linux() -> None:

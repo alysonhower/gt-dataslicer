@@ -6,6 +6,7 @@ from contextlib import ExitStack
 from importlib import resources
 from pathlib import Path
 import sys
+from threading import Thread
 
 from ..i18n import DEFAULT_LANGUAGE, set_language, tr
 from .api import DataSlicerApi
@@ -40,6 +41,7 @@ def main(language: str = DEFAULT_LANGUAGE, *, debug: bool = False) -> None:
             text_select=True,
         )
         api.bind_window(window)
+        _bind_close_guard(window, api)
         start_kwargs: dict[str, object] = {"debug": debug, "http_server": True}
         if icon_path is not None:
             start_kwargs["icon"] = str(icon_path)
@@ -50,6 +52,35 @@ def _import_webview() -> object:
     import webview
 
     return webview
+
+
+def _bind_close_guard(window: object, api: DataSlicerApi) -> None:
+    events = getattr(window, "events", None)
+    if events is None or not hasattr(events, "closing"):
+        return
+
+    def cancel_close_while_running(*_args: object) -> bool:
+        if not api.has_running_job():
+            return True
+        Thread(
+            target=_notify_close_blocked,
+            args=(window,),
+            daemon=True,
+            name="DataSlicerCloseNotice",
+        ).start()
+        return False
+
+    events.closing += cancel_close_while_running
+
+
+def _notify_close_blocked(window: object) -> None:
+    evaluate_js = getattr(window, "evaluate_js", None)
+    if not callable(evaluate_js):
+        return
+    try:
+        evaluate_js("window.dataslicerNotifyCloseBlocked && window.dataslicerNotifyCloseBlocked()")
+    except Exception:  # noqa: BLE001 - close protection must not depend on notification rendering.
+        return
 
 
 def _runtime_icon_path(stack: ExitStack, *, platform: str | None = None) -> Path | None:

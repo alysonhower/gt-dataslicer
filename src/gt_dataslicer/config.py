@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 import json
 from pathlib import Path
 import tomllib
-from typing import Any, Literal, cast
+from typing import Any, Literal, NoReturn, cast
 
 import yaml
 
@@ -82,13 +82,14 @@ class FilterRunOptions:
     batch_size: int = 10_000
     derived_columns: list[DerivedColumnSpec] = field(default_factory=list)
     output_names: list[str] = field(default_factory=list)
+    spreadsheet_safe_csv: bool = False
 
 
 def load_config_file(path: Path | None) -> dict[str, Any]:
     if path is None:
         return {}
     if not path.exists():
-        raise ConfigError(f"Config file not found: {path}")
+        _raise_config_error(f"Config file not found: {path}", code="config_file_not_found", path=path)
 
     suffix = path.suffix.lower()
     try:
@@ -99,14 +100,18 @@ def load_config_file(path: Path | None) -> dict[str, Any]:
         elif suffix == ".toml":
             data = tomllib.loads(path.read_text(encoding="utf-8"))
         else:
-            raise ConfigError("Config files must be YAML, JSON, or TOML.")
+            _raise_config_error("Config files must be YAML, JSON, or TOML.", code="config_file_type", suffix=suffix)
     except ConfigError:
         raise
     except Exception as exc:  # noqa: BLE001 - report parser failures as config errors.
-        raise ConfigError(f"Could not parse config file {path}: {exc}") from exc
+        raise ConfigError(
+            f"Could not parse config file {path}: {exc}",
+            code="config_file_parse",
+            context={"path": str(path), "reason": str(exc)},
+        ) from exc
 
     if not isinstance(data, dict):
-        raise ConfigError("Config root must be an object/table.")
+        _raise_config_error("Config root must be an object/table.", code="config_root_type")
     return data
 
 
@@ -115,18 +120,27 @@ def select_preset(config: dict[str, Any], preset: str | None) -> dict[str, Any]:
         return {}
     if preset is None:
         if "presets" in config and len(config) == 1:
-            raise ConfigError("Config contains presets; pass --preset to choose one.")
+            _raise_config_error("Config contains presets; pass --preset to choose one.", code="config_preset_required")
         return config
 
     presets = config.get("presets")
     if not isinstance(presets, dict):
-        raise ConfigError("--preset was provided, but config has no presets table.")
+        _raise_config_error("--preset was provided, but config has no presets table.", code="config_presets_missing")
     selected = presets.get(preset)
     if selected is None:
         available = ", ".join(sorted(presets)) or "(none)"
-        raise ConfigError(f"Preset '{preset}' was not found. Available presets: {available}")
+        _raise_config_error(
+            f"Preset '{preset}' was not found. Available presets: {available}",
+            code="config_preset_not_found",
+            preset=preset,
+            available=available,
+        )
     if not isinstance(selected, dict):
-        raise ConfigError(f"Preset '{preset}' must be an object/table.")
+        _raise_config_error(
+            f"Preset '{preset}' must be an object/table.",
+            code="config_preset_type",
+            preset=preset,
+        )
     return selected
 
 
@@ -137,19 +151,49 @@ def as_list(value: Any, *, key: str) -> list[str]:
         return [value]
     if isinstance(value, list) and all(isinstance(item, str) for item in value):
         return list(value)
-    raise ConfigError(f"Config key '{key}' must be a string or list of strings.")
+    raise ConfigError(
+        f"Config key '{key}' must be a string or list of strings.",
+        code="config_string_list",
+        context={"key": key},
+    )
+
+
+def as_bool(value: Any, *, key: str, default: bool = False) -> bool:
+    if value is None:
+        return default
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        normalized = value.strip().lower()
+        if normalized in {"true", "1", "yes", "y", "sim"}:
+            return True
+        if normalized in {"false", "0", "no", "n", "nao", "não"}:
+            return False
+    raise ConfigError(
+        f"Config key '{key}' must be true or false.",
+        code="config_boolean",
+        context={"key": key},
+    )
 
 
 def parse_rename_items(items: list[str]) -> dict[str, str]:
     renames: dict[str, str] = {}
     for item in items:
         if "=" not in item:
-            raise ConfigError(f"Rename must use OLD=NEW syntax: {item}")
+            raise ConfigError(
+                f"Rename must use OLD=NEW syntax: {item}",
+                code="rename_syntax",
+                context={"item": item},
+            )
         old, new = item.split("=", 1)
         old = old.strip()
         new = new.strip()
         if not old or not new:
-            raise ConfigError(f"Rename must include both OLD and NEW: {item}")
+            raise ConfigError(
+                f"Rename must include both OLD and NEW: {item}",
+                code="rename_missing_parts",
+                context={"item": item},
+            )
         renames[old] = new
     return renames
 
@@ -163,9 +207,17 @@ def parse_sort_items(items: list[str]) -> list[SortSpec]:
         direction = direction.lower().strip()
         column = column.strip()
         if not column:
-            raise ConfigError(f"Sort column cannot be empty: {item}")
+            raise ConfigError(
+                f"Sort column cannot be empty: {item}",
+                code="sort_empty_column",
+                context={"item": item},
+            )
         if direction not in {"asc", "desc"}:
-            raise ConfigError(f"Sort direction for '{column}' must be asc or desc.")
+            raise ConfigError(
+                f"Sort direction for '{column}' must be asc or desc.",
+                code="sort_direction",
+                context={"column": column, "direction": direction},
+            )
         specs.append(SortSpec(column=column, direction=direction))
     return specs
 
@@ -174,15 +226,27 @@ def parse_lookup_items(items: list[str], *, base_dir: Path | None = None) -> lis
     specs: list[LookupSpec] = []
     for item in items:
         if "=" not in item:
-            raise ConfigError(f"Lookup must use NAME=PATH:COLUMN syntax: {item}")
+            raise ConfigError(
+                f"Lookup must use NAME=PATH:COLUMN syntax: {item}",
+                code="lookup_syntax",
+                context={"item": item},
+            )
         name, rest = item.split("=", 1)
         path_text, sep, column = rest.rpartition(":")
         if not sep:
-            raise ConfigError(f"Lookup must include a column after the last colon: {item}")
+            raise ConfigError(
+                f"Lookup must include a column after the last colon: {item}",
+                code="lookup_missing_column",
+                context={"item": item},
+            )
         name = name.strip()
         column = column.strip()
         if not name or not path_text or not column:
-            raise ConfigError(f"Lookup must include NAME, PATH, and COLUMN: {item}")
+            raise ConfigError(
+                f"Lookup must include NAME, PATH, and COLUMN: {item}",
+                code="lookup_missing_parts",
+                context={"item": item},
+            )
         path = Path(path_text)
         if base_dir is not None and not path.is_absolute():
             path = base_dir / path
@@ -194,13 +258,21 @@ def parse_type_items(items: list[str]) -> dict[str, str]:
     types: dict[str, str] = {}
     for item in items:
         if "=" not in item:
-            raise ConfigError(f"Column type must use COLUMN=TYPE syntax: {item}")
+            raise ConfigError(
+                f"Column type must use COLUMN=TYPE syntax: {item}",
+                code="column_type_syntax",
+                context={"item": item},
+            )
         column, type_name = item.split("=", 1)
         column = column.strip()
         type_name = type_name.strip().lower()
         if type_name not in SUPPORTED_COLUMN_TYPES:
             valid = ", ".join(sorted(SUPPORTED_COLUMN_TYPES))
-            raise ConfigError(f"Unsupported type '{type_name}' for column '{column}'. Valid types: {valid}")
+            raise ConfigError(
+                f"Unsupported type '{type_name}' for column '{column}'. Valid types: {valid}",
+                code="unsupported_column_type",
+                context={"type": type_name, "column": column, "valid": valid},
+            )
         types[column] = normalize_column_type(type_name)
     return types
 
@@ -209,11 +281,21 @@ def parse_output_format(value: Any, *, source: str) -> OutputFormat | None:
     if value is None:
         return None
     if not isinstance(value, str):
-        raise ConfigError(f"{source} must be csv, xlsx, or parquet.")
+        _raise_config_error(
+            f"{source} must be csv, xlsx, or parquet.",
+            code="output_format_type",
+            source=source,
+        )
     normalized = value.strip().lower()
     if normalized not in OUTPUT_FORMATS:
         valid = ", ".join(sorted(OUTPUT_FORMATS))
-        raise ConfigError(f"{source} must be one of: {valid}.")
+        _raise_config_error(
+            f"{source} must be one of: {valid}.",
+            code="output_format_invalid",
+            source=source,
+            value=normalized,
+            valid=valid,
+        )
     return cast(OutputFormat, normalized)
 
 
@@ -239,18 +321,28 @@ def resolve_output_target(
     if explicit_format is not None:
         if suffix_format is not None and suffix_format != explicit_format:
             raise ConfigError(
-                f"Output format '{explicit_format}' conflicts with output path suffix '{output_path.suffix}'."
+                f"Output format '{explicit_format}' conflicts with output path suffix '{output_path.suffix}'.",
+                code="output_format_suffix_conflict",
+                context={"output_format": explicit_format, "suffix": output_path.suffix},
             )
         if suffix_format is None:
             if output_path.suffix:
-                raise ConfigError("Output path suffix must be .csv, .xlsx, .parquet, or omit the suffix.")
+                _raise_config_error(
+                    "Output path suffix must be .csv, .xlsx, .parquet, or omit the suffix.",
+                    code="output_suffix_invalid",
+                    suffix=output_path.suffix,
+                )
             output_path = output_path.with_suffix(f".{explicit_format}")
         return output_path, explicit_format
 
     if suffix_format is not None:
         return output_path, suffix_format
     if output_path.suffix:
-        raise ConfigError("Output path suffix must be .csv, .xlsx, .parquet, or omit the suffix.")
+        _raise_config_error(
+            "Output path suffix must be .csv, .xlsx, .parquet, or omit the suffix.",
+            code="output_suffix_invalid",
+            suffix=output_path.suffix,
+        )
     return output_path.with_suffix(".csv"), "csv"
 
 
@@ -277,7 +369,7 @@ def read_select_file(path: Path | None) -> list[str]:
     if path is None:
         return []
     if not path.exists():
-        raise ConfigError(f"Select file not found: {path}")
+        _raise_config_error(f"Select file not found: {path}", code="select_file_not_found", path=path)
     return [line.strip() for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
 
 
@@ -312,6 +404,7 @@ def merge_config_and_cli(
     typed_mode: bool,
     strict_values: bool,
     batch_size: int,
+    cli_spreadsheet_safe_csv: bool = False,
     allow_output_directory: bool = False,
 ) -> FilterRunOptions:
     output_path, output_format = resolve_output_target(
@@ -349,15 +442,25 @@ def merge_config_and_cli(
 
     split_mode = split_mode.lower()
     if split_mode not in {"sheets", "files", "both"}:
-        raise ConfigError("--split-mode must be one of: sheets, files, both.")
+        _raise_config_error("--split-mode must be one of: sheets, files, both.", code="split_mode", value=split_mode)
     if not 2 <= max_rows_per_sheet <= 1_048_576:
-        raise ConfigError("--max-rows-per-sheet must be between 2 and 1048576.")
+        _raise_config_error(
+            "--max-rows-per-sheet must be between 2 and 1048576.",
+            code="max_rows_per_sheet",
+            min=2,
+            max=1_048_576,
+            value=max_rows_per_sheet,
+        )
     if sheets_per_file < 1:
-        raise ConfigError("--sheets-per-file must be at least 1.")
+        _raise_config_error("--sheets-per-file must be at least 1.", code="sheets_per_file", min=1, value=sheets_per_file)
     if batch_size < 1:
-        raise ConfigError("--batch-size must be at least 1.")
+        _raise_config_error("--batch-size must be at least 1.", code="batch_size", min=1, value=batch_size)
     if rejects_path is not None and not csv_options.store_rejects:
-        raise ConfigError("--rejects requires --store-rejects so DuckDB captures rejected rows.")
+        _raise_config_error(
+            "--rejects requires --store-rejects so DuckDB captures rejected rows.",
+            code="rejects_requires_store_rejects",
+            path=rejects_path,
+        )
 
     config_lookup_specs = parse_lookup_items(config_lookups, base_dir=config_base_dir)
     cli_lookup_specs = parse_lookup_items(cli_lookups)
@@ -374,7 +477,7 @@ def merge_config_and_cli(
         where=[*config_where, *cli_where],
         select=select,
         renames=renames,
-        dedupe=bool(preset_config.get("dedupe", False)) or cli_dedupe,
+        dedupe=as_bool(preset_config.get("dedupe"), key="dedupe") or cli_dedupe,
         dedupe_keys=cli_dedupe_keys or config_dedupe_keys,
         sorts=parse_sort_items(cli_sorts or config_sorts),
         lookups=[*config_lookup_specs, *cli_lookup_specs],
@@ -393,4 +496,14 @@ def merge_config_and_cli(
         batch_size=batch_size,
         derived_columns=derived_columns,
         output_names=output_names,
+        spreadsheet_safe_csv=as_bool(
+            preset_config.get("spreadsheet_safe_csv"),
+            key="spreadsheet_safe_csv",
+        )
+        or cli_spreadsheet_safe_csv,
     )
+
+
+def _raise_config_error(message: str, *, code: str, **context: Any) -> NoReturn:
+    cleaned = {key: str(value) if isinstance(value, Path) else value for key, value in context.items()}
+    raise ConfigError(message, code=code, context=cleaned)
