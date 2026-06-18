@@ -189,6 +189,10 @@ class DuckDBEngine:
                 "split_mode": options.split_mode,
                 "max_rows_per_sheet": options.max_rows_per_sheet,
                 "spreadsheet_safe_csv": options.spreadsheet_safe_csv,
+                "summarize": options.summarize,
+                "summary_only": options.summary_only,
+                "summary_group_by": options.summary_group_by,
+                "summary_totals": options.summary_totals,
             },
             dry_run=options.dry_run,
         )
@@ -214,6 +218,34 @@ class DuckDBEngine:
                 {"source": item.source_column, "output": item.output_name}
                 for item in prepared.projection.derived_columns
             ]
+            resolved_dedupe_keys = self._resolve_named_list(schema, options.dedupe_keys, options.case_insensitive_columns)
+            resolved_sorts = self._resolve_sorts(schema, options.sorts, options.case_insensitive_columns)
+            summary_query = None
+            summary_headers: list[str] = []
+            if options.summarize:
+                summary_group_by = self._resolve_named_list(
+                    schema,
+                    options.summary_group_by,
+                    options.case_insensitive_columns,
+                )
+                summary_totals = self._resolve_named_list(
+                    schema,
+                    options.summary_totals,
+                    options.case_insensitive_columns,
+                )
+                summary_query, summary_headers = self._build_summary_query(
+                    source=prepared.source,
+                    where_sql=prepared.compiled_filter.sql,
+                    dedupe=options.dedupe,
+                    dedupe_keys=resolved_dedupe_keys,
+                    sorts=resolved_sorts,
+                    filtered_select_items=prepared.projection.select_items,
+                    filtered_required_columns=prepared.projection.required_source_columns,
+                    filtered_output_columns=prepared.projection.output_columns,
+                    summary_group_by=summary_group_by,
+                    summary_totals=summary_totals,
+                    strict_values=options.strict_values,
+                )
             LOGGER.debug("Compiled query: %s", prepared.query)
             if options.sorts:
                 report.warnings.append(tr("warning.sort_temp_disk"))
@@ -227,44 +259,37 @@ class DuckDBEngine:
                 progress("exporting")
             if options.report_path is not None:
                 report.input_rows = self._count_source_rows(prepared.source)
-            if options.output_format == "csv":
-                report.output_rows = export_query_to_csv(
-                    self.connection,
+            capture_rejects = lambda: setattr(report, "rejected_rows", self._rejected_row_count(input_))
+            if not options.summary_only:
+                filtered_rows, filtered_paths = self._export_query(
                     query=prepared.query,
                     params=prepared.compiled_filter.params,
-                    options=CsvExportOptions(
-                        output_path=options.output_path,
-                        spreadsheet_safe=options.spreadsheet_safe_csv,
-                        batch_size=options.batch_size,
-                    ),
-                )
-                report.output_paths = [str(options.output_path)]
-                report.rejected_rows = self._rejected_row_count(input_)
-            elif options.output_format == "parquet":
-                report.output_rows = export_query_to_parquet(
-                    self.connection,
-                    query=prepared.query,
-                    params=prepared.compiled_filter.params,
-                    options=ParquetExportOptions(output_path=options.output_path),
-                )
-                report.output_paths = [str(options.output_path)]
-                report.rejected_rows = self._rejected_row_count(input_)
-            else:
-                cursor = self.connection.execute(prepared.query, prepared.compiled_filter.params)
-                report.output_rows = export_rows_to_xlsx(
+                    output_format=options.output_format,
+                    output_path=options.output_path,
                     headers=prepared.projection.output_columns,
-                    rows=batched_rows(cursor, options.batch_size),
-                    options=ExcelExportOptions(
-                        output_path=options.output_path,
-                        sheet_prefix=options.sheet_prefix,
-                        max_rows_per_sheet=options.max_rows_per_sheet,
-                        split_mode=options.split_mode,
-                        sheets_per_file=options.sheets_per_file,
-                    ),
                     report=report,
+                    run_options=options,
                     formula_builders=prepared.projection.excel_formula_builders(),
-                    finalize_report=lambda: setattr(report, "rejected_rows", self._rejected_row_count(input_)),
+                    finalize_report=capture_rejects,
                 )
+                report.output_rows = filtered_rows
+                report.output_paths.extend(filtered_paths)
+            if options.summarize:
+                summary_output = options.summary_output_path or self._summary_output_path(options.output_path)
+                summary_rows, summary_paths = self._export_query(
+                    query=summary_query,
+                    params=prepared.compiled_filter.params,
+                    output_format=options.output_format,
+                    output_path=summary_output,
+                    headers=summary_headers,
+                    report=report,
+                    run_options=options,
+                    formula_builders=None,
+                    finalize_report=capture_rejects if options.summary_only else None,
+                )
+                report.output_paths.extend(summary_paths)
+                if options.summary_only:
+                    report.output_rows = summary_rows
             if options.rejects_path is not None:
                 self._write_rejects(options.rejects_path, input_)
         except duckdb.Error as exc:
@@ -455,6 +480,162 @@ class DuckDBEngine:
                 code="rejects_write_failed",
                 context={"path": str(path), "reason": str(exc)},
             ) from exc
+
+    def _export_query(
+        self,
+        *,
+        query: str | None,
+        params: list[Any],
+        output_format: str,
+        output_path: Path,
+        headers: list[str],
+        report: RunReport,
+        run_options: FilterRunOptions,
+        formula_builders: dict[int, Callable[[int], str]] | None,
+        finalize_report: Callable[[], None] | None,
+    ) -> tuple[int, list[str]]:
+        if query is None:
+            raise QueryExecutionError(
+                "Summary query was not prepared.",
+                code="duckdb_query_failed",
+                context={"reason": "Summary query was not prepared."},
+            )
+        existing_output_paths = list(report.output_paths)
+        if output_format == "csv":
+            row_count = export_query_to_csv(
+                self.connection,
+                query=query,
+                params=params,
+                options=CsvExportOptions(
+                    output_path=output_path,
+                    spreadsheet_safe=run_options.spreadsheet_safe_csv,
+                    batch_size=run_options.batch_size,
+                ),
+            )
+            if finalize_report is not None:
+                finalize_report()
+            return row_count, [str(output_path)]
+        if output_format == "parquet":
+            row_count = export_query_to_parquet(
+                self.connection,
+                query=query,
+                params=params,
+                options=ParquetExportOptions(output_path=output_path),
+            )
+            if finalize_report is not None:
+                finalize_report()
+            return row_count, [str(output_path)]
+
+        cursor = self.connection.execute(query, params)
+        row_count = export_rows_to_xlsx(
+            headers=headers,
+            rows=batched_rows(cursor, run_options.batch_size),
+            options=ExcelExportOptions(
+                output_path=output_path,
+                sheet_prefix=run_options.sheet_prefix,
+                max_rows_per_sheet=run_options.max_rows_per_sheet,
+                split_mode=run_options.split_mode,
+                sheets_per_file=run_options.sheets_per_file,
+            ),
+            report=report,
+            formula_builders=formula_builders or {},
+            finalize_report=finalize_report,
+        )
+        output_paths = list(report.output_paths)
+        report.output_paths = existing_output_paths
+        return row_count, output_paths
+
+    def _build_summary_query(
+        self,
+        *,
+        source: str,
+        where_sql: str,
+        dedupe: bool,
+        dedupe_keys: list[str],
+        sorts: list[SortSpec],
+        filtered_select_items: list[str],
+        filtered_required_columns: list[str],
+        filtered_output_columns: list[str],
+        summary_group_by: list[str],
+        summary_totals: list[str],
+        strict_values: bool,
+    ) -> tuple[str, list[str]]:
+        summary_columns = _unique_columns([*summary_group_by, *summary_totals])
+        summary_aliases = self._summary_internal_aliases(summary_columns, filtered_output_columns)
+        summary_select_items = [
+            f"{quote_identifier(column)} AS {quote_identifier(summary_aliases[column])}"
+            for column in summary_columns
+        ]
+        source_query = self._build_query(
+            source=source,
+            select_items=[*filtered_select_items, *summary_select_items],
+            required_columns=_unique_columns([*filtered_required_columns, *summary_columns]),
+            where_sql=where_sql,
+            dedupe=dedupe,
+            dedupe_keys=dedupe_keys,
+            sorts=sorts if dedupe_keys else [],
+        )
+
+        aggregate_items = [
+            self._summary_sum_expression(
+                summary_aliases[column],
+                strict_values,
+                alias=self._summary_total_alias(column),
+            )
+            for column in summary_totals
+        ]
+        count_expr = f"COUNT(*) AS {quote_identifier(self._summary_count_alias())}"
+
+        if summary_group_by:
+            select_columns = [
+                f"{quote_identifier(summary_aliases[column])} AS {quote_identifier(column)}"
+                for column in summary_group_by
+            ]
+            select_items = [*select_columns, *aggregate_items, count_expr]
+            group_by_columns = ", ".join(quote_identifier(summary_aliases[column]) for column in summary_group_by)
+            headers = [
+                *summary_group_by,
+                *[self._summary_total_alias(column) for column in summary_totals],
+                self._summary_count_alias(),
+            ]
+            base_query = (
+                f"SELECT {', '.join(select_items)} "
+                f"FROM ({source_query}) AS summary_base "
+                f"GROUP BY {group_by_columns}"
+            )
+        else:
+            select_items = [count_expr, *aggregate_items]
+            headers = [self._summary_count_alias(), *[self._summary_total_alias(column) for column in summary_totals]]
+            base_query = f"SELECT {', '.join(select_items)} FROM ({source_query}) AS summary_base"
+        return base_query, headers
+
+    def _summary_internal_aliases(self, columns: list[str], existing_names: list[str]) -> dict[str, str]:
+        used = set(existing_names)
+        aliases: dict[str, str] = {}
+        for index, column in enumerate(columns, start=1):
+            alias = f"__gt_ds_summary_{index}"
+            while alias in used:
+                alias = f"_{alias}"
+            used.add(alias)
+            aliases[column] = alias
+        return aliases
+
+    def _summary_output_path(self, output_path: Path) -> Path:
+        return output_path.with_name(f"{output_path.stem}_summary{output_path.suffix}")
+
+    def _summary_count_alias(self) -> str:
+        return "count"
+
+    def _summary_total_alias(self, column: str) -> str:
+        return f"total_{column}"
+
+    def _summary_sum_expression(self, column: str, strict_values: bool, *, alias: str) -> str:
+        source = quote_identifier(column)
+        if strict_values:
+            casted = f"CAST({source} AS DOUBLE)"
+        else:
+            casted = f"COALESCE(TRY_CAST({source} AS DOUBLE), 0)"
+        return f"SUM({casted}) AS {quote_identifier(alias)}"
 
     def _primary_reject_rows(self, input_: ResolvedInput) -> list[tuple[Any, ...]] | None:
         try:

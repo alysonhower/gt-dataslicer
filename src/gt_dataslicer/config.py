@@ -59,6 +59,11 @@ class FilterRunOptions:
     input_path: Path
     output_path: Path
     output_format: OutputFormat = "csv"
+    summarize: bool = False
+    summary_only: bool = False
+    summary_group_by: list[str] = field(default_factory=list)
+    summary_totals: list[str] = field(default_factory=list)
+    summary_output_path: Path | None = None
     resolved_input: ResolvedInput | None = None
     where: list[str] = field(default_factory=list)
     select: list[str] = field(default_factory=list)
@@ -383,6 +388,10 @@ def merge_config_and_cli(
     cli_where: list[str],
     cli_select: list[str],
     select_file: Path | None,
+    cli_summarize: bool,
+    cli_summary_only: bool,
+    cli_summary_group_by: list[str],
+    cli_summary_totals: list[str],
     cli_renames: list[str],
     cli_dedupe: bool,
     cli_dedupe_keys: list[str],
@@ -415,6 +424,10 @@ def merge_config_and_cli(
     )
     config_where = as_list(preset_config.get("where"), key="where")
     config_select = as_list(preset_config.get("select"), key="select")
+    config_summary_group_by = as_list(preset_config.get("summary_group_by"), key="summary_group_by")
+    config_summary_totals = as_list(preset_config.get("summary_totals"), key="summary_totals")
+    summarize = as_bool(preset_config.get("summarize"), key="summarize") or cli_summarize
+    summary_only = as_bool(preset_config.get("summary_only"), key="summary_only") or cli_summary_only
     config_dedupe_keys = as_list(preset_config.get("dedupe_key") or preset_config.get("dedupe_keys"), key="dedupe_key")
     config_sorts = as_list(preset_config.get("sort") or preset_config.get("sorts"), key="sort")
     config_lookups = as_list(preset_config.get("lookup") or preset_config.get("lookups"), key="lookup")
@@ -474,6 +487,18 @@ def merge_config_and_cli(
         input_path=input_path,
         output_path=output_path,
         output_format=output_format,
+        summarize=(
+            summarize
+            or summary_only
+            or bool(config_summary_group_by)
+            or bool(config_summary_totals)
+            or bool(cli_summary_group_by)
+            or bool(cli_summary_totals)
+        ),
+        summary_only=summary_only,
+        summary_group_by=[*config_summary_group_by, *cli_summary_group_by],
+        summary_totals=[*config_summary_totals, *cli_summary_totals],
+        summary_output_path=None,
         where=[*config_where, *cli_where],
         select=select,
         renames=renames,

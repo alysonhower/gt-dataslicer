@@ -229,6 +229,66 @@ def test_filter_command_supports_xlsx_input(tmp_path: Path) -> None:
     assert rows_from_csv(output_path) == [("ID",), ("1",)]
 
 
+def test_filter_command_generates_summary_and_summary_output(tmp_path: Path) -> None:
+    csv_path = tmp_path / "input.csv"
+    output_path = tmp_path / "output.csv"
+    csv_path.write_text("STATUS,VALOR_TOTAL\nATIVO,10\nATIVO,30\nSUSPENSO,20\n", encoding="utf-8")
+
+    result = runner.invoke(
+        app,
+        [
+            "filtrar",
+            str(csv_path),
+            "--saida",
+            str(output_path),
+            "--filtro",
+            'STATUS = "ATIVO"',
+            "--resumir",
+            "--grupo-resumo",
+            "STATUS",
+            "--totais-resumo",
+            "VALOR_TOTAL",
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert rows_from_csv(output_path) == [("STATUS", "VALOR_TOTAL"), ("ATIVO", "10"), ("ATIVO", "30")]
+    assert rows_from_csv(tmp_path / "output_summary.csv") == [
+        ("STATUS", "total_VALOR_TOTAL", "count"),
+        ("ATIVO", "40.0", "2"),
+    ]
+
+
+def test_filter_command_summary_only_generates_only_summary_file(tmp_path: Path) -> None:
+    csv_path = tmp_path / "input.csv"
+    output_path = tmp_path / "output.csv"
+    csv_path.write_text("STATUS,VALOR_TOTAL\nATIVO,10\nATIVO,30\nSUSPENSO,20\n", encoding="utf-8")
+
+    result = runner.invoke(
+        app,
+        [
+            "filtrar",
+            str(csv_path),
+            "--saida",
+            str(output_path),
+            "--filtro",
+            'STATUS IN ("ATIVO", "SUSPENSO")',
+            "--somente-resumo",
+            "--grupo-resumo",
+            "STATUS",
+            "--totais-resumo",
+            "VALOR_TOTAL",
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert output_path.exists()
+    summary_rows = rows_from_csv(output_path)
+    assert summary_rows[0] == ("STATUS", "total_VALOR_TOTAL", "count")
+    assert set(summary_rows[1:]) == {("ATIVO", "40.0", "2"), ("SUSPENSO", "20.0", "1")}
+    assert not (tmp_path / "output_summary.csv").exists()
+
+
 def test_filter_command_processes_multiple_inputs_sequentially(tmp_path: Path) -> None:
     first = tmp_path / "jan.csv"
     second = tmp_path / "feb.csv"

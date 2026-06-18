@@ -113,6 +113,11 @@ const text = {
     checkExpression: "Verificar expressão",
     chooseOutputTitle: "Escolha a saída",
     chooseDestination: "Escolher destino",
+    summarize: "Gerar resumo",
+    summaryOnly: "Gerar apenas o resumo",
+    summaryGroupBy: "Agrupar por",
+    summaryTotals: "Somar colunas no resumo",
+    summaryColumnPlaceholder: "Uma coluna por linha",
     format: "Formato",
     formatCsvTitle: "CSV",
     formatCsvHelp: "Bom para compartilhar e abrir em planilhas.",
@@ -181,6 +186,7 @@ const text = {
     derivedTransformCountRequired: "Informe uma quantidade maior que zero.",
     derivedTransformCaseConflict: "Use apenas uma transformação de maiúsculas/minúsculas nesta coluna.",
     advancedOptions: "Opções avançadas",
+    advancedSummaryGroup: "Resumo",
     advancedColumnsGroup: "Colunas",
     advancedOrganizationGroup: "Organização",
     advancedDiagnosticsGroup: "Diagnóstico",
@@ -376,6 +382,11 @@ const text = {
     checkExpression: "Check expression",
     chooseOutputTitle: "Choose the output",
     chooseDestination: "Choose destination",
+    summarize: "Generate summary",
+    summaryOnly: "Generate only summary",
+    summaryGroupBy: "Group by",
+    summaryTotals: "Sum columns in summary",
+    summaryColumnPlaceholder: "One column per line",
     format: "Format",
     formatCsvTitle: "CSV",
     formatCsvHelp: "Good for sharing and opening in spreadsheets.",
@@ -444,6 +455,7 @@ const text = {
     derivedTransformCountRequired: "Enter a count greater than zero.",
     derivedTransformCaseConflict: "Use only one uppercase/lowercase transformation in this column.",
     advancedOptions: "Advanced options",
+    advancedSummaryGroup: "Summary",
     advancedColumnsGroup: "Columns",
     advancedOrganizationGroup: "Organization",
     advancedDiagnosticsGroup: "Diagnostics",
@@ -857,6 +869,7 @@ function applyLanguage() {
   document.querySelectorAll(".derived-transform-row").forEach(updateTransformRow);
   document.querySelectorAll(".derived-column-card").forEach(updateDerivedCard);
   updateFilterHint();
+  updateSummaryMode();
   updateDerivedEmptyState();
   updateInputOptionVisibility();
   updateOutputArtifactNotice();
@@ -866,6 +879,27 @@ function applyLanguage() {
 function updateFilterHint() {
   const hasActiveRules = Array.from(document.querySelectorAll(".filter-row")).some(visualConditionIsComplete);
   byId("noFilterHint").classList.toggle("hidden", hasActiveRules);
+  updateWorkflowSteps();
+}
+
+function updateSummaryMode() {
+  const summarizeInput = byId("summarizeInput");
+  if (!summarizeInput) {
+    return;
+  }
+  const summarize = summarizeInput.checked;
+  const summaryOnlyInput = byId("summaryOnlyInput");
+  const summaryFields = byId("summaryFields");
+  if (!summarize) {
+    summaryOnlyInput.checked = false;
+    summaryFields.classList.add("hidden");
+  } else {
+    summaryFields.classList.remove("hidden");
+  }
+  summaryOnlyInput.disabled = !summarize;
+  Array.from(summaryFields.querySelectorAll("input, textarea")).forEach((field) => {
+    field.disabled = !summarize;
+  });
   updateWorkflowSteps();
 }
 
@@ -2042,6 +2076,15 @@ function applyLoadedConfig(config = {}) {
   byId("dedupeInput").checked = configBool(config.dedupe);
   byId("caseInsensitiveInput").checked = configBool(config.case_insensitive_columns);
   byId("spreadsheetSafeCsvInput").checked = configBool(config.spreadsheet_safe_csv);
+  byId("summarizeInput").checked =
+    configBool(config.summarize) ||
+    configBool(config.summary_only) ||
+    configList(config.summary_group_by).length > 0 ||
+    configList(config.summary_totals).length > 0;
+  byId("summaryOnlyInput").checked = configBool(config.summary_only);
+  setTextareaLines("summaryGroupByInput", config.summary_group_by);
+  setTextareaLines("summaryTotalsInput", config.summary_totals);
+  updateSummaryMode();
   setTextareaLines("dedupeKeyInput", config.dedupe_keys || config.dedupe_key);
   state.outputNames = configList(config.output_names || config.output_name);
   renderQueue();
@@ -2306,6 +2349,8 @@ function bindColumnSearchInput(input, onChange) {
 function payload() {
   const format = byId("formatSelect").value;
   const rawFilter = byId("rawFilterInput").value.trim();
+  const summarize = byId("summarizeInput").checked;
+  const summaryOnly = byId("summaryOnlyInput").checked && summarize;
   const nullValue = byId("nullValueInput").value;
   const inputKinds = currentInputKinds();
   const hasCsvOptions = inputKinds.has("csv");
@@ -2322,6 +2367,10 @@ function payload() {
     sheets_per_file: state.outputSheetsPerFile,
     spreadsheet_safe_csv: byId("spreadsheetSafeCsvInput").checked,
     output_names: outputNameItems(),
+    summarize,
+    summary_only: summaryOnly,
+    summary_group_by: summarize ? linesFromTextarea("summaryGroupByInput") : [],
+    summary_totals: summarize ? linesFromTextarea("summaryTotalsInput") : [],
     filters:
       state.filterMode === "advanced"
         ? { mode: "raw", raw: rawFilter }
@@ -2959,6 +3008,7 @@ function bindEvents() {
 
   byId("formatSelect").addEventListener("change", () => setOutputFormat(byId("formatSelect").value));
   byId("outputPathInput").addEventListener("input", updateOutputArtifactNotice);
+  byId("summarizeInput").addEventListener("change", updateSummaryMode);
   document.querySelectorAll("[data-format-card]").forEach((card) => {
     card.addEventListener("click", () => setOutputFormat(card.dataset.formatCard));
     card.addEventListener("keydown", (event) => handleOutputFormatKeydown(event, card));

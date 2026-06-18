@@ -1,4 +1,5 @@
 from pathlib import Path
+import csv
 from threading import Event
 import time
 import zipfile
@@ -320,6 +321,40 @@ def test_ui_api_runs_csv_export(tmp_path: Path) -> None:
     assert output_path.read_text(encoding="utf-8").splitlines() == ["Nome", "Ana Silva", "Camila Silva"]
 
 
+def test_ui_api_runs_summary_export(tmp_path: Path) -> None:
+    csv_path = tmp_path / "people.csv"
+    output_path = tmp_path / "filtered.csv"
+    write_people_csv(csv_path)
+    api = DataSlicerApi()
+
+    start_response = api.start_filter_run(
+        {
+            "input_path": str(csv_path),
+            "output_path": str(output_path),
+            "output_format": "csv",
+            "csv_options": {"delimiter": ","},
+            "summarize": True,
+            "summary_group_by": ["Status"],
+            "summary_totals": ["Valor"],
+            "filters": {
+                "mode": "visual",
+                "conditions": [{"column": "Status", "operator": "equals", "value": "ATIVO"}],
+            },
+        }
+    )
+
+    assert start_response["ok"], start_response
+    start_data = start_response["data"]
+    assert isinstance(start_data, dict)
+    job = wait_for_job(api, str(start_data["job_id"]))
+    report = job["report"]
+    assert isinstance(report, dict)
+    summary_path = tmp_path / "filtered_summary.csv"
+    assert report["output_paths"] == [str(output_path), str(summary_path)]
+    with summary_path.open(newline="", encoding="utf-8") as handle:
+        assert list(csv.reader(handle)) == [["Status", "total_Valor", "count"], ["ATIVO", "4000.0", "2"]]
+
+
 def test_ui_api_requires_confirmation_before_overwriting_output(tmp_path: Path) -> None:
     csv_path = tmp_path / "people.csv"
     output_path = tmp_path / "filtered.csv"
@@ -504,6 +539,8 @@ def test_ui_api_string_false_booleans_remain_false(tmp_path: Path) -> None:
             "typed_mode": "false",
             "strict_values": "false",
             "spreadsheet_safe_csv": "false",
+            "summarize": "false",
+            "summary_only": "false",
             "csv_options": {
                 "delimiter": ",",
                 "strict_mode": "false",
@@ -520,6 +557,8 @@ def test_ui_api_string_false_booleans_remain_false(tmp_path: Path) -> None:
     assert options.typed_mode is False
     assert options.strict_values is False
     assert options.spreadsheet_safe_csv is False
+    assert options.summarize is False
+    assert options.summary_only is False
     assert options.csv.strict_mode is False
     assert options.csv.store_rejects is False
 
@@ -530,10 +569,12 @@ def test_ui_api_string_false_booleans_remain_false(tmp_path: Path) -> None:
     assert resolution_options.excel_all_sheets is False
 
     config = ui_api._config_from_payload(  # noqa: SLF001 - regression for bridge parser.
-        {"dedupe": "false", "spreadsheet_safe_csv": "false"}
+        {"dedupe": "false", "spreadsheet_safe_csv": "false", "summarize": "false", "summary_only": "false"}
     )
     assert "dedupe" not in config
     assert "spreadsheet_safe_csv" not in config
+    assert "summarize" not in config
+    assert "summary_only" not in config
     assert api.get_app_info()["ok"] is True
 
 
@@ -955,6 +996,10 @@ def test_ui_api_saves_reusable_config_without_zip_passwords(tmp_path: Path, monk
             "max_rows_per_sheet": 1000,
             "sheets_per_file": 2,
             "spreadsheet_safe_csv": True,
+            "summarize": True,
+            "summary_only": True,
+            "summary_group_by": ["Status"],
+            "summary_totals": ["Valor"],
             "zip_passwords": ["secret"],
             "lookups": [{"name": "empresas", "path": "empresas.csv", "column": "ID"}],
             "filters": {"mode": "raw", "raw": "Status = 'ATIVO'"},
@@ -977,6 +1022,12 @@ def test_ui_api_saves_reusable_config_without_zip_passwords(tmp_path: Path, monk
     assert "max_rows_per_sheet: 1000" in contents
     assert "sheets_per_file: 2" in contents
     assert "spreadsheet_safe_csv: true" in contents
+    assert "summarize: true" in contents
+    assert "summary_only: true" in contents
+    assert "summary_group_by:" in contents
+    assert "- Status" in contents
+    assert "summary_totals:" in contents
+    assert "- Valor" in contents
     assert "lookup:" in contents
     assert "empresas=empresas.csv:ID" in contents
     assert "derived_columns:" in contents

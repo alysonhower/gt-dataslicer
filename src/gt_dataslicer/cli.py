@@ -212,6 +212,10 @@ def create_app(language: str = DEFAULT_LANGUAGE) -> typer.Typer:
                 cli_where=where or [],
                 cli_select=[],
                 select_file=None,
+                cli_summarize=False,
+                cli_summary_only=False,
+                cli_summary_group_by=[],
+                cli_summary_totals=[],
                 cli_renames=[],
                 cli_dedupe=False,
                 cli_dedupe_keys=[],
@@ -302,6 +306,18 @@ def create_app(language: str = DEFAULT_LANGUAGE) -> typer.Typer:
         ] = None,
         sort: Annotated[
             list[str] | None, typer.Option("--ordenar", "--sort", help=tr("option.sort"), metavar="TEXTO")
+        ] = None,
+        summarize: Annotated[
+            bool, typer.Option("--resumir", "--summarize", help=tr("option.summarize"))
+        ] = False,
+        summary_only: Annotated[
+            bool, typer.Option("--somente-resumo", "--summary-only", help=tr("option.summary_only"))
+        ] = False,
+        summary_group_by: Annotated[
+            list[str] | None, typer.Option("--grupo-resumo", "--summary-group-by", metavar="COLUNA")
+        ] = None,
+        summary_totals: Annotated[
+            list[str] | None, typer.Option("--totais-resumo", "--summary-totals", metavar="COLUNA")
         ] = None,
         encoding: Annotated[str | None, typer.Option("--codificacao", "--encoding", metavar="TEXTO")] = None,
         delimiter: Annotated[str | None, typer.Option("--delimitador", "--delimiter", metavar="TEXTO")] = None,
@@ -402,6 +418,10 @@ def create_app(language: str = DEFAULT_LANGUAGE) -> typer.Typer:
                 cli_where=where or [],
                 cli_select=select or [],
                 select_file=select_file,
+                cli_summarize=summarize,
+                cli_summary_only=summary_only,
+                cli_summary_group_by=summary_group_by or [],
+                cli_summary_totals=summary_totals or [],
                 cli_renames=rename or [],
                 cli_dedupe=dedupe,
                 cli_dedupe_keys=dedupe_key or [],

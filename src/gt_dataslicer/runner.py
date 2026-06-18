@@ -22,10 +22,10 @@ CancelRegistration = Callable[[Callable[[], None]], Callable[[], None]]
 def planned_run_artifacts(base_options: FilterRunOptions, inputs: list[ResolvedInput]) -> list[Path]:
     if not inputs:
         raise ValueError("At least one resolved input is required.")
-    output_paths = _queue_output_paths(base_options, inputs)
-    _validate_artifact_paths(base_options, inputs, output_paths)
-    planned = _planned_output_artifacts(base_options, output_paths)
-    planned.extend(_existing_split_xlsx_output_artifacts(base_options, output_paths))
+    output_paths, summary_paths = _queue_output_paths(base_options, inputs)
+    _validate_artifact_paths(base_options, inputs, output_paths, summary_paths)
+    planned = _planned_output_artifacts(base_options, output_paths, summary_paths)
+    planned.extend(_existing_split_xlsx_output_artifacts(base_options, planned))
     if base_options.report_path is not None:
         planned.append(base_options.report_path)
     if base_options.rejects_path is not None:
@@ -45,12 +45,18 @@ def run_filter_inputs(
     if not inputs:
         raise ValueError("At least one resolved input is required.")
     warnings = resolution_warnings or []
-    output_paths = _queue_output_paths(base_options, inputs)
-    _validate_artifact_paths(base_options, inputs, output_paths)
+    output_paths, summary_paths = _queue_output_paths(base_options, inputs)
+    _validate_artifact_paths(base_options, inputs, output_paths, summary_paths)
 
     if len(inputs) == 1:
         output_path = output_paths[0]
-        options = replace(base_options, input_path=inputs[0].source_path, output_path=output_path, resolved_input=inputs[0])
+        options = replace(
+            base_options,
+            input_path=inputs[0].source_path,
+            output_path=output_path,
+            summary_output_path=summary_paths[0],
+            resolved_input=inputs[0],
+        )
         engine = DuckDBEngine()
         unregister_cancel = _register_engine_interrupt(register_cancel, engine)
         try:
@@ -76,13 +82,17 @@ def run_filter_inputs(
             unregister_cancel()
             _close_engine(schema_engine)
 
-    for index, (input_, output_path) in enumerate(zip(inputs, output_paths, strict=True), start=1):
+    for index, (input_, output_path, summary_path) in enumerate(
+        zip(inputs, output_paths, summary_paths, strict=True),
+        start=1,
+    ):
         if progress is not None:
             progress(f"queue:{index}:{len(inputs)}")
         options = replace(
             base_options,
             input_path=input_.source_path,
             output_path=output_path,
+            summary_output_path=summary_path,
             resolved_input=input_,
         )
         try:
@@ -108,44 +118,77 @@ def run_filter_inputs(
     return queue_report
 
 
-def _queue_output_paths(base_options: FilterRunOptions, inputs: list[ResolvedInput]) -> list[Path]:
-    output_paths = [
-        output_path_for_input(
-            base_options.output_path,
-            input_,
-            index=index,
-            total=len(inputs),
-            output_format=base_options.output_format,
-            output_name=base_options.output_names[index - 1] if index <= len(base_options.output_names) else None,
-        )
+def _queue_output_paths(base_options: FilterRunOptions, inputs: list[ResolvedInput]) -> tuple[list[Path], list[Path | None]]:
+    plan = [
+        _output_paths_for_input(base_options, input_, index=index, total=len(inputs))
         for index, input_ in enumerate(inputs, start=1)
     ]
+    output_paths = [filtered for filtered, _summary in plan]
+    summary_paths = [summary for _filtered, summary in plan]
     seen: dict[str, str] = {}
-    for input_, output_path in zip(inputs, output_paths, strict=True):
-        key = _path_key(output_path)
-        previous = seen.get(key)
-        if previous is not None:
-            _raise_config_error(
-                "Output names resolve to the same file: "
-                f"{previous} and {input_.source_label} both use {output_path}.",
-                code="output_name_collision",
-                previous=previous,
-                current=input_.source_label,
-                path=output_path,
-            )
-        seen[key] = input_.source_label
-    return output_paths
+    for input_, filtered_path, summary_path in zip(inputs, output_paths, summary_paths, strict=True):
+        for path in (filtered_path, summary_path):
+            if path is None:
+                continue
+            key = _path_key(path)
+            previous = seen.get(key)
+            if previous is not None and previous != input_.source_label:
+                _raise_config_error(
+                    "Output names resolve to the same file: "
+                    f"{previous} and {input_.source_label} both use {path}.",
+                    code="output_name_collision",
+                    previous=previous,
+                    current=input_.source_label,
+                    path=path,
+                )
+            seen[key] = input_.source_label
+    return output_paths, summary_paths
+
+
+def _output_paths_for_input(
+    base_options: FilterRunOptions,
+    input_: ResolvedInput,
+    *,
+    index: int,
+    total: int,
+) -> tuple[Path, Path | None]:
+    output_name = base_options.output_names[index - 1] if index <= len(base_options.output_names) else None
+    filtered_path = output_path_for_input(
+        base_options.output_path,
+        input_,
+        index=index,
+        total=total,
+        output_format=base_options.output_format,
+        output_name=output_name,
+        artifact="filtered",
+    )
+    if not base_options.summarize:
+        return filtered_path, None
+    if base_options.summary_only:
+        return filtered_path, filtered_path
+    summary_path = output_path_for_input(
+        base_options.output_path,
+        input_,
+        index=index,
+        total=total,
+        output_format=base_options.output_format,
+        output_name=output_name,
+        artifact="summary",
+    )
+    return filtered_path, summary_path
 
 
 def _validate_artifact_paths(
     base_options: FilterRunOptions,
     inputs: list[ResolvedInput],
     output_paths: list[Path],
+    summary_paths: list[Path | None],
 ) -> None:
     input_paths = _path_set(_input_artifact_paths(inputs))
     lookup_paths = _path_set(lookup.path for lookup in base_options.lookups)
     output_keys: dict[str, Path] = {}
-    for output_path in _planned_output_artifacts(base_options, output_paths):
+    planned_outputs = _planned_output_artifacts(base_options, output_paths, summary_paths)
+    for output_path in planned_outputs:
         output_key = _path_key(output_path)
         if output_key in input_paths:
             _raise_config_error(
@@ -161,14 +204,14 @@ def _validate_artifact_paths(
             )
         output_keys[output_key] = output_path
     for input_path in _input_artifact_paths(inputs):
-        if _matches_split_xlsx_output(base_options, output_paths, input_path):
+        if _matches_split_xlsx_output(base_options, planned_outputs, input_path):
             _raise_config_error(
                 f"Output path would overwrite an input file: {input_path}",
                 code="output_overwrites_input",
                 path=input_path,
             )
     for lookup in base_options.lookups:
-        if _matches_split_xlsx_output(base_options, output_paths, lookup.path):
+        if _matches_split_xlsx_output(base_options, planned_outputs, lookup.path):
             _raise_config_error(
                 f"Output path would overwrite a lookup file: {lookup.path}",
                 code="output_overwrites_lookup",
@@ -199,7 +242,7 @@ def _validate_artifact_paths(
                 path=artifact_path,
             )
         previous = seen_artifacts.get(artifact_key)
-        if previous is not None or _matches_split_xlsx_output(base_options, output_paths, artifact_path):
+        if previous is not None or _matches_split_xlsx_output(base_options, planned_outputs, artifact_path):
             _raise_config_error(
                 f"Output, report, and rejects paths must not resolve to the same file: {artifact_path}",
                 code="artifact_path_collision",
@@ -210,10 +253,19 @@ def _validate_artifact_paths(
         seen_artifacts[artifact_key] = label
 
 
-def _planned_output_artifacts(base_options: FilterRunOptions, output_paths: list[Path]) -> list[Path]:
-    planned = list(output_paths)
+def _planned_output_artifacts(
+    base_options: FilterRunOptions,
+    output_paths: list[Path],
+    summary_paths: list[Path | None],
+) -> list[Path]:
+    planned: list[Path] = []
+    for output_path, summary_path in zip(output_paths, summary_paths, strict=True):
+        planned.append(output_path)
+        if summary_path is not None:
+            planned.append(summary_path)
     if base_options.output_format == "xlsx" and base_options.split_mode in {"files", "both"}:
-        planned.extend(_xlsx_split_output_path(path, 1) for path in output_paths)
+        split_roots = list(planned)
+        planned.extend(_xlsx_split_output_path(path, 1) for path in split_roots)
     return planned
 
 

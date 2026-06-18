@@ -62,6 +62,10 @@ _UI_LOADABLE_CONFIG_KEYS = {
     "sort",
     "sorts",
     "spreadsheet_safe_csv",
+    "summarize",
+    "summary_group_by",
+    "summary_only",
+    "summary_totals",
     "where",
 }
 _UI_LOADABLE_CSV_OPTION_KEYS = {"delimiter", "encoding", "null_value", "null_values"}
@@ -467,6 +471,10 @@ def build_options_from_payload(
         cli_where=cli_where,
         cli_select=_string_list(payload.get("select") or payload.get("selected_columns")),
         select_file=_optional_path(payload.get("select_file")),
+        cli_summarize=_bool_option(payload.get("summarize"), key="summarize"),
+        cli_summary_only=_bool_option(payload.get("summary_only"), key="summary_only"),
+        cli_summary_group_by=_string_list(payload.get("summary_group_by")),
+        cli_summary_totals=_string_list(payload.get("summary_totals")),
         cli_renames=_rename_items(payload.get("renames") or payload.get("rename")),
         cli_dedupe=_bool_option(payload.get("dedupe"), key="dedupe"),
         cli_dedupe_keys=_string_list(payload.get("dedupe_keys") or payload.get("dedupe_key")),
@@ -540,6 +548,16 @@ def _config_from_payload(payload: dict[str, Any]) -> dict[str, object]:
         config["sheets_per_file"] = sheets_per_file
     if _bool_option(payload.get("spreadsheet_safe_csv"), key="spreadsheet_safe_csv"):
         config["spreadsheet_safe_csv"] = True
+    if _bool_option(payload.get("summarize"), key="summarize"):
+        config["summarize"] = True
+    if _bool_option(payload.get("summary_only"), key="summary_only"):
+        config["summary_only"] = True
+    summary_group_by = _string_list(payload.get("summary_group_by"))
+    if summary_group_by:
+        config["summary_group_by"] = summary_group_by
+    summary_totals = _string_list(payload.get("summary_totals"))
+    if summary_totals:
+        config["summary_totals"] = summary_totals
     filter_expression = _filter_expression(payload)
     if filter_expression:
         config["where"] = [filter_expression]

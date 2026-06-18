@@ -351,10 +351,15 @@ def output_path_for_input(
     total: int,
     output_format: str,
     output_name: str | None = None,
+    artifact: str = "filtered",
 ) -> Path:
     suffix = f".{output_format}"
+    artifact_suffix = "" if artifact == "filtered" else f"_{_safe_output_stem(artifact, output_format)}"
+    queue_artifact_suffix = "_filtered" if artifact == "filtered" else artifact_suffix
     if output_name:
         safe_stem = _safe_output_stem(output_name, output_format)
+        if artifact != "filtered":
+            safe_stem = f"{safe_stem}{artifact_suffix}"
         if base_output.exists() and base_output.is_dir():
             return base_output / f"{safe_stem}{suffix}"
         if not base_output.suffix:
@@ -366,14 +371,18 @@ def output_path_for_input(
         safe_stem = f"{safe_stem}_{_safe_name(input_.excel_sheet)}"
 
     if total == 1:
+        if artifact != "filtered":
+            if base_output.suffix:
+                return base_output.with_name(f"{base_output.stem}{artifact_suffix}{suffix}")
+            return base_output.with_name(f"{base_output.name}{artifact_suffix}{suffix}")
         return base_output
 
     if base_output.exists() and base_output.is_dir():
-        return base_output / f"{index:03d}_{safe_stem}_filtered{suffix}"
+        return base_output / f"{index:03d}_{safe_stem}{queue_artifact_suffix}{suffix}"
     if not base_output.suffix:
-        return base_output / f"{index:03d}_{safe_stem}_filtered{suffix}"
+        return base_output / f"{index:03d}_{safe_stem}{queue_artifact_suffix}{suffix}"
 
-    return base_output.with_name(f"{base_output.stem}_{index:03d}_{safe_stem}{suffix}")
+    return base_output.with_name(f"{base_output.stem}_{index:03d}_{safe_stem}{artifact_suffix}{suffix}")
 
 
 def _zip_is_encrypted(path: Path) -> bool:

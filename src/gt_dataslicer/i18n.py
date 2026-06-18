@@ -34,6 +34,10 @@ _MESSAGES: Final[dict[str, dict[str, str]]] = {
         "option.select": "Coluna a incluir. Pode ser repetida.",
         "option.rename": "Renomeia uma coluna de saída no formato ANTIGO=NOVO.",
         "option.sort": "Ordenação no formato COLUNA[:asc|desc].",
+        "option.summarize": "Gera arquivo de resumo do resultado.",
+        "option.summary_only": "Executa apenas o resumo, sem exportar base filtrada.",
+        "option.summary_group_by": "Colunas para agrupar o resumo (uma por linha).",
+        "option.summary_totals": "Colunas para somar no resumo (uma por linha).",
         "option.strict_values": "Falha em casts inválidos em vez de usar TRY_CAST.",
         "option.spreadsheet_safe_csv": (
             "Protege CSVs que serão abertos em planilhas, prefixando textos que poderiam virar fórmulas."
@@ -98,6 +102,10 @@ _MESSAGES: Final[dict[str, dict[str, str]]] = {
         "option.select": "Column to include, repeatable.",
         "option.rename": "Rename output column, OLD=NEW.",
         "option.sort": "Sort COLUMN[:asc|desc].",
+        "option.summarize": "Generate summary output for filtered rows.",
+        "option.summary_only": "Only generate the summary, without exporting filtered rows.",
+        "option.summary_group_by": "Columns to group the summary by (repeat per column).",
+        "option.summary_totals": "Columns to total in the summary (repeat per column).",
         "option.strict_values": "Fail on invalid casts instead of using TRY_CAST.",
         "option.spreadsheet_safe_csv": (
             "Protect CSVs intended for spreadsheet apps by prefixing text that could become formulas."

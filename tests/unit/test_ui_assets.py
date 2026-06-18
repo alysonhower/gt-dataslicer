@@ -237,17 +237,41 @@ def test_browser_app_groups_advanced_output_options_by_task() -> None:
     styles = STYLES_CSS.read_text(encoding="utf-8")
 
     assert "advanced-options-grid" in markup
+    assert "advancedSummaryTitle" in markup
     assert "advancedColumnsTitle" in markup
     assert "advancedOrganizationTitle" in markup
     assert "advancedDiagnosticsTitle" in markup
+    assert 'data-i18n="advancedSummaryGroup"' in markup
     assert 'data-i18n="advancedColumnsGroup"' in markup
     assert 'data-i18n="advancedOrganizationGroup"' in markup
     assert 'data-i18n="advancedDiagnosticsGroup"' in markup
+    assert "advancedSummaryGroup: \"Summary\"" in script
     assert "advancedColumnsGroup: \"Columns\"" in script
     assert "advancedOrganizationGroup: \"Organization\"" in script
     assert "advancedDiagnosticsGroup: \"Diagnostics\"" in script
     assert ".advanced-options-grid" in styles
     assert ".advanced-group + .advanced-group" in styles
+
+
+def test_browser_app_exposes_summary_options() -> None:
+    markup = INDEX_HTML.read_text(encoding="utf-8")
+    script = APP_JS.read_text(encoding="utf-8")
+
+    assert "summarizeInput" in markup
+    assert "summaryOnlyInput" in markup
+    assert "summaryFields" in markup
+    assert "summaryGroupByInput" in markup
+    assert "summaryTotalsInput" in markup
+    assert "Generate summary" in script
+    assert "Generate only summary" in script
+    assert "function updateSummaryMode()" in script
+    assert 'byId("summarizeInput").addEventListener("change", updateSummaryMode)' in script
+    assert "const summarize = byId(\"summarizeInput\").checked" in script
+    assert "summary_only: summaryOnly" in script
+    assert "summary_group_by: summarize ? linesFromTextarea(\"summaryGroupByInput\") : []" in script
+    assert "summary_totals: summarize ? linesFromTextarea(\"summaryTotalsInput\") : []" in script
+    assert "configBool(config.summary_only)" in script
+    assert "setTextareaLines(\"summaryGroupByInput\", config.summary_group_by)" in script
 
 
 def test_browser_app_filter_hint_uses_complete_visual_rules() -> None:

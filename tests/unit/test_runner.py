@@ -121,6 +121,84 @@ def test_runner_registers_current_engine_interrupt_for_cancellation(tmp_path: Pa
     assert active_callbacks == []
 
 
+def test_queue_summary_paths_are_unique_per_input(tmp_path: Path, monkeypatch) -> None:
+    first = tmp_path / "first.csv"
+    second = tmp_path / "second.csv"
+    first.write_text("A\n1\n", encoding="utf-8")
+    second.write_text("A\n2\n", encoding="utf-8")
+    output_base = tmp_path / "filtered.csv"
+    observed: list[tuple[Path, Path | None, Path]] = []
+
+    class FakeDuckDBEngine:
+        def run_filter(self, options, progress=None, *, schema_override=None, column_types_override=None):
+            observed.append((options.output_path, options.summary_output_path, options.input_path))
+            report = RunReport(input_path=options.resolved_input.source_label)
+            report.output_paths = [str(options.output_path), str(options.summary_output_path)]
+            report.output_rows = 1
+            report.finish()
+            return report
+
+    monkeypatch.setattr(runner_module, "DuckDBEngine", FakeDuckDBEngine)
+    options = FilterRunOptions(input_path=first, output_path=output_base, summarize=True)
+    inputs = [
+        ResolvedInput(path=first, format="csv", display_name="first", source_path=first),
+        ResolvedInput(path=second, format="csv", display_name="second", source_path=second),
+    ]
+
+    report = runner_module.run_filter_inputs(options, inputs)
+
+    assert report.output_rows == 2
+    assert len(observed) == 2
+    assert observed[0][0] == tmp_path / "filtered_001_first.csv"
+    assert observed[0][1] == tmp_path / "filtered_001_first_summary.csv"
+    assert observed[1][0] == tmp_path / "filtered_002_second.csv"
+    assert observed[1][1] == tmp_path / "filtered_002_second_summary.csv"
+    assert report.output_paths == [
+        str(tmp_path / "filtered_001_first.csv"),
+        str(tmp_path / "filtered_001_first_summary.csv"),
+        str(tmp_path / "filtered_002_second.csv"),
+        str(tmp_path / "filtered_002_second_summary.csv"),
+    ]
+
+
+def test_queue_summary_only_uses_only_summary_paths(tmp_path: Path, monkeypatch) -> None:
+    first = tmp_path / "first.csv"
+    second = tmp_path / "second.csv"
+    first.write_text("A\n1\n", encoding="utf-8")
+    second.write_text("A\n2\n", encoding="utf-8")
+    output_base = tmp_path / "filtered.csv"
+    observed: list[tuple[Path, Path | None]] = []
+
+    class FakeDuckDBEngine:
+        def run_filter(self, options, progress=None, *, schema_override=None, column_types_override=None):
+            observed.append((options.output_path, options.summary_output_path))
+            report = RunReport(input_path=options.resolved_input.source_label)
+            report.output_paths = [str(options.output_path)]
+            report.output_rows = 1
+            report.finish()
+            return report
+
+    monkeypatch.setattr(runner_module, "DuckDBEngine", FakeDuckDBEngine)
+    options = FilterRunOptions(input_path=first, output_path=output_base, summarize=True, summary_only=True)
+    inputs = [
+        ResolvedInput(path=first, format="csv", display_name="first", source_path=first),
+        ResolvedInput(path=second, format="csv", display_name="second", source_path=second),
+    ]
+
+    report = runner_module.run_filter_inputs(options, inputs)
+
+    assert report.output_rows == 2
+    assert len(observed) == 2
+    assert observed[0][0] == tmp_path / "filtered_001_first.csv"
+    assert observed[0][0] == observed[0][1]
+    assert observed[1][0] == tmp_path / "filtered_002_second.csv"
+    assert observed[1][0] == observed[1][1]
+    assert report.output_paths == [
+        str(tmp_path / "filtered_001_first.csv"),
+        str(tmp_path / "filtered_002_second.csv"),
+    ]
+
+
 def test_queue_rejects_duplicate_custom_output_names(tmp_path: Path, monkeypatch) -> None:
     first = tmp_path / "first.csv"
     second = tmp_path / "second.csv"
@@ -179,6 +257,34 @@ def test_planned_run_artifacts_returns_queue_outputs_and_diagnostics(tmp_path: P
         output_dir / "002_second_filtered.csv",
         report_path,
         rejects_path,
+    ]
+
+
+def test_planned_run_artifacts_includes_summary_outputs(tmp_path: Path) -> None:
+    first = tmp_path / "first.csv"
+    second = tmp_path / "second.csv"
+    output_dir = tmp_path / "outputs"
+    first.write_text("A\n1\n", encoding="utf-8")
+    second.write_text("A\n2\n", encoding="utf-8")
+    output_dir.mkdir()
+    options = FilterRunOptions(
+        input_path=first,
+        output_path=output_dir,
+        output_format="csv",
+        summarize=True,
+    )
+    inputs = [
+        ResolvedInput(path=first, format="csv", display_name="first", source_path=first),
+        ResolvedInput(path=second, format="csv", display_name="second", source_path=second),
+    ]
+
+    planned = runner_module.planned_run_artifacts(options, inputs)
+
+    assert planned == [
+        output_dir / "001_first_filtered.csv",
+        output_dir / "001_first_summary.csv",
+        output_dir / "002_second_filtered.csv",
+        output_dir / "002_second_summary.csv",
     ]
 
 

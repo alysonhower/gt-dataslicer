@@ -105,6 +105,110 @@ def test_filter_counts_input_rows_when_report_requested(tmp_path: Path, monkeypa
     assert report.input_rows == 2
 
 
+def test_filter_generates_summary_output(tmp_path: Path) -> None:
+    input_path = tmp_path / "input.csv"
+    filtered_path = tmp_path / "filtered.csv"
+    input_path.write_text(
+        "\n".join(
+            [
+                "STATUS,VALOR_TOTAL",
+                "ATIVO,10",
+                "ATIVO,30",
+                "SUSPENSO,20",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    report = DuckDBEngine().run_filter(
+        FilterRunOptions(
+            input_path=input_path,
+            output_path=filtered_path,
+            where=['STATUS = "ATIVO"'],
+            summarize=True,
+            summary_group_by=["STATUS"],
+            summary_totals=["VALOR_TOTAL"],
+            csv=CsvOptions(delimiter=","),
+        )
+    )
+
+    summary_path = tmp_path / "filtered_summary.csv"
+    assert report.output_paths == [str(filtered_path), str(summary_path)]
+    assert report.output_rows == 2
+    with filtered_path.open(newline="", encoding="utf-8") as handle:
+        assert list(csv.reader(handle)) == [["STATUS", "VALOR_TOTAL"], ["ATIVO", "10"], ["ATIVO", "30"]]
+    with summary_path.open(newline="", encoding="utf-8") as handle:
+        assert list(csv.reader(handle)) == [["STATUS", "total_VALOR_TOTAL", "count"], ["ATIVO", "40.0", "2"]]
+
+
+def test_filter_summary_dedupe_matches_filtered_row_identity(tmp_path: Path) -> None:
+    input_path = tmp_path / "input.csv"
+    filtered_path = tmp_path / "filtered.csv"
+    input_path.write_text(
+        "\n".join(
+            [
+                "STATUS,VALOR_TOTAL,OBS",
+                "ATIVO,10,primeiro",
+                "ATIVO,10,segundo",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    report = DuckDBEngine().run_filter(
+        FilterRunOptions(
+            input_path=input_path,
+            output_path=filtered_path,
+            summarize=True,
+            summary_group_by=["STATUS"],
+            summary_totals=["VALOR_TOTAL"],
+            dedupe=True,
+            csv=CsvOptions(delimiter=","),
+        )
+    )
+
+    assert report.output_rows == 2
+    with (tmp_path / "filtered_summary.csv").open(newline="", encoding="utf-8") as handle:
+        assert list(csv.reader(handle)) == [["STATUS", "total_VALOR_TOTAL", "count"], ["ATIVO", "20.0", "2"]]
+
+
+def test_filter_summary_only_exports_only_summary_output(tmp_path: Path) -> None:
+    input_path = tmp_path / "input.csv"
+    output_path = tmp_path / "summary_only.csv"
+    input_path.write_text(
+        "\n".join(
+            [
+                "STATUS,VALOR_TOTAL",
+                "ATIVO,10",
+                "ATIVO,30",
+                "SUSPENSO,20",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    report = DuckDBEngine().run_filter(
+        FilterRunOptions(
+            input_path=input_path,
+            output_path=output_path,
+            summarize=True,
+            summary_only=True,
+            summary_output_path=output_path,
+            summary_group_by=["STATUS"],
+            summary_totals=["VALOR_TOTAL"],
+            csv=CsvOptions(delimiter=","),
+        )
+    )
+
+    assert report.output_rows == 2
+    assert report.output_paths == [str(output_path)]
+    with output_path.open(newline="", encoding="utf-8") as handle:
+        assert list(csv.reader(handle)) in (
+            [["STATUS", "total_VALOR_TOTAL", "count"], ["ATIVO", "40.0", "2"], ["SUSPENSO", "20.0", "1"]],
+            [["STATUS", "total_VALOR_TOTAL", "count"], ["SUSPENSO", "20.0", "1"], ["ATIVO", "40.0", "2"]],
+        )
+
+
 def test_prepare_filter_query_exposes_shared_projection_and_source_boundary(tmp_path: Path) -> None:
     csv_path = tmp_path / "input.csv"
     output_path = tmp_path / "output.csv"

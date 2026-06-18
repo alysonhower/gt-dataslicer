@@ -32,6 +32,10 @@ def _merge_options(
     sheets_per_file: int = 31,
     batch_size: int = 10_000,
     rejects_path: Path | None = None,
+    cli_summarize: bool = False,
+    cli_summary_only: bool = False,
+    cli_summary_group_by: list[str] | None = None,
+    cli_summary_totals: list[str] | None = None,
 ):
     return merge_config_and_cli(
         input_path=tmp_path / "input.csv",
@@ -42,6 +46,10 @@ def _merge_options(
         cli_where=[],
         cli_select=[],
         select_file=select_file,
+        cli_summarize=cli_summarize,
+        cli_summary_only=cli_summary_only,
+        cli_summary_group_by=cli_summary_group_by or [],
+        cli_summary_totals=cli_summary_totals or [],
         cli_renames=[],
         cli_dedupe=False,
         cli_dedupe_keys=[],
@@ -126,6 +134,45 @@ def test_config_preset_errors_are_structured() -> None:
 
     assert type_info.value.code == "config_preset_type"
     assert type_info.value.context == {"preset": "ativos"}
+
+
+def test_merge_config_enables_summary_when_summary_flags_are_set(tmp_path: Path) -> None:
+    options = _merge_options(
+        tmp_path,
+        output_name="result",
+        cli_summarize=True,
+        cli_summary_group_by=["STATUS"],
+        cli_summary_totals=["VALOR_TOTAL"],
+    )
+
+    assert options.summarize is True
+    assert options.summary_group_by == ["STATUS"]
+    assert options.summary_totals == ["VALOR_TOTAL"]
+    assert options.summary_only is False
+
+
+def test_merge_config_enables_summary_from_preset_summary_only(tmp_path: Path) -> None:
+    options = _merge_options(
+        tmp_path,
+        output_name="result",
+        preset_config={"summary_only": True},
+    )
+
+    assert options.summarize is True
+    assert options.summary_only is True
+    assert options.summary_group_by == []
+    assert options.summary_totals == []
+
+
+def test_merge_config_uses_summary_only_cli_flag(tmp_path: Path) -> None:
+    options = _merge_options(
+        tmp_path,
+        output_name="result",
+        cli_summary_only=True,
+    )
+
+    assert options.summarize is True
+    assert options.summary_only is True
 
 
 def test_cli_output_format_overrides_config_output_format(tmp_path: Path) -> None:
