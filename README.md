@@ -65,14 +65,6 @@ Salvar em CSV:
 gt-dataslicer filtrar input.csv --saida output.csv --filtro 'STATUS EM ("ATIVO", "SUSPENSO")'
 ```
 
-O CSV padrão preserva os valores exatamente como dados. Se o arquivo será aberto em Excel ou outra planilha e você quer reduzir o risco de textos começando com `=`, `+`, `-`, `@`, tabulação ou quebra de linha virarem fórmulas, use:
-
-```bash
-gt-dataslicer filtrar input.csv --saida output.csv --csv-seguro-planilha
-```
-
-Esse modo prefixa apenas esses textos com `'`. Use só quando a prioridade for abrir o CSV em planilhas; para integração entre sistemas, prefira o CSV padrão.
-
 Filtrar Parquet:
 
 ```bash

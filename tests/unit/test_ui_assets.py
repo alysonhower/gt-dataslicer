@@ -216,12 +216,10 @@ def test_browser_app_syncs_output_suffix_when_format_changes() -> None:
     assert "formatCsvHelp" in markup
     assert "formatExcelHelp" in markup
     assert "formatParquetHelp" in markup
-    assert "spreadsheetSafeCsvInput" in markup
-    assert "spreadsheetSafeCsvLine" in markup
-    assert "Protect CSV when opening in spreadsheets" in script
-    assert 'spreadsheet_safe_csv: byId("spreadsheetSafeCsvInput").checked' in script
-    assert 'byId("spreadsheetSafeCsvInput").checked = configBool(config.spreadsheet_safe_csv)' in script
-    assert 'byId("spreadsheetSafeCsvLine").classList.toggle("hidden", format !== "csv")' in script
+    assert "spreadsheetSafeCsvInput" not in markup
+    assert "spreadsheetSafeCsvLine" not in markup
+    assert "Protect CSV when opening in spreadsheets" not in script
+    assert "spreadsheet_safe_csv" not in script
     assert "Good for sharing and opening in spreadsheets." in script
     assert "Ready to open in Excel, with splitting when needed." in script
     assert "Best for large datasets and analytics tools." in script

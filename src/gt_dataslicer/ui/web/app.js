@@ -129,7 +129,6 @@ const text = {
     splitXlsxNoticeText: "Se a saída for dividida, os arquivos serão criados na mesma pasta usando o padrão {pattern}.",
     saveAs: "Salvar em",
     chooseSavePlaceholder: "Escolha onde salvar",
-    spreadsheetSafeCsv: "Proteger CSV ao abrir em planilhas",
     derivedColumnsTitle: "Criar novas colunas",
     derivedColumnsHelp: "Opcional: crie colunas limpas a partir das colunas filtradas.",
     addDerivedColumn: "Adicionar coluna",
@@ -398,7 +397,6 @@ const text = {
     splitXlsxNoticeText: "If the output is split, files will be created in the same folder using the pattern {pattern}.",
     saveAs: "Save as",
     chooseSavePlaceholder: "Choose where to save",
-    spreadsheetSafeCsv: "Protect CSV when opening in spreadsheets",
     derivedColumnsTitle: "Create new columns",
     derivedColumnsHelp: "Optional: create cleaned columns from filtered columns.",
     addDerivedColumn: "Add column",
@@ -2075,7 +2073,6 @@ function applyLoadedConfig(config = {}) {
   setTextareaLines("sortInput", config.sort);
   byId("dedupeInput").checked = configBool(config.dedupe);
   byId("caseInsensitiveInput").checked = configBool(config.case_insensitive_columns);
-  byId("spreadsheetSafeCsvInput").checked = configBool(config.spreadsheet_safe_csv);
   byId("summarizeInput").checked =
     configBool(config.summarize) ||
     configBool(config.summary_only) ||
@@ -2365,7 +2362,6 @@ function payload() {
     split_mode: state.outputSplitMode,
     max_rows_per_sheet: state.outputMaxRowsPerSheet,
     sheets_per_file: state.outputSheetsPerFile,
-    spreadsheet_safe_csv: byId("spreadsheetSafeCsvInput").checked,
     output_names: outputNameItems(),
     summarize,
     summary_only: summaryOnly,
@@ -2912,7 +2908,6 @@ function setOutputFormat(format) {
     card.setAttribute("aria-checked", active ? "true" : "false");
     card.tabIndex = active ? 0 : -1;
   });
-  byId("spreadsheetSafeCsvLine").classList.toggle("hidden", format !== "csv");
   syncOutputSuffixWithFormat();
   updateOutputArtifactNotice();
   markSetupChanged();

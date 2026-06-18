@@ -336,14 +336,9 @@ Assess values beginning with characters commonly interpreted by spreadsheet appl
 - tab;
 - carriage return.
 
-Do not silently mutate machine-readable output. Define an explicit policy, likely distinguishing:
+Do not silently mutate machine-readable output. For the current Caseware IDEA-oriented workflow, preserve exact CSV data. Do not add a spreadsheet formula-escaping mode unless a separate product decision explicitly asks for it.
 
-- raw CSV;
-- spreadsheet-safe CSV.
-
-Make the beginner-facing choice understandable. Preserve exact data when raw output is selected.
-
-Test both modes and document the transformation.
+Test exact fidelity for formula-like text and ensure removed/unsupported escaping options are not exposed.
 
 ### A8. Empty and null membership lists
 
@@ -602,7 +597,7 @@ Output format controls must explain consequences in plain language.
 
 At minimum:
 
-- CSV: common, easy to share, optionally spreadsheet-safe;
+- CSV: common, easy to share, preserves exact values;
 - Excel: intended for direct Excel use, with row/sheet splitting behavior;
 - Parquet: intended for large datasets and analytics tools.
 
@@ -908,7 +903,7 @@ At minimum, add or update tests for the following confirmed behaviors.
 - Report, rejects, summary, filtered output, and split files cannot collide.
 - Symlink and case-sensitive path behavior.
 - Partial export failure does not publish a corrupt final artifact.
-- CSV raw and spreadsheet-safe modes.
+- CSV raw fidelity, including formula-like text, with no formula-escaping mode exposed.
 - Worksheet names with apostrophes and truncation collisions.
 - Excel formulas reference the correct column after selection and reordering.
 - Constant-memory export writes rows in the required order.

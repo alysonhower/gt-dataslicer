@@ -301,25 +301,14 @@ def test_config_dedupe_rejects_unknown_boolean_text(tmp_path: Path) -> None:
     assert exc_info.value.context == {"key": "dedupe"}
 
 
-def test_config_spreadsheet_safe_csv_string_bool(tmp_path: Path) -> None:
+def test_config_no_longer_exposes_spreadsheet_safe_csv(tmp_path: Path) -> None:
     options = _merge_options(
         tmp_path,
         output_name="result",
         preset_config={"spreadsheet_safe_csv": "true"},
     )
 
-    assert options.spreadsheet_safe_csv is True
-
-
-def test_config_spreadsheet_safe_csv_rejects_unknown_boolean_text(tmp_path: Path) -> None:
-    with pytest.raises(ConfigError, match="spreadsheet_safe_csv") as exc_info:
-        _merge_options(
-            tmp_path,
-            output_name="result",
-            preset_config={"spreadsheet_safe_csv": "maybe"},
-        )
-    assert exc_info.value.code == "config_boolean"
-    assert exc_info.value.context == {"key": "spreadsheet_safe_csv"}
+    assert not hasattr(options, "spreadsheet_safe_csv")
 
 
 def test_lookup_item_errors_are_structured() -> None:

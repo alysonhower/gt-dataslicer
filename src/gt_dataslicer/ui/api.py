@@ -61,7 +61,6 @@ _UI_LOADABLE_CONFIG_KEYS = {
     "split_mode",
     "sort",
     "sorts",
-    "spreadsheet_safe_csv",
     "summarize",
     "summary_group_by",
     "summary_only",
@@ -500,7 +499,6 @@ def build_options_from_payload(
         typed_mode=_bool_option(payload.get("typed_mode"), key="typed_mode"),
         strict_values=_bool_option(payload.get("strict_values"), key="strict_values"),
         batch_size=_int_option(payload.get("batch_size"), key="batch_size", default=10_000),
-        cli_spreadsheet_safe_csv=_bool_option(payload.get("spreadsheet_safe_csv"), key="spreadsheet_safe_csv"),
         allow_output_directory=len(input_paths) > 1,
     )
     options.derived_columns = [*options.derived_columns, *parse_derived_columns(payload.get("derived_columns"))]
@@ -546,8 +544,6 @@ def _config_from_payload(payload: dict[str, Any]) -> dict[str, object]:
     sheets_per_file = _optional_int(payload.get("sheets_per_file"), key="sheets_per_file")
     if sheets_per_file is not None and sheets_per_file != 31:
         config["sheets_per_file"] = sheets_per_file
-    if _bool_option(payload.get("spreadsheet_safe_csv"), key="spreadsheet_safe_csv"):
-        config["spreadsheet_safe_csv"] = True
     if _bool_option(payload.get("summarize"), key="summarize"):
         config["summarize"] = True
     if _bool_option(payload.get("summary_only"), key="summary_only"):

@@ -147,31 +147,27 @@ def test_csv_output_preserves_formula_like_text_by_default(tmp_path: Path) -> No
     assert rows_from_csv(output_path) == [("Nome",), ("=1+1",), ("+cmd",), ("-10",), ("@user",)]
 
 
-def test_csv_output_can_be_made_spreadsheet_safe(tmp_path: Path) -> None:
+def test_csv_output_options_for_spreadsheet_safe_mode_are_not_accepted(tmp_path: Path) -> None:
     csv_path = tmp_path / "input.csv"
-    output_path = tmp_path / "output.csv"
-    report_path = tmp_path / "report.json"
     csv_path.write_text("Nome\n=1+1\n+cmd\n-10\n@user\nsafe\n", encoding="utf-8")
 
-    result = runner.invoke(
-        app,
-        [
-            "filtrar",
-            str(csv_path),
-            "--saida",
-            str(output_path),
-            "--selecionar",
-            "Nome",
-            "--csv-seguro-planilha",
-            "--relatorio",
-            str(report_path),
-        ],
-    )
+    for option in ["--csv-seguro-planilha", "--spreadsheet-safe-csv"]:
+        output_path = tmp_path / f"{option.removeprefix('--')}.csv"
+        result = runner.invoke(
+            app,
+            [
+                "filtrar",
+                str(csv_path),
+                "--saida",
+                str(output_path),
+                "--selecionar",
+                "Nome",
+                option,
+            ],
+        )
 
-    assert result.exit_code == 0, result.output
-    assert rows_from_csv(output_path) == [("Nome",), ("'=1+1",), ("'+cmd",), ("'-10",), ("'@user",), ("safe",)]
-    report = json.loads(report_path.read_text(encoding="utf-8"))
-    assert report["engine_options"]["spreadsheet_safe_csv"] is True
+        assert result.exit_code != 0
+        assert not output_path.exists()
 
 
 def test_filter_command_supports_parquet_input(tmp_path: Path) -> None:
@@ -820,6 +816,8 @@ def test_filter_help_defaults_to_pt_br_option_names() -> None:
     assert "--saida" in result.output
     assert "--filtro" in result.output
     assert "--selecionar" in result.output
+    assert "--csv-seguro-planilha" not in result.output
+    assert "--spreadsheet-safe-csv" not in result.output
 
 
 def test_cli_help_can_be_created_in_en_us() -> None:

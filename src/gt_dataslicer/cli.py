@@ -394,14 +394,6 @@ def create_app(language: str = DEFAULT_LANGUAGE) -> typer.Typer:
         strict_values: Annotated[
             bool, typer.Option("--valores-estritos", "--strict-values", help=tr("option.strict_values"))
         ] = False,
-        spreadsheet_safe_csv: Annotated[
-            bool,
-            typer.Option(
-                "--csv-seguro-planilha",
-                "--spreadsheet-safe-csv",
-                help=tr("option.spreadsheet_safe_csv"),
-            ),
-        ] = False,
         batch_size: Annotated[int, typer.Option("--tamanho-lote", "--batch-size", metavar="NUMERO")] = 10_000,
         log_level: Annotated[str, typer.Option("--nivel-log", "--log-level", metavar="NIVEL")] = "INFO",
         json_logs: Annotated[bool, typer.Option("--logs-json", "--json-logs")] = False,
@@ -456,7 +448,6 @@ def create_app(language: str = DEFAULT_LANGUAGE) -> typer.Typer:
                 typed_mode=typed_mode,
                 strict_values=strict_values,
                 batch_size=batch_size,
-                cli_spreadsheet_safe_csv=spreadsheet_safe_csv,
                 allow_output_directory=len(input_files) > 1 or (output.exists() and output.is_dir()),
             )
             with InputResolutionSession(

@@ -188,7 +188,6 @@ class DuckDBEngine:
                 "zip_source": str(input_.zip_source) if input_.zip_source is not None else None,
                 "split_mode": options.split_mode,
                 "max_rows_per_sheet": options.max_rows_per_sheet,
-                "spreadsheet_safe_csv": options.spreadsheet_safe_csv,
                 "summarize": options.summarize,
                 "summary_only": options.summary_only,
                 "summary_group_by": options.summary_group_by,
@@ -508,8 +507,6 @@ class DuckDBEngine:
                 params=params,
                 options=CsvExportOptions(
                     output_path=output_path,
-                    spreadsheet_safe=run_options.spreadsheet_safe_csv,
-                    batch_size=run_options.batch_size,
                 ),
             )
             if finalize_report is not None:

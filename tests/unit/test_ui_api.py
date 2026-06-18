@@ -538,7 +538,6 @@ def test_ui_api_string_false_booleans_remain_false(tmp_path: Path) -> None:
             "case_insensitive_columns": "false",
             "typed_mode": "false",
             "strict_values": "false",
-            "spreadsheet_safe_csv": "false",
             "summarize": "false",
             "summary_only": "false",
             "csv_options": {
@@ -556,7 +555,7 @@ def test_ui_api_string_false_booleans_remain_false(tmp_path: Path) -> None:
     assert options.case_insensitive_columns is False
     assert options.typed_mode is False
     assert options.strict_values is False
-    assert options.spreadsheet_safe_csv is False
+    assert not hasattr(options, "spreadsheet_safe_csv")
     assert options.summarize is False
     assert options.summary_only is False
     assert options.csv.strict_mode is False
@@ -569,10 +568,9 @@ def test_ui_api_string_false_booleans_remain_false(tmp_path: Path) -> None:
     assert resolution_options.excel_all_sheets is False
 
     config = ui_api._config_from_payload(  # noqa: SLF001 - regression for bridge parser.
-        {"dedupe": "false", "spreadsheet_safe_csv": "false", "summarize": "false", "summary_only": "false"}
+        {"dedupe": "false", "summarize": "false", "summary_only": "false"}
     )
     assert "dedupe" not in config
-    assert "spreadsheet_safe_csv" not in config
     assert "summarize" not in config
     assert "summary_only" not in config
     assert api.get_app_info()["ok"] is True
@@ -588,7 +586,7 @@ def test_ui_api_rejects_ambiguous_boolean_text(tmp_path: Path) -> None:
             "input_path": str(csv_path),
             "output_path": str(output_path),
             "output_format": "csv",
-            "spreadsheet_safe_csv": "maybe",
+            "dedupe": "maybe",
         }
     )
 
@@ -597,9 +595,9 @@ def test_ui_api_rejects_ambiguous_boolean_text(tmp_path: Path) -> None:
     assert isinstance(error, dict)
     assert error["type"] == "ConfigError"
     assert error["code"] == "boolean_value"
-    assert error["context"] == {"key": "spreadsheet_safe_csv"}
-    assert "spreadsheet_safe_csv" in str(error["message"])
-    assert "spreadsheet_safe_csv" in str(error["details"])
+    assert error["context"] == {"key": "dedupe"}
+    assert "dedupe" in str(error["message"])
+    assert "dedupe" in str(error["details"])
 
 
 def test_ui_api_rejects_invalid_integer_text_without_unexpected_error(tmp_path: Path) -> None:
@@ -829,7 +827,6 @@ def test_ui_api_loads_reusable_config_file(tmp_path: Path) -> None:
                 "split_mode: files",
                 "max_rows_per_sheet: 1000",
                 "sheets_per_file: 2",
-                "spreadsheet_safe_csv: true",
                 "where:",
                 "  - Status = 'ATIVO'",
                 "lookup:",
@@ -860,7 +857,7 @@ def test_ui_api_loads_reusable_config_file(tmp_path: Path) -> None:
     assert config["split_mode"] == "files"
     assert config["max_rows_per_sheet"] == 1000
     assert config["sheets_per_file"] == 2
-    assert config["spreadsheet_safe_csv"] is True
+    assert "spreadsheet_safe_csv" not in config
     assert config["where"] == ["Status = 'ATIVO'"]
     assert config["lookup"] == ["empresas=empresas.csv:ID"]
     assert config["derived_columns"][0]["source"] == "Nome"
@@ -901,6 +898,19 @@ def test_ui_api_rejects_config_keys_the_ui_cannot_apply_safely(tmp_path: Path) -
     assert error["context"] == {"keys": "strict_values, csv_options.header"}
     assert "strict_values" in details
     assert "csv_options.header" in details
+
+
+def test_ui_api_rejects_removed_spreadsheet_safe_csv_config(tmp_path: Path) -> None:
+    config_path = tmp_path / "config.yaml"
+    config_path.write_text("spreadsheet_safe_csv: true\n", encoding="utf-8")
+
+    response = DataSlicerApi().load_config({"config_path": str(config_path)})
+
+    assert response["ok"] is False
+    error = response["error"]
+    assert isinstance(error, dict)
+    assert error["code"] == "ui_unsupported_config_keys"
+    assert error["context"] == {"keys": "spreadsheet_safe_csv"}
 
 
 def test_ui_api_choose_output_uses_folder_dialog_for_multi_file_runs(tmp_path: Path, monkeypatch) -> None:
@@ -995,7 +1005,6 @@ def test_ui_api_saves_reusable_config_without_zip_passwords(tmp_path: Path, monk
             "split_mode": "files",
             "max_rows_per_sheet": 1000,
             "sheets_per_file": 2,
-            "spreadsheet_safe_csv": True,
             "summarize": True,
             "summary_only": True,
             "summary_group_by": ["Status"],
@@ -1021,7 +1030,7 @@ def test_ui_api_saves_reusable_config_without_zip_passwords(tmp_path: Path, monk
     assert "split_mode: files" in contents
     assert "max_rows_per_sheet: 1000" in contents
     assert "sheets_per_file: 2" in contents
-    assert "spreadsheet_safe_csv: true" in contents
+    assert "spreadsheet_safe_csv" not in contents
     assert "summarize: true" in contents
     assert "summary_only: true" in contents
     assert "summary_group_by:" in contents

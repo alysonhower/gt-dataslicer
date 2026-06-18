@@ -77,12 +77,12 @@ def test_structured_parser_literal_localization_uses_context() -> None:
 def test_structured_boolean_localization_uses_context() -> None:
     set_language("pt-BR")
     error = ConfigError(
-        "spreadsheet_safe_csv must be true or false.",
+        "dedupe must be true or false.",
         code="boolean_value",
-        context={"key": "spreadsheet_safe_csv"},
+        context={"key": "dedupe"},
     )
 
-    assert localize_error(error) == "spreadsheet_safe_csv deve ser true ou false."
+    assert localize_error(error) == "dedupe deve ser true ou false."
 
 
 def test_structured_integer_localization_uses_context() -> None:

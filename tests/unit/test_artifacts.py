@@ -2,6 +2,7 @@ from pathlib import Path
 import csv
 import re
 
+import duckdb
 import pytest
 
 from gt_dataslicer.artifacts import commit_with_temporary_path
@@ -16,24 +17,6 @@ class _FakeCursor:
 
     def fetchone(self) -> tuple[int]:
         return (self._rows,)
-
-
-class _FakeSelectCursor:
-    description = [("A",), ("B",)]
-
-    def __init__(self) -> None:
-        self._batches = [
-            [
-                ("=1+1", "+cmd"),
-                ("-10", "@name"),
-                ("\tTabbed", "\rCarriage"),
-                ("safe", 5),
-            ],
-            [],
-        ]
-
-    def fetchmany(self, _batch_size: int) -> list[tuple[object, ...]]:
-        return self._batches.pop(0)
 
 
 def _copy_target(sql: str) -> Path:
@@ -113,29 +96,32 @@ def test_csv_export_keeps_existing_file_when_copy_fails(tmp_path: Path) -> None:
     assert list(tmp_path.glob(".*.tmp-*")) == []
 
 
-def test_csv_export_spreadsheet_safe_mode_prefixes_formula_like_text(tmp_path: Path) -> None:
+def test_csv_export_preserves_formula_like_text_exactly(tmp_path: Path) -> None:
     output_path = tmp_path / "output.csv"
-
-    class FakeConnection:
-        def execute(self, sql: str, params: list[object]) -> _FakeSelectCursor:
-            assert sql == "SELECT A, B FROM data"
-            assert params == []
-            return _FakeSelectCursor()
+    connection = duckdb.connect(database=":memory:")
+    options = CsvExportOptions(output_path=output_path)
+    assert not hasattr(options, "spreadsheet_safe")
 
     rows = export_query_to_csv(
-        FakeConnection(),
-        query="SELECT A, B FROM data",
+        connection,
+        query=(
+            "SELECT * FROM (VALUES "
+            "('=1+1', '+cmd'), "
+            "('-10', '@name'), "
+            "('\tTabbed', '\rCarriage'), "
+            "('safe', '5')) AS data(A, B)"
+        ),
         params=[],
-        options=CsvExportOptions(output_path=output_path, spreadsheet_safe=True, batch_size=2),
+        options=options,
     )
 
     assert rows == 4
     with output_path.open(newline="", encoding="utf-8") as file:
         assert list(csv.reader(file)) == [
             ["A", "B"],
-            ["'=1+1", "'+cmd"],
-            ["'-10", "'@name"],
-            ["'\tTabbed", "'\rCarriage"],
+            ["=1+1", "+cmd"],
+            ["-10", "@name"],
+            ["\tTabbed", "\rCarriage"],
             ["safe", "5"],
         ]
 

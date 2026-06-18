@@ -87,7 +87,6 @@ class FilterRunOptions:
     batch_size: int = 10_000
     derived_columns: list[DerivedColumnSpec] = field(default_factory=list)
     output_names: list[str] = field(default_factory=list)
-    spreadsheet_safe_csv: bool = False
 
 
 def load_config_file(path: Path | None) -> dict[str, Any]:
@@ -413,7 +412,6 @@ def merge_config_and_cli(
     typed_mode: bool,
     strict_values: bool,
     batch_size: int,
-    cli_spreadsheet_safe_csv: bool = False,
     allow_output_directory: bool = False,
 ) -> FilterRunOptions:
     output_path, output_format = resolve_output_target(
@@ -521,11 +519,6 @@ def merge_config_and_cli(
         batch_size=batch_size,
         derived_columns=derived_columns,
         output_names=output_names,
-        spreadsheet_safe_csv=as_bool(
-            preset_config.get("spreadsheet_safe_csv"),
-            key="spreadsheet_safe_csv",
-        )
-        or cli_spreadsheet_safe_csv,
     )
 
 

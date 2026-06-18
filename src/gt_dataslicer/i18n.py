@@ -39,9 +39,6 @@ _MESSAGES: Final[dict[str, dict[str, str]]] = {
         "option.summary_group_by": "Colunas para agrupar o resumo (uma por linha).",
         "option.summary_totals": "Colunas para somar no resumo (uma por linha).",
         "option.strict_values": "Falha em casts inválidos em vez de usar TRY_CAST.",
-        "option.spreadsheet_safe_csv": (
-            "Protege CSVs que serão abertos em planilhas, prefixando textos que poderiam virar fórmulas."
-        ),
         "schema_title": "Esquema: {path}",
         "schema_column": "Coluna",
         "schema_duckdb_type": "Tipo DuckDB",
@@ -107,9 +104,6 @@ _MESSAGES: Final[dict[str, dict[str, str]]] = {
         "option.summary_group_by": "Columns to group the summary by (repeat per column).",
         "option.summary_totals": "Columns to total in the summary (repeat per column).",
         "option.strict_values": "Fail on invalid casts instead of using TRY_CAST.",
-        "option.spreadsheet_safe_csv": (
-            "Protect CSVs intended for spreadsheet apps by prefixing text that could become formulas."
-        ),
         "schema_title": "Schema: {path}",
         "schema_column": "Column",
         "schema_duckdb_type": "DuckDB Type",
