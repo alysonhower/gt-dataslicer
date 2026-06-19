@@ -859,7 +859,9 @@ def test_ui_api_loads_reusable_config_file(tmp_path: Path) -> None:
     assert config["sheets_per_file"] == 2
     assert "spreadsheet_safe_csv" not in config
     assert config["where"] == ["Status = 'ATIVO'"]
-    assert config["lookup"] == ["empresas=empresas.csv:ID"]
+    assert config["lookup"] == [
+        {"name": "empresas", "path": str(tmp_path / "empresas.csv"), "column": "ID"}
+    ]
     assert config["derived_columns"][0]["source"] == "Nome"
 
 

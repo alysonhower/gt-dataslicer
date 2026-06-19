@@ -135,6 +135,7 @@ class DataSlicerApi:
                 raise ConfigError(tr("ui.error.config_required"), code="ui_config_required")
             config = select_preset(load_config_file(config_path), _optional_text(payload.get("preset")))
             _validate_ui_loadable_config(config)
+            config = _config_for_ui_load(config, base_dir=config_path.resolve().parent)
             return _ok({"path": str(config_path), "config": config})
         except Exception as exc:  # noqa: BLE001
             return self._exception_response(exc)
@@ -609,6 +610,19 @@ def _validate_ui_loadable_config(config: dict[str, Any]) -> None:
             context={"keys": keys},
         )
     parse_lookup_items(_lookup_items(config.get("lookup") or config.get("lookups")))
+
+
+def _config_for_ui_load(config: dict[str, Any], *, base_dir: Path) -> dict[str, Any]:
+    loaded = dict(config)
+    for key in ("lookup", "lookups"):
+        if key not in loaded:
+            continue
+        specs = parse_lookup_items(_lookup_items(loaded[key]), base_dir=base_dir)
+        loaded[key] = [
+            {"name": spec.name, "path": str(spec.path), "column": spec.column}
+            for spec in specs
+        ]
+    return loaded
 
 
 def _empty_config_value(value: object) -> bool:

@@ -592,6 +592,7 @@ def test_browser_app_has_visual_derived_columns_controls() -> None:
     assert '["false", "0", "no", "n", "nao", "não"].includes(normalized)' in script
     assert 'byId("dedupeInput").checked = configBool(config.dedupe)' in script
     assert 'byId("caseInsensitiveInput").checked = configBool(config.case_insensitive_columns)' in script
+    assert 'setTextareaLines("sortInput", config.sort || config.sorts)' in script
     assert "config.dedupe_keys || config.dedupe_key" in script
     assert "config.output_names || config.output_name" in script
     assert "state.api.load_config({ config_path: chosen.path })" in script

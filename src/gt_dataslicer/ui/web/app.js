@@ -2070,7 +2070,7 @@ function applyLoadedConfig(config = {}) {
 
   setTextareaLines("selectColumnsInput", config.select);
   byId("renamesInput").value = configKeyValueLines(config.rename || config.renames).join("\n");
-  setTextareaLines("sortInput", config.sort);
+  setTextareaLines("sortInput", config.sort || config.sorts);
   byId("dedupeInput").checked = configBool(config.dedupe);
   byId("caseInsensitiveInput").checked = configBool(config.case_insensitive_columns);
   byId("summarizeInput").checked =
