@@ -180,7 +180,7 @@ def test_filter_command_supports_xlsx_input(tmp_path: Path) -> None:
     assert rows_from_csv(output_path) == [("ID",), ("1",)]
 
 
-def test_filter_command_generates_summary_and_summary_output(tmp_path: Path) -> None:
+def test_filter_command_generates_summarization_and_summary_output(tmp_path: Path) -> None:
     csv_path = tmp_path / "input.csv"
     output_path = tmp_path / "output.csv"
     csv_path.write_text("STATUS,VALOR_TOTAL\nATIVO,10\nATIVO,30\nSUSPENSO,20\n", encoding="utf-8")
@@ -194,10 +194,10 @@ def test_filter_command_generates_summary_and_summary_output(tmp_path: Path) -> 
             str(output_path),
             "--filtro",
             'STATUS = "ATIVO"',
-            "--resumir",
-            "--grupo-resumo",
+            "--sumarizacao",
+            "--grupo-sumarizacao",
             "STATUS",
-            "--totais-resumo",
+            "--totais-sumarizacao",
             "VALOR_TOTAL",
         ],
     )
@@ -210,7 +210,7 @@ def test_filter_command_generates_summary_and_summary_output(tmp_path: Path) -> 
     ]
 
 
-def test_filter_command_summary_only_generates_only_summary_file(tmp_path: Path) -> None:
+def test_filter_command_summarization_only_generates_only_requested_output_file(tmp_path: Path) -> None:
     csv_path = tmp_path / "input.csv"
     output_path = tmp_path / "output.csv"
     csv_path.write_text("STATUS,VALOR_TOTAL\nATIVO,10\nATIVO,30\nSUSPENSO,20\n", encoding="utf-8")
@@ -224,10 +224,10 @@ def test_filter_command_summary_only_generates_only_summary_file(tmp_path: Path)
             str(output_path),
             "--filtro",
             'STATUS IN ("ATIVO", "SUSPENSO")',
-            "--somente-resumo",
-            "--grupo-resumo",
+            "--somente-sumarizacao",
+            "--grupo-sumarizacao",
             "STATUS",
-            "--totais-resumo",
+            "--totais-sumarizacao",
             "VALOR_TOTAL",
         ],
     )
@@ -238,6 +238,7 @@ def test_filter_command_summary_only_generates_only_summary_file(tmp_path: Path)
     assert summary_rows[0] == ("STATUS", "total_VALOR_TOTAL", "count")
     assert set(summary_rows[1:]) == {("ATIVO", "40.0", "2"), ("SUSPENSO", "20.0", "1")}
     assert not (tmp_path / "output_summary.csv").exists()
+    assert not (tmp_path / "output.xlsx").exists()
 
 
 def test_filter_command_processes_multiple_inputs_sequentially(tmp_path: Path) -> None:
@@ -266,6 +267,41 @@ def test_filter_command_processes_multiple_inputs_sequentially(tmp_path: Path) -
     assert rows_from_csv(tmp_path / "filtered_001_jan.csv") == [("ID",), ("1",)]
     assert rows_from_csv(tmp_path / "filtered_002_feb.csv") == [("ID",), ("3",)]
     assert not output_path.exists()
+
+
+def test_filter_command_output_names_allow_new_directory_for_excel_sheets(tmp_path: Path) -> None:
+    xlsx_path = tmp_path / "input.xlsx"
+    workbook = Workbook()
+    first = workbook.active
+    first.title = "Jan"
+    first.append(["ID", "STATUS"])
+    first.append([1, "ATIVO"])
+    second = workbook.create_sheet("Feb")
+    second.append(["ID", "STATUS"])
+    second.append([2, "ATIVO"])
+    workbook.save(xlsx_path)
+    output_dir = tmp_path / "named_outputs"
+
+    result = runner.invoke(
+        app,
+        [
+            "filtrar",
+            str(xlsx_path),
+            "--todas-abas",
+            "--saida",
+            str(output_dir),
+            "--nome-saida",
+            "janeiro",
+            "--nome-saida",
+            "fevereiro",
+            "--filtro",
+            'STATUS = "ATIVO"',
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert rows_from_csv(output_dir / "janeiro.csv") == [("ID", "STATUS"), ("1", "ATIVO")]
+    assert rows_from_csv(output_dir / "fevereiro.csv") == [("ID", "STATUS"), ("2", "ATIVO")]
 
 
 def test_filter_dry_run_fails_when_any_queue_input_fails(tmp_path: Path) -> None:
@@ -762,6 +798,9 @@ def test_filter_help_defaults_to_pt_br_option_names() -> None:
     assert "--saida" in result.output
     assert "--filtro" in result.output
     assert "--selecionar" in result.output
+    assert "Sem formato" in result.output
+    assert "CSV" in result.output
+    assert "formato do arquivo de entrada" not in result.output
 
 
 def test_cli_help_can_be_created_in_en_us() -> None:
