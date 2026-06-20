@@ -53,6 +53,17 @@ def test_compile_rejects_ordering_against_null() -> None:
         compile_filter(expr, CompileContext(columns={"A": "A"}))
 
 
+def test_compile_raw_null_empty_blank_checks_stay_distinct() -> None:
+    null_expr = parse_filter("A É NULO")
+    empty_expr = parse_filter("A É VAZIO")
+    blank_expr = parse_filter("A É BRANCO")
+
+    context = CompileContext(columns={"A": "A"})
+    assert compile_filter(null_expr, context).sql == '"A" IS NULL'
+    assert compile_filter(empty_expr, context).sql == '("A" IS NOT NULL AND TRY_CAST("A" AS VARCHAR) = \'\')'
+    assert compile_filter(blank_expr, context).sql == '("A" IS NULL OR trim(TRY_CAST("A" AS VARCHAR)) = \'\')'
+
+
 def test_compile_date_like_string_equality_stays_text_for_untyped_column() -> None:
     expr = parse_filter('CODE != "2024-01-31"')
     compiled = compile_filter(expr, CompileContext(columns={"CODE": "CODE"}))

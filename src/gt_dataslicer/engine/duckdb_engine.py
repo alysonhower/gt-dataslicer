@@ -5,12 +5,12 @@ from __future__ import annotations
 from dataclasses import dataclass
 import logging
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any, Callable, Final, Mapping
 
 import duckdb
 
 from ..config import CsvOptions, FilterRunOptions, LookupSpec, SortSpec
-from ..derived import build_projection
+from ..derived import ResolvedDerivedColumn, build_projection
 from ..exceptions import CsvReadError, FilterValidationError, QueryExecutionError
 from ..export.csv import CsvExportOptions, export_query_to_csv
 from ..export.excel import ExcelExportOptions, batched_rows, export_rows_to_xlsx
@@ -23,12 +23,33 @@ from ..report import OutputArtifact, RunReport
 
 
 LOGGER = logging.getLogger(__name__)
+NUMERIC_DERIVED_TOTAL_OPERATIONS: Final = {"keep_digits"}
+ProgressUpdate = str | Mapping[str, object]
+ProgressCallback = Callable[[ProgressUpdate], None]
 
 
 @dataclass(slots=True)
 class CsvSchema:
     columns: dict[str, str]
     types: dict[str, str]
+
+
+@dataclass(frozen=True, slots=True)
+class SummaryColumnScope:
+    schema: CsvSchema
+    output_columns: tuple[str, ...]
+    case_insensitive: bool
+
+
+def _progress_update(phase: str, input_: ResolvedInput, *, artifact: str | None = None) -> dict[str, object]:
+    return {
+        "phase": phase,
+        "label_key": f"ui.phase.{phase}",
+        "input_name": input_.label,
+        "artifact": artifact,
+        "percent": None,
+        "determinate": False,
+    }
 
 
 class DuckDBEngine:
@@ -63,7 +84,7 @@ class DuckDBEngine:
     def run_filter(
         self,
         options: FilterRunOptions,
-        progress: Callable[[str], None] | None = None,
+        progress: ProgressCallback | None = None,
         *,
         schema_override: CsvSchema | None = None,
         column_types_override: dict[str, str] | None = None,
@@ -96,14 +117,16 @@ class DuckDBEngine:
             dry_run=options.dry_run,
         )
 
-        if progress is not None:
-            progress("inspecting")
+        def emit_progress(phase: str, artifact: str | None = None) -> None:
+            if progress is not None:
+                progress(_progress_update(phase, input_, artifact=artifact))
+
+        emit_progress("inspecting")
         schema = schema_override or self.inspect_input(input_, options.csv, typed_mode=options.typed_mode)
         report.schema = schema.types
         column_types = column_types_override or self.resolve_column_types(schema, options)
 
-        if progress is not None:
-            progress("validating")
+        emit_progress("validating")
         lookup_bindings = self._register_lookups(options.lookups, options.csv, options.case_insensitive_columns)
         expr = combine_filters(options.where)
         compiled = compile_filter(
@@ -134,8 +157,14 @@ class DuckDBEngine:
         ]
         resolved_dedupe_keys = self._resolve_named_list(schema, options.dedupe_keys, options.case_insensitive_columns)
         resolved_sorts = self._resolve_sorts(schema, options.sorts, options.case_insensitive_columns)
-        summary_group_by = self._resolve_named_list(schema, options.summary_group_by, options.case_insensitive_columns)
-        summary_totals = self._resolve_named_list(schema, options.summary_totals, options.case_insensitive_columns)
+        summary_scope = SummaryColumnScope(
+            schema=schema,
+            output_columns=tuple(projection.output_columns),
+            case_insensitive=options.case_insensitive_columns,
+        )
+        summary_group_by = self._resolve_summary_columns(summary_scope, options.summary_group_by)
+        summary_totals = self._resolve_summary_columns(summary_scope, options.summary_totals)
+        self._validate_derived_summary_totals(projection.derived_columns, summary_totals)
         query = self._build_query(
             input_=input_,
             csv_options=options.csv,
@@ -170,18 +199,16 @@ class DuckDBEngine:
             report.warnings.append(tr("warning.sort_temp_disk"))
 
         if options.dry_run:
-            if progress is not None:
-                progress("finishing")
+            emit_progress("finishing")
             report.finish()
             return report
 
         try:
             capture_rejects = lambda: setattr(report, "rejected_rows", self._rejected_row_count())
-            if progress is not None:
-                progress("exporting")
             if options.report_path is not None:
                 report.input_rows = self._count_rows(input_, options.csv, options.typed_mode)
             if not options.summary_only:
+                emit_progress("exporting", "filtered")
                 filtered_rows, filtered_output_paths = self._export_query(
                     query=query,
                     params=compiled.params,
@@ -197,11 +224,15 @@ class DuckDBEngine:
                 report.output_paths.extend(filtered_output_paths)
                 report.artifacts.append(OutputArtifact(kind="filtered", path=str(options.output_path), rows=filtered_rows))
             if options.summarize:
-                summary_output = options.summary_output_path or self._summary_output_path(options.output_path)
+                emit_progress("exporting", "summarization")
+                summary_output = options.summary_output_path or self._summary_output_path(
+                    options.output_path,
+                    options.summary_output_format,
+                )
                 summary_rows, summary_output_paths = self._export_query(
                     query=summary_query,
                     params=compiled.params,
-                    output_format=options.output_format,
+                    output_format=options.summary_output_format,
                     output_path=summary_output,
                     headers=summary_headers,
                     report=report,
@@ -210,7 +241,7 @@ class DuckDBEngine:
                     finalize_report=capture_rejects if options.summary_only else None,
                 )
                 report.output_paths.extend(summary_output_paths)
-                report.artifacts.append(OutputArtifact(kind="summary", path=str(summary_output), rows=summary_rows))
+                report.artifacts.append(OutputArtifact(kind="summarization", path=str(summary_output), rows=summary_rows))
                 if options.summary_only:
                     report.output_rows = summary_rows
             if options.rejects_path is not None:
@@ -222,8 +253,7 @@ class DuckDBEngine:
             report.finish()
             raise
 
-        if progress is not None:
-            progress("finishing")
+        emit_progress("finishing")
         report.finish()
         return report
 
@@ -300,17 +330,23 @@ class DuckDBEngine:
         strict_values: bool,
     ) -> tuple[str, list[str]]:
         summary_columns = _unique_columns([*summary_group_by, *summary_totals])
-        summary_aliases = self._summary_internal_aliases(summary_columns, filtered_output_columns)
+        projected_summary_columns = [column for column in summary_columns if column in filtered_output_columns]
+        source_summary_columns = [column for column in summary_columns if column not in filtered_output_columns]
+        summary_aliases = self._summary_internal_aliases(source_summary_columns, filtered_output_columns)
+        summary_references = {
+            **{column: column for column in projected_summary_columns},
+            **summary_aliases,
+        }
         summary_select_items = [
             f"{quote_identifier(column)} AS {quote_identifier(summary_aliases[column])}"
-            for column in summary_columns
+            for column in source_summary_columns
         ]
         source_query = self._build_query(
             input_=input_,
             csv_options=csv_options,
             typed_mode=typed_mode,
             select_items=[*filtered_select_items, *summary_select_items],
-            required_columns=_unique_columns([*filtered_required_columns, *summary_columns]),
+            required_columns=_unique_columns([*filtered_required_columns, *source_summary_columns]),
             where_sql=where_sql,
             dedupe=dedupe,
             dedupe_keys=dedupe_keys,
@@ -318,18 +354,18 @@ class DuckDBEngine:
         )
 
         aggregate_items = [
-            self._summary_sum_expression(summary_aliases[column], strict_values, alias=self._summary_total_alias(column))
+            self._summary_sum_expression(summary_references[column], strict_values, alias=self._summary_total_alias(column))
             for column in summary_totals
         ]
         count_expr = f"COUNT(*) AS {quote_identifier(self._summary_count_alias())}"
 
         if summary_group_by:
             select_columns = [
-                f"{quote_identifier(summary_aliases[column])} AS {quote_identifier(column)}"
+                f"{quote_identifier(summary_references[column])} AS {quote_identifier(column)}"
                 for column in summary_group_by
             ]
             select_items = [*select_columns, *aggregate_items, count_expr]
-            group_by_columns = ", ".join(quote_identifier(summary_aliases[column]) for column in summary_group_by)
+            group_by_columns = ", ".join(quote_identifier(summary_references[column]) for column in summary_group_by)
             headers = [*summary_group_by, *[self._summary_total_alias(column) for column in summary_totals], self._summary_count_alias()]
             base_query = (
                 f"SELECT {', '.join(select_items)} "
@@ -353,8 +389,23 @@ class DuckDBEngine:
             aliases[column] = alias
         return aliases
 
-    def _summary_output_path(self, output_path: Path) -> Path:
-        return output_path.with_name(f"{output_path.stem}_summary{output_path.suffix}")
+    def _validate_derived_summary_totals(
+        self,
+        derived_columns: list[ResolvedDerivedColumn],
+        summary_totals: list[str],
+    ) -> None:
+        derived_by_output = {column.output_name: column for column in derived_columns}
+        for total in summary_totals:
+            derived = derived_by_output.get(total)
+            if derived is None or self._derived_total_is_numeric_compatible(derived):
+                continue
+            raise FilterValidationError(tr("error.summary_total_derived_text", column=total))
+
+    def _derived_total_is_numeric_compatible(self, derived: ResolvedDerivedColumn) -> bool:
+        return any(transform.operation in NUMERIC_DERIVED_TOTAL_OPERATIONS for transform in derived.transforms)
+
+    def _summary_output_path(self, output_path: Path, output_format: str) -> Path:
+        return output_path.with_name(f"{output_path.stem}_summarization.{output_format}")
 
     def _summary_count_alias(self) -> str:
         return "count"
@@ -440,6 +491,31 @@ class DuckDBEngine:
 
     def _resolve_named_list(self, schema: CsvSchema, names: list[str], case_insensitive: bool) -> list[str]:
         return [resolve_column_name(schema, name, case_insensitive) for name in names]
+
+    def _resolve_summary_columns(
+        self,
+        scope: SummaryColumnScope,
+        names: list[str],
+    ) -> list[str]:
+        return [self._resolve_summary_column(scope, name) for name in names]
+
+    def _resolve_summary_column(self, scope: SummaryColumnScope, requested: str) -> str:
+        if requested in scope.output_columns:
+            return requested
+        if requested in scope.schema.columns:
+            return scope.schema.columns[requested]
+        if scope.case_insensitive:
+            projected_matches = [column for column in scope.output_columns if column.lower() == requested.lower()]
+            if len(projected_matches) == 1:
+                return projected_matches[0]
+            if len(projected_matches) > 1:
+                raise FilterValidationError(f"Column '{requested}' is ambiguous under case-insensitive matching.")
+            schema_matches = [actual for actual in scope.schema.columns.values() if actual.lower() == requested.lower()]
+            if len(schema_matches) == 1:
+                return schema_matches[0]
+            if len(schema_matches) > 1:
+                raise FilterValidationError(f"Column '{requested}' is ambiguous under case-insensitive matching.")
+        raise FilterValidationError(f"Missing column '{requested}'.")
 
     def _resolve_sorts(self, schema: CsvSchema, sorts: list[SortSpec], case_insensitive: bool) -> list[SortSpec]:
         return [
