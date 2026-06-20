@@ -105,8 +105,8 @@ from PyInstaller.archive.readers import CArchiveReader
 exe_path = Path(sys.argv[1])
 web_assets_path = Path(sys.argv[2])
 required_assets = {
-    "index.html": ["summarizeInput", "summaryOnlyInput", "summaryGroupByInput", "summaryTotalsInput"],
-    "app.js": ["summary_group_by", "summary_totals", "updateSummaryMode"],
+    "index.html": ["cleanBase", "cleanThenSummarization", "summarizationOnly", "summarizationGroupByInput", "summarizationTotalsInput"],
+    "app.js": ["summarization_group_by", "summarization_totals", "bindEnterFlow"],
     "styles.css": [],
 }
 
