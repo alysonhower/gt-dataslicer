@@ -133,6 +133,17 @@ class DataSlicerApi:
         }[normalized_format]
         return self._choose_save_file(normalized_format, file_types)
 
+    def choose_output_directory(self) -> dict[str, object]:
+        self._activate_language()
+        if self._window is None:
+            return _error("window_not_ready", tr("ui.error.window_not_ready"))
+        try:
+            webview = _import_webview()
+            result = self._window.create_file_dialog(webview.FileDialog.FOLDER)
+            return _ok({"path": _first_dialog_path(result) or ""})
+        except Exception as exc:  # noqa: BLE001
+            return self._exception_response(exc)
+
     def open_output_folder(self, path: str) -> dict[str, object]:
         self._activate_language()
         try:
@@ -339,6 +350,7 @@ def build_options_from_payload(
     filter_expression = _filter_expression(payload)
     cli_where = [filter_expression] if filter_expression else _string_list(payload.get("where"))
 
+    output_names = _output_name_items(payload.get("output_names") or payload.get("output_name"))
     options = merge_config_and_cli(
         input_path=input_path,
         output_path=output_path,
@@ -348,10 +360,10 @@ def build_options_from_payload(
         cli_where=cli_where,
         cli_select=_string_list(payload.get("select") or payload.get("selected_columns")),
         select_file=_optional_path(payload.get("select_file")),
-        cli_summarize=bool(payload.get("summarize", False)),
-        cli_summary_only=bool(payload.get("summary_only", False)),
-        cli_summary_group_by=_string_list(payload.get("summary_group_by")),
-        cli_summary_totals=_string_list(payload.get("summary_totals")),
+        cli_summarize=bool(payload.get("summarization", payload.get("summarize", False))),
+        cli_summary_only=bool(payload.get("summarization_only", payload.get("summary_only", False))),
+        cli_summary_group_by=_string_list(payload.get("summarization_group_by") or payload.get("summary_group_by")),
+        cli_summary_totals=_string_list(payload.get("summarization_totals") or payload.get("summary_totals")),
         cli_renames=_rename_items(payload.get("renames") or payload.get("rename")),
         cli_dedupe=bool(payload.get("dedupe", False)),
         cli_dedupe_keys=_string_list(payload.get("dedupe_keys") or payload.get("dedupe_key")),
@@ -360,7 +372,7 @@ def build_options_from_payload(
         cli_types=_type_items(payload.get("types") or payload.get("column_types")),
         cli_derived_columns=[],
         derived_columns_file=None,
-        cli_output_names=_output_name_items(payload.get("output_names") or payload.get("output_name")),
+        cli_output_names=output_names,
         csv_options=_csv_options(payload),
         sheet_prefix=str(payload.get("sheet_prefix") or "Results"),
         max_rows_per_sheet=int(payload.get("max_rows_per_sheet") or 1_048_576),
@@ -373,7 +385,8 @@ def build_options_from_payload(
         typed_mode=bool(payload.get("typed_mode", False)),
         strict_values=bool(payload.get("strict_values", False)),
         batch_size=int(payload.get("batch_size") or 10_000),
-        allow_output_directory=len(input_paths) > 1,
+        allow_output_directory=len(input_paths) > 1 or any(output_names),
+        avoid_existing_output_paths=bool(payload.get("avoid_existing_output_paths", False)),
     )
     options.derived_columns = [*options.derived_columns, *parse_derived_columns(payload.get("derived_columns"))]
     return options
@@ -412,16 +425,16 @@ def _config_from_payload(payload: dict[str, Any]) -> dict[str, object]:
     renames = _rename_items(payload.get("renames") or payload.get("rename"))
     if renames:
         config["rename"] = renames
-    if payload.get("summarize"):
-        config["summarize"] = bool(payload.get("summarize"))
-    if payload.get("summary_only"):
-        config["summary_only"] = True
-    summary_group_by = _string_list(payload.get("summary_group_by"))
+    if payload.get("summarization") or payload.get("summarize"):
+        config["summarization"] = bool(payload.get("summarization", payload.get("summarize")))
+    if payload.get("summarization_only") or payload.get("summary_only"):
+        config["summarization_only"] = True
+    summary_group_by = _string_list(payload.get("summarization_group_by") or payload.get("summary_group_by"))
     if summary_group_by:
-        config["summary_group_by"] = summary_group_by
-    summary_totals = _string_list(payload.get("summary_totals"))
+        config["summarization_group_by"] = summary_group_by
+    summary_totals = _string_list(payload.get("summarization_totals") or payload.get("summary_totals"))
     if summary_totals:
-        config["summary_totals"] = summary_totals
+        config["summarization_totals"] = summary_totals
     if payload.get("dedupe"):
         config["dedupe"] = True
     dedupe_keys = _string_list(payload.get("dedupe_keys") or payload.get("dedupe_key"))
