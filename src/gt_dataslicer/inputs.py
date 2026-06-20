@@ -8,7 +8,7 @@ from pathlib import Path, PurePosixPath
 import re
 import shutil
 import tempfile
-from typing import Callable, Iterable, Literal
+from typing import Callable, Final, Iterable, Literal
 
 from openpyxl import load_workbook
 import pyzipper
@@ -18,9 +18,34 @@ from .filters.compiler import quote_literal
 
 
 InputFormat = Literal["csv", "parquet", "xlsx"]
+OutputFormat = Literal["csv", "parquet", "xlsx"]
 SUPPORTED_INPUT_SUFFIXES = {".csv", ".parquet", ".pq", ".xlsx", ".zip"}
 ZIP_MEMBER_LIMIT = 10_000
 ZIP_UNCOMPRESSED_LIMIT_BYTES = 20 * 1024 * 1024 * 1024
+WINDOWS_RESERVED_NAMES: Final = {
+    "CON",
+    "PRN",
+    "AUX",
+    "NUL",
+    "COM1",
+    "COM2",
+    "COM3",
+    "COM4",
+    "COM5",
+    "COM6",
+    "COM7",
+    "COM8",
+    "COM9",
+    "LPT1",
+    "LPT2",
+    "LPT3",
+    "LPT4",
+    "LPT5",
+    "LPT6",
+    "LPT7",
+    "LPT8",
+    "LPT9",
+}
 
 
 @dataclass(slots=True)
@@ -269,6 +294,24 @@ def detect_input_format(path: Path) -> InputFormat | None:
     return None
 
 
+def default_output_format_for_path(path: Path) -> OutputFormat:
+    input_format = detect_input_format(path)
+    if input_format is None:
+        return "csv"
+    return input_format
+
+
+def default_output_format_for_input(input_: ResolvedInput) -> OutputFormat:
+    if input_.zip_member:
+        member_format = detect_input_format(Path(PurePosixPath(input_.zip_member).name))
+        if member_format is not None:
+            return member_format
+    source_format = detect_input_format(input_.source_path)
+    if source_format is not None:
+        return source_format
+    return input_.format
+
+
 def source_expression(input_: ResolvedInput, *, csv_expr: Callable[[Path], str]) -> str:
     if input_.format == "parquet":
         return f"read_parquet({quote_literal(str(input_.path))})"
@@ -348,7 +391,12 @@ def _safe_zip_member_path(root: Path, member_name: str) -> Path:
 
 def _safe_name(value: str) -> str:
     safe = re.sub(r"[^A-Za-z0-9._-]+", "_", value).strip("._-")
-    return safe or "input"
+    if not safe:
+        return "input"
+    stem = safe.split(".", 1)[0].upper()
+    if stem in WINDOWS_RESERVED_NAMES:
+        return f"input_{safe}"
+    return safe
 
 
 def _safe_output_stem(value: str, output_format: str) -> str:
