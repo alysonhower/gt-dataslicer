@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>DataSlicer</title>
-    <link rel="stylesheet" href="./styles.css?v=20260616-4">
+    <link rel="stylesheet" href="./styles.css?v=20260619-4">
   </head>
   <body>
     <div class="app-shell">
@@ -24,36 +24,59 @@
 
       <main class="workspace">
         <nav class="steps" aria-label="Etapas">
-          <a href="#step-file" class="step-link active" data-i18n="stepFile">1. Arquivo</a>
-          <a href="#step-filter" class="step-link" data-i18n="stepFilter">2. Filtro</a>
-          <a href="#step-output" class="step-link" data-i18n="stepOutput">3. Saída</a>
-          <a href="#step-run" class="step-link" data-i18n="stepRun">4. Gerar</a>
+          <a href="#step-file" class="step-link active" data-step-label-key="stepFile">1. Arquivo</a>
+          <a href="#step-filter" class="step-link cleanup-only-section" data-step-label-key="stepFilter">2. Filtro</a>
+          <a href="#step-derived" class="step-link cleanup-only-section" data-step-label-key="stepDerived">3. Novas colunas</a>
+          <a href="#step-summarization" class="step-link summarization-only-section hidden" data-step-label-key="stepSummarization">4. Sumarização</a>
+          <a href="#step-output" class="step-link" data-step-label-key="stepOutput">4. Saída</a>
+          <a href="#step-run" class="step-link" data-step-label-key="stepRun">5. Gerar</a>
         </nav>
 
-        <section id="step-file" class="panel">
+        <section id="step-file" class="panel" data-workflow-step>
+          <fieldset class="route-mode-panel">
+            <legend data-i18n="routeModeTitle">O que voce quer gerar?</legend>
+            <p data-i18n="routeModeHelp">Sumarização aqui significa uma analise agrupada com totais, no estilo IDEA.</p>
+            <div class="route-mode-grid">
+              <label class="route-card ui-card ui-card--interactive active">
+                <input type="radio" name="routeMode" value="cleanBase" checked>
+                <strong data-i18n="cleanBase">Limpar base</strong>
+                <span data-i18n="cleanBaseHelp">Filtra e salva a base limpa.</span>
+              </label>
+              <label class="route-card ui-card ui-card--interactive">
+                <input type="radio" name="routeMode" value="cleanThenSummarization">
+                <strong data-i18n="cleanThenSummarization">Limpar e sumarizar base limpa</strong>
+                <span data-i18n="cleanThenSummarizationHelp">Salva a base limpa e tambem a sumarização agrupada com totais.</span>
+              </label>
+              <label class="route-card ui-card ui-card--interactive">
+                <input type="radio" name="routeMode" value="summarizationOnly">
+                <strong data-i18n="summarizationOnly">Sumarizar bases de entrada</strong>
+                <span data-i18n="summarizationOnlyHelp">Gera somente a sumarização agrupada com totais.</span>
+              </label>
+            </div>
+          </fieldset>
+
           <div class="section-heading">
             <div>
-              <p class="eyebrow" data-i18n="stageOne">Etapa 1</p>
+              <p class="eyebrow" data-step-eyebrow>Etapa 1</p>
               <h2 data-i18n="chooseFile">Escolha o arquivo</h2>
             </div>
-            <button id="browseInputBtn" class="button primary" type="button" data-i18n="browseInput">Procurar arquivo</button>
           </div>
 
-          <div id="dropZone" class="drop-zone" tabindex="0">
-            <strong data-i18n="dropStrong">Arraste o arquivo aqui</strong>
-            <span data-i18n="dropHelp">ou use o botão para procurar no computador.</span>
+          <div id="dropZone" class="drop-zone" role="button" tabindex="0" aria-labelledby="dropZoneTitle" aria-describedby="dropZoneHelp">
+            <strong id="dropZoneTitle" data-i18n="dropStrong">Clique ou arraste o arquivo aqui</strong>
+            <span id="dropZoneHelp" data-i18n="dropHelp">Pressione Enter ou Espaço para escolher pelo computador.</span>
           </div>
 
           <div class="file-summary" aria-live="polite">
-            <div>
+            <div class="ui-card file-summary-card">
               <span class="label" data-i18n="fileLabel">Arquivo</span>
               <strong id="inputPathText" data-i18n="noFile">Nenhum arquivo escolhido</strong>
             </div>
-            <div>
+            <div class="ui-card file-summary-card">
               <span class="label" data-i18n="sizeLabel">Tamanho</span>
               <strong id="inputSizeText">-</strong>
             </div>
-            <div>
+            <div class="ui-card file-summary-card">
               <span class="label" data-i18n="columnsLabel">Colunas</span>
               <strong id="columnCountText">-</strong>
             </div>
@@ -104,10 +127,10 @@
           </details>
         </section>
 
-        <section id="step-filter" class="panel">
+        <section id="step-filter" class="panel cleanup-only-section" data-workflow-step>
           <div class="section-heading">
             <div>
-              <p class="eyebrow" data-i18n="stageTwo">Etapa 2</p>
+              <p class="eyebrow" data-step-eyebrow>Etapa 2</p>
               <h2 data-i18n="buildFilter">Monte o filtro</h2>
             </div>
             <div class="segmented" role="tablist" aria-label="Modo de filtro">
@@ -142,13 +165,62 @@
           </div>
         </section>
 
-        <section id="step-output" class="panel">
+        <section id="step-derived" class="panel cleanup-only-section derived-section" data-workflow-step>
           <div class="section-heading">
             <div>
-              <p class="eyebrow" data-i18n="stageThree">Etapa 3</p>
-              <h2 data-i18n="chooseOutputTitle">Escolha a saída</h2>
+              <p class="eyebrow" data-step-eyebrow>Etapa 3</p>
+              <h2 data-i18n="derivedColumnsTitle">Criar novas colunas</h2>
+              <p class="muted" data-i18n="derivedColumnsHelp">Opcional: crie colunas limpas a partir das colunas filtradas.</p>
             </div>
-            <button id="browseOutputBtn" class="button primary" type="button" data-i18n="chooseDestination">Escolher destino</button>
+            <button id="addDerivedColumnBtn" class="button secondary" type="button" data-i18n="addDerivedColumn">Adicionar coluna</button>
+          </div>
+          <div id="derivedColumnsList" class="derived-columns-list"></div>
+          <p id="noDerivedColumnsText" class="muted" data-i18n="noDerivedColumns">Nenhuma coluna nova será criada.</p>
+          <div class="toolbar-row end">
+            <button id="saveConfigBtn" class="button ghost" type="button" data-i18n="saveConfig">Salvar configuração</button>
+          </div>
+        </section>
+
+        <section id="step-summarization" class="panel summarization-only-section hidden" data-workflow-step>
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow" data-step-eyebrow>Etapa 4</p>
+              <h2 data-i18n="summarizationSetupTitle">Configure a sumarização</h2>
+              <p class="muted" data-i18n="summarizationSetupHelp">Escolha as colunas de agrupamento e as colunas numéricas que serão totalizadas.</p>
+            </div>
+          </div>
+
+          <div id="summarizationFields" class="field-grid summarization-fields">
+            <label class="summarization-picker-field">
+              <span data-i18n="summarizationGroupBy">Agrupar por</span>
+              <div id="summarizationGroupByInput" class="summarization-column-picker" data-values="">
+                <div class="summarization-picker-chips" aria-live="polite"></div>
+                <div class="column-search">
+                  <input class="filter-column summarization-column-input" type="search" autocomplete="off" aria-label="Agrupar por" aria-autocomplete="list" aria-expanded="false" aria-haspopup="listbox" placeholder="Buscar coluna" data-i18n-placeholder="columnSearchPlaceholder">
+                  <div class="filter-column-suggestions hidden" role="listbox"></div>
+                </div>
+              </div>
+            </label>
+            <label class="summarization-picker-field">
+              <span data-i18n="summarizationTotals">Colunas para totalizar</span>
+              <div id="summarizationTotalsInput" class="summarization-column-picker" data-values="">
+                <div class="summarization-picker-chips" aria-live="polite"></div>
+                <div class="column-search">
+                  <input class="filter-column summarization-column-input" type="search" autocomplete="off" aria-label="Colunas para totalizar" aria-autocomplete="list" aria-expanded="false" aria-haspopup="listbox" placeholder="Buscar coluna" data-i18n-placeholder="columnSearchPlaceholder">
+                  <div class="filter-column-suggestions hidden" role="listbox"></div>
+                </div>
+              </div>
+            </label>
+          </div>
+        </section>
+
+        <section id="step-output" class="panel" data-workflow-step>
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow" data-step-eyebrow>Etapa 4</p>
+              <h2 data-i18n="chooseOutputFolder">Escolha a pasta de saída</h2>
+            </div>
+            <button id="browseOutputBtn" class="button primary" type="button" data-i18n="chooseFolder">Escolher pasta</button>
           </div>
 
           <div class="format-card-grid" role="radiogroup" aria-label="Formato">
@@ -170,63 +242,44 @@
           </select>
 
           <label class="output-path-field">
-            <span data-i18n="saveAs">Salvar em</span>
-            <input id="outputPathInput" type="text" placeholder="Escolha onde salvar" data-i18n-placeholder="chooseSavePlaceholder">
+            <span data-i18n="saveToFolder">Pasta de destino</span>
+            <input id="outputPathInput" type="text" placeholder="Escolha uma pasta" data-i18n-placeholder="chooseFolderPlaceholder">
           </label>
 
-          <div class="derived-section">
+          <div id="outputNamesPanel" class="output-names-panel hidden" aria-live="polite">
             <div class="mini-heading">
               <div>
-                <h3 data-i18n="derivedColumnsTitle">Criar novas colunas</h3>
-                <p data-i18n="derivedColumnsHelp">Opcional: crie colunas limpas a partir das colunas filtradas.</p>
+                <h3 data-i18n="outputNamesTitle">Nomes</h3>
               </div>
-              <button id="addDerivedColumnBtn" class="button secondary" type="button" data-i18n="addDerivedColumn">Adicionar coluna</button>
+              <button id="resetOutputNamesBtn" class="button ghost" type="button" data-i18n="resetOutputNames">Redefinir nomes</button>
             </div>
-            <div id="derivedColumnsList" class="derived-columns-list"></div>
-            <p id="noDerivedColumnsText" class="muted" data-i18n="noDerivedColumns">Nenhuma coluna nova será criada.</p>
-            <div class="toolbar-row end">
-              <button id="saveConfigBtn" class="button ghost" type="button" data-i18n="saveConfig">Salvar configuração</button>
-            </div>
+            <label class="output-suffix-field">
+              <span data-i18n="outputNameSuffix">Sufixo padrão</span>
+              <input id="outputNameSuffixInput" type="text" value="_tratada" placeholder="_tratada">
+            </label>
+            <div id="outputNamesList" class="output-names-list"></div>
           </div>
 
           <details class="advanced-line">
             <summary data-i18n="advancedOptions">Opções avançadas</summary>
             <div class="field-grid">
-              <label class="checkline">
-                <input id="summarizeInput" type="checkbox">
-                <span data-i18n="summarize">Gerar resumo</span>
-              </label>
-              <label class="checkline">
-                <input id="summaryOnlyInput" type="checkbox">
-                <span data-i18n="summaryOnly">Gerar apenas o resumo</span>
-              </label>
-            </div>
-            <div id="summaryFields" class="field-grid">
-              <label>
-                <span data-i18n="summaryGroupBy">Agrupar por</span>
-                <textarea id="summaryGroupByInput" rows="4" placeholder="Uma coluna por linha" data-i18n-placeholder="summaryColumnPlaceholder"></textarea>
-              </label>
-              <label>
-                <span data-i18n="summaryTotals">Colunas para totalizar</span>
-                <textarea id="summaryTotalsInput" rows="4" placeholder="Uma coluna por linha" data-i18n-placeholder="summaryColumnPlaceholder"></textarea>
-              </label>
-              <label>
+              <label class="cleanup-option">
                 <span data-i18n="columnsToSave">Colunas para salvar</span>
                 <textarea id="selectColumnsInput" rows="4" placeholder="Uma coluna por linha" data-i18n-placeholder="oneColumnPerLine"></textarea>
               </label>
-              <label>
+              <label class="cleanup-option">
                 <span data-i18n="renameColumns">Renomear colunas</span>
                 <textarea id="renamesInput" rows="4" placeholder="ANTIGO=Novo nome" data-i18n-placeholder="renamePlaceholder"></textarea>
               </label>
-              <label>
+              <label class="cleanup-option">
                 <span data-i18n="sortBy">Ordenar por</span>
                 <input id="sortInput" type="text" placeholder="COLUNA ou COLUNA:desc" data-i18n-placeholder="sortPlaceholder">
               </label>
-              <label>
+              <label class="cleanup-option">
                 <span data-i18n="dedupeKey">Chave de deduplicação</span>
                 <input id="dedupeKeyInput" type="text" placeholder="COLUNA" data-i18n-placeholder="columnPlaceholder">
               </label>
-              <label class="checkline">
+              <label class="checkline cleanup-option">
                 <input id="dedupeInput" type="checkbox">
                 <span data-i18n="removeDuplicates">Remover linhas duplicadas</span>
               </label>
@@ -252,16 +305,16 @@
           </details>
         </section>
 
-        <section id="step-run" class="panel">
+        <section id="step-run" class="panel" data-workflow-step>
           <div class="section-heading">
             <div>
-              <p class="eyebrow" data-i18n="stageFour">Etapa 4</p>
+              <p class="eyebrow" data-step-eyebrow>Etapa 5</p>
               <h2 data-i18n="generateFile">Gerar arquivo</h2>
             </div>
             <button id="runBtn" class="button primary" type="button" data-i18n="generateResult">Gerar resultado</button>
           </div>
 
-          <div class="status-strip" aria-live="polite">
+          <div class="status-strip ui-card" aria-live="polite">
             <span id="statusDot" class="status-dot idle"></span>
             <div>
               <strong id="statusTitle">Pronto</strong>
@@ -269,31 +322,46 @@
             </div>
           </div>
 
+          <div id="progressPanel" class="progress-card ui-card hidden" aria-live="polite">
+            <div class="progress-card-header">
+              <div>
+                <span class="label" data-i18n="progressTitle">Andamento</span>
+                <strong id="progressPhaseText">Na fila</strong>
+              </div>
+              <span id="progressItemText" class="progress-meta"></span>
+            </div>
+            <p id="progressDetailText" class="progress-detail"></p>
+            <div id="progressBar" class="progress-bar" role="progressbar" aria-label="Andamento" aria-valuemin="0" aria-valuemax="100">
+              <span id="progressBarFill" class="progress-bar-fill"></span>
+            </div>
+            <ol id="progressTimeline" class="progress-timeline" aria-label="Linha do tempo do andamento"></ol>
+          </div>
+
           <div id="resultCards" class="result-cards hidden" aria-live="polite">
-            <article class="result-card">
+            <article class="result-card ui-card">
               <span data-i18n="filesCreated">Arquivos gerados</span>
               <strong id="filesCreatedValue">0</strong>
             </article>
-            <article class="result-card">
+            <article class="result-card ui-card">
               <span data-i18n="rowsSaved">Linhas salvas</span>
               <strong id="rowsSavedValue">0</strong>
             </article>
-            <article class="result-card">
+            <article class="result-card ui-card">
               <span data-i18n="filesProcessed">Arquivos processados</span>
               <strong id="filesProcessedValue">0</strong>
             </article>
-            <article class="result-card warning-card">
+            <article class="result-card ui-card warning-card">
               <span data-i18n="warnings">Avisos</span>
               <strong id="warningsValue">0</strong>
             </article>
-            <article class="result-card error-card">
+            <article class="result-card ui-card error-card">
               <span data-i18n="filesFailed">Não foi possível processar</span>
               <strong id="filesFailedValue">0</strong>
             </article>
           </div>
 
           <div id="outputList" class="output-list hidden"></div>
-          <div id="friendlyErrorBox" class="friendly-error hidden"></div>
+          <div id="friendlyErrorBox" class="friendly-error ui-card hidden"></div>
           <details id="technicalDetails" class="technical-details hidden">
             <summary data-i18n="technicalDetails">Detalhes técnicos</summary>
             <pre id="detailsBox"></pre>
@@ -313,27 +381,14 @@
           <input class="filter-column" type="search" autocomplete="off" aria-label="Coluna" aria-autocomplete="list" aria-expanded="false" aria-haspopup="listbox" placeholder="Buscar coluna" data-i18n-placeholder="columnSearchPlaceholder">
           <div class="filter-column-suggestions hidden" role="listbox"></div>
         </div>
-        <select class="filter-operator" aria-label="Operador">
-          <option value="equals" data-i18n="opEquals">igual a</option>
-          <option value="not_equals" data-i18n="opNotEquals">diferente de</option>
-          <option value="gt" data-i18n="opGt">maior que</option>
-          <option value="gte" data-i18n="opGte">maior ou igual a</option>
-          <option value="lt" data-i18n="opLt">menor que</option>
-          <option value="lte" data-i18n="opLte">menor ou igual a</option>
-          <option value="in" data-i18n="opIn">é um destes valores</option>
-          <option value="not_in" data-i18n="opNotIn">não é nenhum destes valores</option>
-          <option value="between" data-i18n="opBetween">entre</option>
-          <option value="contains" data-i18n="opContains">contém</option>
-          <option value="starts_with" data-i18n="opStartsWith">começa com</option>
-          <option value="ends_with" data-i18n="opEndsWith">termina com</option>
-          <option value="regex">regex</option>
-          <option value="is_null" data-i18n="opIsNull">é nulo</option>
-          <option value="is_not_null" data-i18n="opIsNotNull">não é nulo</option>
-          <option value="is_empty" data-i18n="opIsEmpty">é vazio</option>
-          <option value="is_not_empty" data-i18n="opIsNotEmpty">não é vazio</option>
-          <option value="is_blank" data-i18n="opIsBlank">é branco</option>
-          <option value="is_not_blank" data-i18n="opIsNotBlank">não é branco</option>
-        </select>
+        <input class="filter-operator" type="hidden" value="equals">
+        <div class="operator-picker">
+          <button class="operator-trigger" type="button" aria-haspopup="listbox" aria-expanded="false">
+            <span class="operator-symbol">=</span>
+            <span class="operator-trigger-label sr-only">=</span>
+          </button>
+          <div class="operator-menu hidden"></div>
+        </div>
         <input class="filter-value" type="text" placeholder="Valor" data-i18n-placeholder="value">
         <input class="filter-value2" type="text" placeholder="Valor final" data-i18n-placeholder="finalValue">
         <button class="icon-button remove-filter" type="button" title="Remover regra" data-i18n-title="removeRule">x</button>
@@ -341,7 +396,7 @@
     </template>
 
     <template id="derivedColumnTemplate">
-      <article class="derived-column-card">
+      <article class="derived-column-card ui-card">
         <div class="derived-card-header">
           <strong class="derived-preview">Nova coluna</strong>
           <button class="icon-button remove-derived-column" type="button" title="Remover coluna" data-i18n-title="removeDerivedColumn">x</button>
@@ -430,6 +485,6 @@
       </div>
     </template>
 
-    <script src="./app.js?v=20260616-6"></script>
+    <script src="./app.js?v=20260619-2"></script>
   </body>
 </html>
