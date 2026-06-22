@@ -5,6 +5,12 @@ const state = {
   outputPath: "",
   outputPaths: [],
   outputNames: [],
+  outputNameTouchedIndexes: new Set(),
+  outputNameSuffix: "",
+  outputNameSuffixTouched: false,
+  summarizationOutputSuffix: "",
+  summarizationOutputSuffixTouched: false,
+  outputFormatExplicit: false,
   resolvedInputs: [],
   columns: [],
   language: "pt-BR",
@@ -12,8 +18,28 @@ const state = {
   pollTimer: null,
   columnSuggestionListId: 0,
   eventsBound: false,
+  inputPickerOpen: false,
   derivedColumnId: 0,
+  operatorPickerId: 0,
 };
+
+const FILTER_OPERATOR_OPTIONS = [
+  { id: "equals", symbol: "=", labelKey: "opEquals" },
+  { id: "not_equals", symbol: "≠", labelKey: "opNotEquals" },
+  { id: "gt", symbol: ">", labelKey: "opGt" },
+  { id: "gte", symbol: "≥", labelKey: "opGte" },
+  { id: "lt", symbol: "<", labelKey: "opLt" },
+  { id: "lte", symbol: "≤", labelKey: "opLte" },
+  { id: "in", symbol: "∈", labelKey: "opIn" },
+  { id: "not_in", symbol: "∉", labelKey: "opNotIn" },
+  { id: "between", symbol: "≤ x ≤", labelKey: "opBetween" },
+  { id: "contains", symbol: "…x…", labelKey: "opContains" },
+  { id: "starts_with", symbol: "x…", labelKey: "opStartsWith" },
+  { id: "ends_with", symbol: "…x", labelKey: "opEndsWith" },
+  { id: "regex", symbol: ".*", labelKey: "opRegex" },
+  { id: "is_blank", symbol: "∅", labelKey: "opIsBlank" },
+  { id: "is_not_blank", symbol: "≠ ∅", labelKey: "opIsNotBlank" },
+];
 
 const text = {
   "pt-BR": {
@@ -26,9 +52,10 @@ const text = {
     done: "Arquivo gerado com sucesso.",
     error: "Algo precisa de atenção.",
     chooseCsv: "Escolha um arquivo de entrada.",
-    chooseOutput: "Escolha onde salvar o resultado.",
+    chooseOutput: "Escolha a pasta de destino antes de continuar.",
+    chooseOutputDirectory: "Escolha a pasta de destino.",
     noColumns: "Escolha um arquivo para carregar as colunas.",
-    droppedFileNeedsPicker: "Use o botão Procurar arquivo para garantir acesso ao caminho completo do arquivo.",
+    droppedFileNeedsPicker: "Clique na área do arquivo para escolher pelo computador e liberar o caminho completo.",
     noFile: "Nenhum arquivo escolhido",
     columnsLoaded: "colunas carregadas.",
     columnSearchPlaceholder: "Buscar coluna",
@@ -41,21 +68,27 @@ const text = {
     reuseSchema: "Reutilizar o esquema do primeiro arquivo",
     deleteZipAfterExtract: "Excluir ZIP após extrair com sucesso",
     rowsWritten: "linhas gravadas.",
+    progressTitle: "Andamento",
+    progressItem: "Item {index} de {total}",
+    progressArtifactFiltered: "Base filtrada",
+    progressArtifactSummarization: "Sumarização",
+    progressArtifactOutput: "Saída",
+    progressPercentLabel: "{percent}% concluído",
+    progressIndeterminateLabel: "Andamento em execução sem percentual confiável",
     bridgeNotReady: "A ponte com Python ainda não está pronta.",
     bridgeWaiting: "Aguardando a ponte com Python.",
     language: "Idioma",
-    stepFile: "1. Arquivo",
-    stepFilter: "2. Filtro",
-    stepOutput: "3. Saída",
-    stepRun: "4. Gerar",
-    stageOne: "Etapa 1",
-    stageTwo: "Etapa 2",
-    stageThree: "Etapa 3",
-    stageFour: "Etapa 4",
+    stepFile: "Arquivo",
+    stepFilter: "Filtro",
+    stepDerived: "Novas colunas",
+    stepSummarization: "Sumarização",
+    stepOutput: "Saída",
+    stepRun: "Gerar",
+    stepEyebrow: "Etapa {number}",
     chooseFile: "Escolha o arquivo",
-    browseInput: "Procurar arquivo",
-    dropStrong: "Arraste o arquivo aqui",
-    dropHelp: "ou use o botão para procurar no computador.",
+    browseInput: "Escolher arquivo",
+    dropStrong: "Clique ou arraste o arquivo aqui",
+    dropHelp: "Pressione Enter ou Espaço para escolher pelo computador.",
     fileLabel: "Arquivo",
     sizeLabel: "Tamanho",
     columnsLabel: "Colunas",
@@ -75,18 +108,45 @@ const text = {
     advancedFilter: "Filtro avançado",
     checkExpression: "Verificar expressão",
     chooseOutputTitle: "Escolha a saída",
+    chooseOutputFolder: "Escolha a pasta de saída",
     chooseDestination: "Escolher destino",
-    summarize: "Gerar resumo",
-    summaryOnly: "Gerar apenas o resumo",
-    summaryGroupBy: "Agrupar por",
-    summaryTotals: "Somar colunas no resumo",
-    summaryColumnPlaceholder: "Uma coluna por linha",
+    chooseFolder: "Escolher pasta",
+    routeModeTitle: "O que você quer gerar?",
+    routeModeHelp: "Sumarização aqui significa uma análise agrupada com totais, no estilo IDEA.",
+    cleanBase: "Limpar base",
+    cleanBaseHelp: "Filtra e salva a base limpa.",
+    cleanThenSummarization: "Limpar e sumarizar base limpa",
+    cleanThenSummarizationHelp: "Salva a base limpa e também a sumarização agrupada com totais.",
+    summarizationOnly: "Sumarizar bases de entrada",
+    summarizationOnlyHelp: "Gera somente a sumarização agrupada com totais.",
+    summarization: "Gerar sumarização",
+    summarizationOnlyOption: "Gerar apenas a sumarização",
+    summarizationGroupBy: "Agrupar por",
+    summarizationTotals: "Somar colunas na sumarização",
+    summarizationColumnPlaceholder: "Uma coluna por linha",
+    summarizationSetupTitle: "Configure a sumarização",
+    summarizationSetupHelp: "Escolha as colunas de agrupamento e as colunas numéricas que serão totalizadas.",
     format: "Formato",
     formatCsvTitle: "CSV",
     formatExcelTitle: "Excel",
     formatParquetTitle: "Parquet",
-    saveAs: "Salvar em",
-    chooseSavePlaceholder: "Escolha onde salvar",
+    saveAs: "Pasta de destino",
+    saveToFolder: "Pasta de destino",
+    chooseSavePlaceholder: "Escolha uma pasta",
+    chooseFolderPlaceholder: "Escolha uma pasta",
+    outputNamesTitle: "Nomes",
+    cleanupOutputTitle: "Base limpa",
+    cleanupOutputHelp: "Escolha o formato da base filtrada.",
+    summarizationOutputTitle: "Sumarização",
+    summarizationOutputHelp: "Escolha o formato da sumarização agrupada.",
+    generatedOutputNamesTitle: "Nomes dos arquivos",
+    generatedOutputNamesHelp: "Edite apenas o nome base. O formato define a extensão.",
+    outputNameSuffix: "Sufixo da base limpa",
+    outputNameStemPlaceholder: "Nome base",
+    resetOutputNames: "Redefinir nomes gerados",
+    defaultOutputSuffix: "_tratada",
+    summarizationOutputSuffix: "Sufixo da sumarização",
+    defaultSummarizationOutputSuffix: "_sumarizacao",
     derivedColumnsTitle: "Criar novas colunas",
     derivedColumnsHelp: "Opcional: crie colunas limpas a partir das colunas filtradas.",
     addDerivedColumn: "Adicionar coluna",
@@ -108,7 +168,7 @@ const text = {
     positionAfter: "Depois de uma coluna",
     positionTarget: "Coluna de referência",
     newColumn: "Nova coluna",
-    derivedSummaryEmpty: "Escolha uma coluna de origem e uma transformação.",
+    derivedSummaryEmpty: "Escolha a coluna de origem e pelo menos uma ação.",
     derivedSummary: "Criar coluna `{name}` a partir de `{source}`.",
     advancedOptions: "Opções avançadas",
     columnsToSave: "Colunas para salvar",
@@ -142,12 +202,10 @@ const text = {
     opContains: "contém",
     opStartsWith: "começa com",
     opEndsWith: "termina com",
-    opIsNull: "é nulo",
-    opIsNotNull: "não é nulo",
-    opIsEmpty: "é vazio",
-    opIsNotEmpty: "não é vazio",
-    opIsBlank: "é branco",
-    opIsNotBlank: "não é branco",
+    opRegex: "expressão regular",
+    opIsBlank: "é branco ou vazio",
+    opIsNotBlank: "não é branco nem vazio",
+    operatorAriaLabel: "Operador: {symbol}, {meaning}",
     value: "Valor",
     finalValue: "Valor final",
     valueList: "Separe os valores com vírgula",
@@ -207,9 +265,10 @@ const text = {
     done: "Output file created.",
     error: "Something needs attention.",
     chooseCsv: "Choose an input file.",
-    chooseOutput: "Choose where to save the result.",
+    chooseOutput: "Choose a destination folder before continuing.",
+    chooseOutputDirectory: "Choose the destination folder.",
     noColumns: "Choose a file to load columns.",
-    droppedFileNeedsPicker: "Use Browse file so the app can access the full file path.",
+    droppedFileNeedsPicker: "Click the file area to choose from your computer and allow access to the full path.",
     noFile: "No file selected",
     columnsLoaded: "columns loaded.",
     columnSearchPlaceholder: "Search column",
@@ -222,21 +281,27 @@ const text = {
     reuseSchema: "Reuse the first file schema",
     deleteZipAfterExtract: "Delete ZIP after successful extraction",
     rowsWritten: "rows written.",
+    progressTitle: "Progress",
+    progressItem: "Item {index} of {total}",
+    progressArtifactFiltered: "Filtered base",
+    progressArtifactSummarization: "Summarization",
+    progressArtifactOutput: "Output",
+    progressPercentLabel: "{percent}% complete",
+    progressIndeterminateLabel: "Running without a reliable percentage",
     bridgeNotReady: "The Python bridge is not ready yet.",
     bridgeWaiting: "Waiting for the Python bridge.",
     language: "Language",
-    stepFile: "1. File",
-    stepFilter: "2. Filter",
-    stepOutput: "3. Output",
-    stepRun: "4. Create",
-    stageOne: "Step 1",
-    stageTwo: "Step 2",
-    stageThree: "Step 3",
-    stageFour: "Step 4",
+    stepFile: "File",
+    stepFilter: "Filter",
+    stepDerived: "New columns",
+    stepSummarization: "Summarization",
+    stepOutput: "Output",
+    stepRun: "Create",
+    stepEyebrow: "Step {number}",
     chooseFile: "Choose the file",
-    browseInput: "Browse file",
-    dropStrong: "Drop the file here",
-    dropHelp: "or use the button to browse your computer.",
+    browseInput: "Choose file",
+    dropStrong: "Click or drop the file here",
+    dropHelp: "Press Enter or Space to choose from your computer.",
     fileLabel: "File",
     sizeLabel: "Size",
     columnsLabel: "Columns",
@@ -256,18 +321,45 @@ const text = {
     advancedFilter: "Advanced filter",
     checkExpression: "Check expression",
     chooseOutputTitle: "Choose the output",
+    chooseOutputFolder: "Choose the output folder",
     chooseDestination: "Choose destination",
-    summarize: "Generate summary",
-    summaryOnly: "Generate only summary",
-    summaryGroupBy: "Group by",
-    summaryTotals: "Sum columns in summary",
-    summaryColumnPlaceholder: "One column per line",
+    chooseFolder: "Choose folder",
+    routeModeTitle: "What do you want to create?",
+    routeModeHelp: "Summarization means IDEA-style grouped data analysis with totals.",
+    cleanBase: "Clean base",
+    cleanBaseHelp: "Filter and save the clean base.",
+    cleanThenSummarization: "Clean, then run summarization",
+    cleanThenSummarizationHelp: "Save the clean base and the grouped summarization with totals.",
+    summarizationOnly: "Run summarization only",
+    summarizationOnlyHelp: "Create only the grouped summarization with totals.",
+    summarization: "Generate summarization",
+    summarizationOnlyOption: "Generate only summarization",
+    summarizationGroupBy: "Group by",
+    summarizationTotals: "Sum columns in summarization",
+    summarizationColumnPlaceholder: "One column per line",
+    summarizationSetupTitle: "Configure summarization",
+    summarizationSetupHelp: "Choose grouping columns and numeric columns to total.",
     format: "Format",
     formatCsvTitle: "CSV",
     formatExcelTitle: "Excel",
     formatParquetTitle: "Parquet",
-    saveAs: "Save as",
-    chooseSavePlaceholder: "Choose where to save",
+    saveAs: "Destination folder",
+    saveToFolder: "Destination folder",
+    chooseSavePlaceholder: "Choose a folder",
+    chooseFolderPlaceholder: "Choose a folder",
+    outputNamesTitle: "Names",
+    cleanupOutputTitle: "Cleaned base",
+    cleanupOutputHelp: "Choose the filtered base format.",
+    summarizationOutputTitle: "Summarization",
+    summarizationOutputHelp: "Choose the grouped summarization format.",
+    generatedOutputNamesTitle: "File names",
+    generatedOutputNamesHelp: "Edit only the base name. The format controls the extension.",
+    outputNameSuffix: "Cleaned base suffix",
+    outputNameStemPlaceholder: "Base name",
+    resetOutputNames: "Reset generated names",
+    defaultOutputSuffix: "_treated",
+    summarizationOutputSuffix: "Summarization suffix",
+    defaultSummarizationOutputSuffix: "_summarization",
     derivedColumnsTitle: "Create new columns",
     derivedColumnsHelp: "Optional: create cleaned columns from filtered columns.",
     addDerivedColumn: "Add column",
@@ -289,7 +381,7 @@ const text = {
     positionAfter: "After a column",
     positionTarget: "Reference column",
     newColumn: "New column",
-    derivedSummaryEmpty: "Choose a source column and a transformation.",
+    derivedSummaryEmpty: "Choose the source column and at least one action.",
     derivedSummary: "Create column `{name}` from `{source}`.",
     advancedOptions: "Advanced options",
     columnsToSave: "Columns to save",
@@ -323,12 +415,10 @@ const text = {
     opContains: "contains",
     opStartsWith: "starts with",
     opEndsWith: "ends with",
-    opIsNull: "is null",
-    opIsNotNull: "is not null",
-    opIsEmpty: "is empty",
-    opIsNotEmpty: "is not empty",
-    opIsBlank: "is blank",
-    opIsNotBlank: "is not blank",
+    opRegex: "regular expression",
+    opIsBlank: "is blank or empty",
+    opIsNotBlank: "is not blank or empty",
+    operatorAriaLabel: "Operator: {symbol}, {meaning}",
     value: "Value",
     finalValue: "Final value",
     valueList: "Separate values with commas",
@@ -386,6 +476,39 @@ function t(key) {
 
 function byId(id) {
   return document.getElementById(id);
+}
+
+function numberedStepLabel(number, key) {
+  return `${number}. ${t(key)}`;
+}
+
+function stepEyebrowLabel(number) {
+  return t("stepEyebrow").replace("{number}", String(number));
+}
+
+function updateVisibleStepNumbers() {
+  const visibleLinks = [];
+  Array.from(document.querySelectorAll("[data-workflow-step]"))
+    .filter((step) => !step.classList.contains("hidden"))
+    .forEach((step, index) => {
+      const number = index + 1;
+      const link = document.querySelector(`.step-link[href="#${step.id}"]`);
+      const eyebrow = step.querySelector("[data-step-eyebrow]");
+      if (link) {
+        link.textContent = numberedStepLabel(number, link.dataset.stepLabelKey);
+        visibleLinks.push(link);
+      }
+      if (eyebrow) {
+        eyebrow.textContent = stepEyebrowLabel(number);
+      }
+    });
+  const activeLink = document.querySelector(".step-link.active");
+  if (activeLink && activeLink.classList.contains("hidden")) {
+    activeLink.classList.remove("active");
+  }
+  if (!visibleLinks.some((link) => link.classList.contains("active")) && visibleLinks[0]) {
+    visibleLinks[0].classList.add("active");
+  }
 }
 
 function setStatus(title, detail, variant = "idle") {
@@ -473,6 +596,7 @@ function createBrowserFallbackApi() {
     },
     choose_input_files: bridgeUnavailableResponse,
     choose_output_file: bridgeUnavailableResponse,
+    choose_output_directory: bridgeUnavailableResponse,
     choose_report_file: bridgeUnavailableResponse,
     choose_rejects_file: bridgeUnavailableResponse,
     save_config: bridgeUnavailableResponse,
@@ -499,9 +623,11 @@ function setInputPaths(paths) {
   state.inputPaths = (paths || []).filter(Boolean);
   state.inputPath = state.inputPaths[0] || "";
   state.outputNames = [];
+  state.outputNameTouchedIndexes = new Set();
   state.resolvedInputs = [];
   byId("inputPathText").textContent = state.inputPath || t("noFile");
   renderQueue();
+  renderOutputNames();
   showInputWarnings([]);
 }
 
@@ -524,10 +650,14 @@ function applyLanguage() {
     byId("inputPathText").textContent = t("noFile");
   }
   document.querySelectorAll(".filter-column").forEach((input) => updateColumnOptions(input));
+  document.querySelectorAll(".filter-row").forEach(updateOperatorPicker);
   document.querySelectorAll(".derived-transform-row").forEach(updateTransformRow);
   document.querySelectorAll(".derived-column-card").forEach(updateDerivedCard);
+  refreshOutputNameDefaults();
+  syncSummarizationOutputSuffixField();
   updateFilterHint();
-  updateSummaryMode();
+  updateSummarizationMode();
+  refreshSummarizationColumnPickers();
   updateDerivedEmptyState();
 }
 
@@ -536,26 +666,42 @@ function updateFilterHint() {
   byId("noFilterHint").classList.toggle("hidden", hasActiveRules);
 }
 
-function updateSummaryMode() {
-  const summarize = byId("summarizeInput").checked;
-  const summaryOnlyInput = byId("summaryOnlyInput");
-  const summaryFields = byId("summaryFields");
-  if (!summarize) {
-    summaryOnlyInput.checked = false;
-    summaryFields.classList.add("hidden");
-  } else {
-    summaryFields.classList.remove("hidden");
-  }
-  summaryOnlyInput.disabled = !summarize;
-  Array.from(summaryFields.querySelectorAll("input, textarea")).forEach((field) => {
+function updateSummarizationMode() {
+  const mode = routeMode();
+  const summarize = mode !== "cleanBase";
+  const cleanup = mode !== "summarizationOnly";
+  const summarizationSection = byId("step-summarization");
+  document.querySelectorAll(".route-card").forEach((card) => {
+    const input = card.querySelector('input[name="routeMode"]');
+    card.classList.toggle("active", input.checked);
+  });
+  summarizationSection.classList.toggle("hidden", !summarize);
+  document.querySelectorAll(".summarization-only-section").forEach((element) => {
+    element.classList.toggle("hidden", !summarize);
+  });
+  document.querySelectorAll(".cleanup-only-section, .cleanup-option").forEach((element) => {
+    element.classList.toggle("hidden", !cleanup);
+  });
+  Array.from(summarizationSection.querySelectorAll("input")).forEach((field) => {
     field.disabled = !summarize;
   });
+  document.querySelectorAll("#step-filter input, #step-filter select, #step-filter textarea, #step-filter button, .derived-section input, .derived-section select, .derived-section textarea, .derived-section button, .cleanup-option input, .cleanup-option select, .cleanup-option textarea").forEach((field) => {
+    field.disabled = !cleanup;
+  });
+  updateVisibleStepNumbers();
+}
+
+function routeMode() {
+  const mode = document.querySelector('input[name="routeMode"]:checked')?.value;
+  return ["cleanBase", "cleanThenSummarization", "summarizationOnly"].includes(mode) ? mode : "cleanBase";
 }
 
 function setColumns(columns) {
   state.columns = columns || [];
   byId("columnCountText").textContent = state.columns.length ? String(state.columns.length) : "-";
   document.querySelectorAll(".filter-column").forEach((input) => updateColumnOptions(input));
+  updateSummarizationMode();
+  refreshSummarizationColumnPickers();
 }
 
 function renderQueue(inputs = state.resolvedInputs) {
@@ -578,20 +724,189 @@ function renderQueue(inputs = state.resolvedInputs) {
     title.textContent = `${index + 1}. ${label}`;
     const metaText = document.createElement("span");
     metaText.textContent = meta;
-    const outputLabel = document.createElement("label");
-    outputLabel.className = "queue-output-name";
-    const outputLabelText = document.createElement("span");
-    outputLabelText.textContent = t("outputName");
-    const outputInput = document.createElement("input");
-    outputInput.type = "text";
-    outputInput.value = state.outputNames[index] || item.output_name || "";
-    outputInput.placeholder = t("outputNamePlaceholder");
-    outputInput.addEventListener("input", () => {
-      state.outputNames[index] = outputInput.value;
-    });
-    outputLabel.append(outputLabelText, outputInput);
-    row.append(title, metaText, outputLabel);
+    row.append(title, metaText);
     list.appendChild(row);
+  });
+  panel.classList.remove("hidden");
+}
+
+function outputItems(inputs = state.resolvedInputs) {
+  return inputs && inputs.length ? inputs : state.inputPaths.map((path) => ({ label: path, format: "" }));
+}
+
+function extensionForFormat(format) {
+  const suffixes = { csv: ".csv", xlsx: ".xlsx", parquet: ".parquet" };
+  return suffixes[format] || ".csv";
+}
+
+function outputExtension() {
+  return extensionForFormat(byId("formatSelect")?.value || "csv");
+}
+
+function summaryOutputExtension() {
+  return extensionForFormat(byId("summaryFormatSelect")?.value || "xlsx");
+}
+
+function outputNameExtension() {
+  return routeMode() === "summarizationOnly" ? summaryOutputExtension() : outputExtension();
+}
+
+function outputStemFromPath(path) {
+  const leaf = String(path || "").split(/[\\/]/).filter(Boolean).pop() || "input";
+  return leaf.replace(/\.(csv|xlsx|parquet|pq)$/i, "");
+}
+
+function safeOutputStem(value) {
+  const withoutExtension = String(value || "").trim().replace(/\.(csv|xlsx|parquet)$/i, "");
+  let safe = withoutExtension.replace(/[^A-Za-z0-9._-]+/g, "_").replace(/^[._-]+|[._-]+$/g, "");
+  if (!safe) {
+    safe = "input";
+  }
+  const reservedStem = safe.split(".")[0].toUpperCase();
+  if (["CON", "PRN", "AUX", "NUL", "COM1", "COM2", "COM3", "COM4", "COM5", "COM6", "COM7", "COM8", "COM9", "LPT1", "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9"].includes(reservedStem)) {
+    safe = `input_${safe}`;
+  }
+  return safe;
+}
+
+function outputNameStemValue(value) {
+  const text = String(value || "").trim();
+  return text ? safeOutputStem(text) : "";
+}
+
+function outputBaseStem(item) {
+  const source = item.display_name || outputStemFromPath(item.label || item.source_path || item.path);
+  return safeOutputStem(item.excel_sheet ? `${source}_${item.excel_sheet}` : source);
+}
+
+function defaultOutputNames(items = outputItems()) {
+  const suffix = routeMode() === "summarizationOnly"
+    ? summarizationOutputSuffixValue()
+    : state.outputNameSuffix || t("defaultOutputSuffix");
+  const used = new Set();
+  return items.map((item) => {
+    const base = safeOutputStem(`${outputBaseStem(item)}${suffix}`);
+    let candidate = base;
+    let counter = 2;
+    while (used.has(candidate.toLowerCase())) {
+      candidate = `${base}_${String(counter).padStart(3, "0")}`;
+      counter += 1;
+    }
+    used.add(candidate.toLowerCase());
+    return candidate;
+  });
+}
+
+function syncOutputSuffixField() {
+  const suffixInput = byId("outputNameSuffixInput");
+  if (suffixInput) {
+    suffixInput.value = state.outputNameSuffix || t("defaultOutputSuffix");
+    suffixInput.placeholder = t("defaultOutputSuffix");
+  }
+}
+
+function summarizationOutputSuffixValue() {
+  const value = (state.summarizationOutputSuffix || t("defaultSummarizationOutputSuffix")).trim();
+  return value || t("defaultSummarizationOutputSuffix");
+}
+
+function syncSummarizationOutputSuffixField() {
+  const suffixInput = byId("summarizationOutputSuffixInput");
+  if (suffixInput) {
+    suffixInput.value = state.summarizationOutputSuffix || t("defaultSummarizationOutputSuffix");
+    suffixInput.placeholder = t("defaultSummarizationOutputSuffix");
+  }
+}
+
+function refreshOutputNameDefaults(inputs = outputItems(), options = {}) {
+  if (!inputs.length) {
+    return;
+  }
+  if (options.resetSuffix || !state.outputNameSuffixTouched) {
+    state.outputNameSuffix = t("defaultOutputSuffix");
+  }
+  syncOutputSuffixField();
+  const defaults = defaultOutputNames(inputs);
+  state.outputNames = defaults.map((name, index) => {
+    if (options.resetNames || !state.outputNameTouchedIndexes.has(index)) {
+      return name;
+    }
+    return outputNameStemValue(state.outputNames[index]) || name;
+  });
+  state.outputNames.length = inputs.length;
+  state.outputNameTouchedIndexes = new Set(
+    Array.from(state.outputNameTouchedIndexes).filter((index) => index < inputs.length),
+  );
+}
+
+function resetOutputNamesToDefaults() {
+  state.outputNameSuffixTouched = false;
+  state.summarizationOutputSuffixTouched = false;
+  state.summarizationOutputSuffix = t("defaultSummarizationOutputSuffix");
+  state.outputNameTouchedIndexes = new Set();
+  refreshOutputNameDefaults(outputItems(), { resetNames: true, resetSuffix: true });
+  syncSummarizationOutputSuffixField();
+  renderOutputNames();
+}
+
+function outputNamePreview(stem) {
+  const mode = routeMode();
+  if (mode === "summarizationOnly") {
+    return `${t("summarizationOutputTitle")}: ${stem}${summaryOutputExtension()}`;
+  }
+  const cleanupName = `${stem}${outputExtension()}`;
+  if (mode === "cleanThenSummarization") {
+    const summaryStem = safeOutputStem(`${stem}${summarizationOutputSuffixValue()}`);
+    return `${t("cleanupOutputTitle")}: ${cleanupName} · ${t("summarizationOutputTitle")}: ${summaryStem}${summaryOutputExtension()}`;
+  }
+  return `${t("cleanupOutputTitle")}: ${cleanupName}`;
+}
+
+function renderOutputNames(inputs = state.resolvedInputs) {
+  const panel = byId("outputNamesPanel");
+  const list = byId("outputNamesList");
+  const items = inputs && inputs.length ? inputs : state.inputPaths.map((path) => ({ label: path, format: "" }));
+  list.innerHTML = "";
+  if (!items.length) {
+    panel.classList.add("hidden");
+    return;
+  }
+  refreshOutputNameDefaults(items);
+  const extension = outputNameExtension();
+  items.forEach((item, index) => {
+    const label = document.createElement("label");
+    label.className = "queue-output-name";
+    const labelText = document.createElement("span");
+    labelText.className = "output-source-label";
+    labelText.textContent = `${index + 1}. ${item.label || item.display_name || item.source_path || item.path}`;
+    const editor = document.createElement("div");
+    editor.className = "output-name-editor";
+    const input = document.createElement("input");
+    input.type = "text";
+    input.value = outputNameStemValue(state.outputNames[index] || item.output_name || "");
+    input.placeholder = t("outputNameStemPlaceholder");
+    const extensionBadge = document.createElement("span");
+    extensionBadge.className = "output-extension-badge";
+    extensionBadge.textContent = extension;
+    const preview = document.createElement("span");
+    preview.className = "output-name-preview";
+    preview.textContent = outputNamePreview(input.value);
+    input.addEventListener("input", () => {
+      const rawValue = input.value;
+      const withoutExtension = rawValue.replace(/\.(csv|xlsx|parquet)$/i, "");
+      const extensionWasTyped = withoutExtension !== rawValue;
+      const storedValue = extensionWasTyped ? outputNameStemValue(withoutExtension) : withoutExtension;
+      if (extensionWasTyped) {
+        input.value = storedValue;
+      }
+      state.outputNames[index] = storedValue;
+      state.outputNameTouchedIndexes.add(index);
+      preview.textContent = outputNamePreview(outputNameStemValue(storedValue));
+      normalizeDestinationForOutputNames();
+    });
+    editor.append(input, extensionBadge);
+    label.append(labelText, editor, preview);
+    list.appendChild(label);
   });
   panel.classList.remove("hidden");
 }
@@ -621,14 +936,14 @@ function prepareColumnSearch(input) {
   }
 }
 
-function updateColumnOptions(input) {
+function updateColumnOptions(input, columns = state.columns) {
   prepareColumnSearch(input);
   const suggestions = input.parentElement.querySelector(".filter-column-suggestions");
   const current = input.value;
   suggestions.innerHTML = "";
   input.dataset.activeIndex = "-1";
   input.removeAttribute("aria-activedescendant");
-  if (!state.columns.length) {
+  if (!columns.length) {
     input.disabled = true;
     input.placeholder = t("noColumns");
     closeColumnSuggestions(input);
@@ -637,7 +952,7 @@ function updateColumnOptions(input) {
 
   input.disabled = false;
   input.placeholder = t("columnSearchPlaceholder");
-  rankedColumns(current).forEach((column) => {
+  rankedColumns(current, columns).forEach((column) => {
     const option = document.createElement("button");
     option.type = "button";
     option.className = "column-suggestion";
@@ -722,6 +1037,24 @@ function chooseFirstColumnSuggestion(input) {
   return true;
 }
 
+function bindEnterFlow(column, onAccept = () => {}) {
+  column.addEventListener("keydown", (event) => {
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      moveColumnSuggestion(column, 1);
+    } else if (event.key === "ArrowUp") {
+      event.preventDefault();
+      moveColumnSuggestion(column, -1);
+    } else if (event.key === "Enter") {
+      event.preventDefault();
+      chooseActiveColumnSuggestion(column) || chooseFirstColumnSuggestion(column);
+      onAccept(column);
+    } else if (event.key === "Escape") {
+      closeColumnSuggestions(column);
+    }
+  });
+}
+
 function normalizeForSearch(value) {
   return String(value)
     .normalize("NFD")
@@ -779,8 +1112,8 @@ function fuzzyScore(candidate, query) {
   return Number.NEGATIVE_INFINITY;
 }
 
-function rankedColumns(query) {
-  return state.columns
+function rankedColumns(query, columns = state.columns) {
+  return columns
     .map((column, index) => ({ column, index, score: fuzzyScore(column, query) }))
     .filter((item) => item.score > Number.NEGATIVE_INFINITY)
     .sort((left, right) => right.score - left.score || left.index - right.index)
@@ -799,6 +1132,15 @@ function updateFilterRow(row) {
   value.classList.toggle("hidden", noValue);
   value2.classList.toggle("hidden", !between || noValue);
   value.placeholder = operator === "in" || operator === "not_in" ? t("valueList") : t("value");
+}
+
+function filterOperatorNeedsValue(operator) {
+  return !["is_null", "is_not_null", "is_empty", "is_not_empty", "is_blank", "is_not_blank"].includes(operator);
+}
+
+function addFilterRowAndFocus() {
+  const row = addFilterRow();
+  row.querySelector(".filter-column").focus();
 }
 
 function visualConditionIsComplete(row) {
@@ -838,11 +1180,166 @@ function inferredTypeForCondition(operator, value) {
   return "string";
 }
 
+function operatorOption(operator) {
+  return FILTER_OPERATOR_OPTIONS.find((option) => option.id === operator) || FILTER_OPERATOR_OPTIONS[0];
+}
+
+function operatorLabel(option) {
+  return t(option.labelKey);
+}
+
+function operatorAriaLabel(option) {
+  return t("operatorAriaLabel")
+    .replace("{symbol}", option.symbol)
+    .replace("{meaning}", operatorLabel(option));
+}
+
+function renderOperatorOptions(row) {
+  const menu = row.querySelector(".operator-menu");
+  const operator = row.querySelector(".filter-operator");
+  menu.innerHTML = "";
+  FILTER_OPERATOR_OPTIONS.forEach((option) => {
+    const item = document.createElement("button");
+    const symbol = document.createElement("span");
+    item.type = "button";
+    item.className = "operator-option";
+    item.dataset.operator = option.id;
+    item.setAttribute("role", "option");
+    item.setAttribute("aria-selected", String(operator.value === option.id));
+    item.setAttribute("aria-label", operatorAriaLabel(option));
+    item.title = operatorLabel(option);
+    symbol.className = "operator-option-symbol";
+    symbol.textContent = option.symbol;
+    item.append(symbol);
+    item.addEventListener("click", () => chooseOperator(row, option.id));
+    menu.appendChild(item);
+  });
+}
+
+function updateOperatorPicker(row) {
+  const operator = row.querySelector(".filter-operator");
+  const trigger = row.querySelector(".operator-trigger");
+  const symbol = row.querySelector(".operator-symbol");
+  const label = row.querySelector(".operator-trigger-label");
+  const menu = row.querySelector(".operator-menu");
+  const option = operatorOption(operator.value);
+  symbol.textContent = option.symbol;
+  label.textContent = option.symbol;
+  trigger.setAttribute("aria-label", operatorAriaLabel(option));
+  trigger.title = operatorLabel(option);
+  renderOperatorOptions(row);
+  if (menu.classList.contains("hidden")) {
+    trigger.setAttribute("aria-expanded", "false");
+  }
+}
+
+function closeOperatorPicker(row) {
+  const trigger = row.querySelector(".operator-trigger");
+  const menu = row.querySelector(".operator-menu");
+  menu.classList.add("hidden");
+  trigger.setAttribute("aria-expanded", "false");
+}
+
+function closeOtherOperatorPickers(row) {
+  document.querySelectorAll(".filter-row").forEach((otherRow) => {
+    if (otherRow !== row) {
+      closeOperatorPicker(otherRow);
+    }
+  });
+}
+
+function selectedOperatorButton(row) {
+  const operator = row.querySelector(".filter-operator").value;
+  return row.querySelector(`.operator-option[data-operator="${operator}"]`) || row.querySelector(".operator-option");
+}
+
+function moveOperatorFocus(row, step) {
+  const options = Array.from(row.querySelectorAll(".operator-option"));
+  const currentIndex = Math.max(0, options.indexOf(document.activeElement));
+  const nextIndex = (currentIndex + step + options.length) % options.length;
+  options[nextIndex].focus();
+}
+
+function openOperatorPicker(row, focusSelected = true) {
+  const trigger = row.querySelector(".operator-trigger");
+  const menu = row.querySelector(".operator-menu");
+  closeOtherOperatorPickers(row);
+  renderOperatorOptions(row);
+  menu.classList.remove("hidden");
+  trigger.setAttribute("aria-expanded", "true");
+  if (focusSelected) {
+    selectedOperatorButton(row).focus();
+  }
+}
+
+function chooseOperator(row, operatorId) {
+  const operator = row.querySelector(".filter-operator");
+  operator.value = operatorId;
+  updateOperatorPicker(row);
+  closeOperatorPicker(row);
+  operator.dispatchEvent(new Event("change", { bubbles: true }));
+  row.querySelector(".operator-trigger").focus();
+}
+
+function bindOperatorPicker(row) {
+  const pickerId = `operator-menu-${++state.operatorPickerId}`;
+  const trigger = row.querySelector(".operator-trigger");
+  const menu = row.querySelector(".operator-menu");
+  menu.id = pickerId;
+  menu.setAttribute("role", "listbox");
+  trigger.setAttribute("aria-controls", pickerId);
+  trigger.addEventListener("click", () => openOperatorPicker(row));
+  trigger.addEventListener("keydown", (event) => {
+    if (event.key === "ArrowDown" || event.key === "ArrowUp" || event.key === " ") {
+      event.preventDefault();
+      openOperatorPicker(row);
+      if (event.key === "ArrowUp") {
+        moveOperatorFocus(row, -1);
+      }
+      return;
+    }
+    if (event.key !== "Enter") {
+      return;
+    }
+    event.preventDefault();
+    if (filterOperatorNeedsValue(row.querySelector(".filter-operator").value)) {
+      row.querySelector(".filter-value").focus();
+    } else {
+      addFilterRowAndFocus();
+    }
+  });
+  menu.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      closeOperatorPicker(row);
+      trigger.focus();
+      return;
+    }
+    if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+      event.preventDefault();
+      moveOperatorFocus(row, event.key === "ArrowDown" ? 1 : -1);
+      return;
+    }
+    if (event.key === "Home" || event.key === "End") {
+      event.preventDefault();
+      const options = row.querySelectorAll(".operator-option");
+      options[event.key === "Home" ? 0 : options.length - 1].focus();
+      return;
+    }
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      chooseOperator(row, document.activeElement.dataset.operator);
+    }
+  });
+  updateOperatorPicker(row);
+}
+
 function addFilterRow(initial = {}) {
   const template = byId("filterRowTemplate");
   const row = template.content.firstElementChild.cloneNode(true);
   const column = row.querySelector(".filter-column");
   const operator = row.querySelector(".filter-operator");
+  const operatorButton = row.querySelector(".operator-trigger");
   const value = row.querySelector(".filter-value");
   const value2 = row.querySelector(".filter-value2");
 
@@ -852,28 +1349,16 @@ function addFilterRow(initial = {}) {
   if (initial.operator) operator.value = initial.operator;
   if (initial.value) value.value = initial.value;
   if (initial.value2) value2.value = initial.value2;
+  bindOperatorPicker(row);
 
   column.addEventListener("focus", () => updateColumnOptions(column));
   column.addEventListener("input", () => {
     updateColumnOptions(column);
     updateFilterHint();
   });
-  column.addEventListener("keydown", (event) => {
-    if (event.key === "ArrowDown") {
-      event.preventDefault();
-      moveColumnSuggestion(column, 1);
-    } else if (event.key === "ArrowUp") {
-      event.preventDefault();
-      moveColumnSuggestion(column, -1);
-    } else if (event.key === "Enter") {
-      event.preventDefault();
-      chooseActiveColumnSuggestion(column) || chooseFirstColumnSuggestion(column);
-    } else if (event.key === "Tab") {
-      event.preventDefault();
-      moveColumnSuggestion(column, event.shiftKey ? -1 : 1);
-    } else if (event.key === "Escape") {
-      closeColumnSuggestions(column);
-    }
+  bindEnterFlow(column, () => {
+    updateFilterHint();
+    operatorButton.focus();
   });
   column.addEventListener("blur", () => {
     setTimeout(() => closeColumnSuggestions(column), 120);
@@ -885,6 +1370,23 @@ function addFilterRow(initial = {}) {
   });
   value.addEventListener("input", updateFilterHint);
   value2.addEventListener("input", updateFilterHint);
+  value.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter") {
+      return;
+    }
+    event.preventDefault();
+    if (operator.value === "between" && value.value.trim()) {
+      value2.focus();
+    } else if (visualConditionIsComplete(row)) {
+      addFilterRowAndFocus();
+    }
+  });
+  value2.addEventListener("keydown", (event) => {
+    if (event.key === "Enter" && visualConditionIsComplete(row)) {
+      event.preventDefault();
+      addFilterRowAndFocus();
+    }
+  });
   row.querySelector(".remove-filter").addEventListener("click", () => {
     row.remove();
     updateFilterHint();
@@ -893,6 +1395,7 @@ function addFilterRow(initial = {}) {
   applyLanguage();
   updateFilterRow(row);
   updateFilterHint();
+  return row;
 }
 
 function visualConditions() {
@@ -935,6 +1438,47 @@ function visualDerivedColumns() {
   });
 }
 
+function uniqueColumnNames(columns) {
+  const seen = new Set();
+  return columns.filter((column) => {
+    const name = String(column || "").trim();
+    if (!name || seen.has(name)) {
+      return false;
+    }
+    seen.add(name);
+    return true;
+  });
+}
+
+function projectedOutputColumns() {
+  const renames = new Map(
+    linesFromTextarea("renamesInput")
+      .map((item) => {
+        const separator = item.indexOf("=");
+        if (separator < 0) {
+          return [item.trim(), ""];
+        }
+        return [item.slice(0, separator).trim(), item.slice(separator + 1).trim()];
+      })
+      .filter(([source, output]) => source && output),
+  );
+  const selected = linesFromTextarea("selectColumnsInput");
+  const baseColumns = selected.length ? selected : state.columns;
+  return baseColumns.map((column) => renames.get(column) || column);
+}
+
+function derivedOutputNames() {
+  return uniqueColumnNames(
+    visualDerivedColumns()
+      .filter((column) => column.source)
+      .map((column) => formatDerivedName(column.source, column.name.prefix, column.name.suffix, column.name.separator)),
+  );
+}
+
+function summaryColumnCandidates() {
+  return uniqueColumnNames([...state.columns, ...projectedOutputColumns(), ...derivedOutputNames()]);
+}
+
 function transformPayload(row) {
   const operation = row.querySelector(".derived-transform-operation").value;
   const value = row.querySelector(".derived-transform-value").value;
@@ -956,7 +1500,45 @@ function transformPayload(row) {
 
 function outputNameItems() {
   const count = (state.resolvedInputs && state.resolvedInputs.length) || state.inputPaths.length;
-  return Array.from({ length: count }, (_item, index) => (state.outputNames[index] || "").trim());
+  refreshOutputNameDefaults(outputItems());
+  const extension = outputNameExtension();
+  return Array.from({ length: count }, (_item, index) => {
+    const stem = outputNameStemValue(state.outputNames[index] || "");
+    return stem ? `${stem}${extension}` : "";
+  });
+}
+
+function hasOutputNames() {
+  return outputNameItems().some(Boolean);
+}
+
+function normalizeDestinationForOutputNames() {
+  if (!hasOutputNames()) {
+    return;
+  }
+  const path = byId("outputPathInput").value.trim();
+  if (!/\.(csv|xlsx|parquet)$/i.test(path)) {
+    return;
+  }
+  const separatorIndex = Math.max(path.lastIndexOf("\\"), path.lastIndexOf("/"));
+  if (separatorIndex >= 0) {
+    setOutputPath(path.slice(0, separatorIndex));
+  }
+}
+
+function defaultFormatForCurrentInput() {
+  const resolvedFormat = state.resolvedInputs[0]?.format;
+  if (["csv", "xlsx", "parquet"].includes(resolvedFormat)) {
+    return resolvedFormat;
+  }
+  const source = (state.resolvedInputs[0]?.source_path || state.inputPath || "").toLowerCase();
+  if (source.endsWith(".xlsx")) {
+    return "xlsx";
+  }
+  if (source.endsWith(".parquet") || source.endsWith(".pq")) {
+    return "parquet";
+  }
+  return "csv";
 }
 
 function addDerivedColumn(initial = {}) {
@@ -976,6 +1558,7 @@ function addDerivedColumn(initial = {}) {
   card.querySelector(".remove-derived-column").addEventListener("click", () => {
     card.remove();
     updateDerivedEmptyState();
+    refreshSummarizationColumnPickers();
   });
   card.querySelector(".add-derived-transform").addEventListener("click", () => addDerivedTransform(card));
   card.querySelectorAll(".derived-prefix, .derived-suffix, .derived-separator, .derived-position-mode").forEach((input) => {
@@ -1068,6 +1651,7 @@ function updateDerivedCard(card) {
   card.querySelector(".derived-summary").textContent = transformLabels.length
     ? `${summary} ${transformLabels.join(", ")}.`
     : summary;
+  refreshSummarizationColumnPickers();
 }
 
 function updateDerivedEmptyState() {
@@ -1082,56 +1666,109 @@ function bindColumnSearchInput(input, onChange) {
     updateColumnOptions(input);
     onChange();
   });
-  input.addEventListener("keydown", (event) => {
-    if (event.key === "ArrowDown") {
-      event.preventDefault();
-      moveColumnSuggestion(input, 1);
-    } else if (event.key === "ArrowUp") {
-      event.preventDefault();
-      moveColumnSuggestion(input, -1);
-    } else if (event.key === "Enter") {
-      event.preventDefault();
-      chooseActiveColumnSuggestion(input) || chooseFirstColumnSuggestion(input);
-      onChange();
-    } else if (event.key === "Tab") {
-      event.preventDefault();
-      moveColumnSuggestion(input, event.shiftKey ? -1 : 1);
-    } else if (event.key === "Escape") {
-      closeColumnSuggestions(input);
-    }
-  });
+  bindEnterFlow(input, onChange);
   input.addEventListener("blur", () => {
     setTimeout(() => closeColumnSuggestions(input), 120);
   });
   input.addEventListener("change", onChange);
 }
 
+function selectedColumnPickerValues(id) {
+  return Array.from(byId(id).querySelectorAll(".summarization-picker-chip")).map((chip) => chip.dataset.value).filter(Boolean);
+}
+
+function removeUnavailableSummarizationChips(container, candidates) {
+  container.querySelectorAll(".summarization-picker-chip").forEach((chip) => {
+    if (!candidates.has(chip.dataset.value)) {
+      chip.remove();
+    }
+  });
+}
+
+function updateSummaryColumnOptions(input) {
+  updateColumnOptions(input, summaryColumnCandidates());
+  if (routeMode() === "cleanBase") {
+    input.disabled = true;
+    closeColumnSuggestions(input);
+  }
+}
+
+function refreshSummarizationColumnPickers() {
+  ["summarizationGroupByInput", "summarizationTotalsInput"].forEach((id) => {
+    const container = byId(id);
+    const candidates = new Set(summaryColumnCandidates());
+    removeUnavailableSummarizationChips(container, candidates);
+    updateSummaryColumnOptions(container.querySelector(".summarization-column-input"));
+  });
+}
+
+function addSummarizationColumn(container, input) {
+  const value = input.value.trim();
+  const candidates = new Set(summaryColumnCandidates());
+  if (!value || !candidates.has(value) || selectedColumnPickerValues(container.id).includes(value)) {
+    input.value = "";
+    updateSummaryColumnOptions(input);
+    return;
+  }
+  const chip = document.createElement("button");
+  chip.type = "button";
+  chip.className = "summarization-picker-chip";
+  chip.dataset.value = value;
+  chip.textContent = value;
+  chip.title = value;
+  chip.addEventListener("click", () => chip.remove());
+  container.querySelector(".summarization-picker-chips").appendChild(chip);
+  input.value = "";
+  updateSummaryColumnOptions(input);
+}
+
+function bindSummarizationColumnPicker(id) {
+  const container = byId(id);
+  const input = container.querySelector(".summarization-column-input");
+  prepareColumnSearch(input);
+  updateSummaryColumnOptions(input);
+  input.addEventListener("focus", () => updateSummaryColumnOptions(input));
+  input.addEventListener("input", () => updateSummaryColumnOptions(input));
+  bindEnterFlow(input, () => addSummarizationColumn(container, input));
+  input.addEventListener("blur", () => {
+    setTimeout(() => closeColumnSuggestions(input), 120);
+  });
+  input.addEventListener("change", () => addSummarizationColumn(container, input));
+}
+
 function payload() {
+  refreshSummarizationColumnPickers();
+  normalizeDestinationForOutputNames();
   const format = byId("formatSelect").value;
   const rawFilter = byId("rawFilterInput").value.trim();
-  const summarize = byId("summarizeInput").checked;
-  const summaryOnly = byId("summaryOnlyInput").checked && summarize;
+  const mode = routeMode();
+  const summarize = mode === "cleanThenSummarization" || mode === "summarizationOnly";
+  const summaryOnly = mode === "summarizationOnly";
+  const cleanup = mode !== "summarizationOnly";
   const nullValue = byId("nullValueInput").value;
-  return {
+  const data = {
     input_path: state.inputPath,
     input_paths: state.inputPaths,
     output_path: byId("outputPathInput").value.trim(),
-    output_format: format,
     output_names: outputNameItems(),
-    summarize,
-    summary_only: summaryOnly,
-    summary_group_by: linesFromTextarea("summaryGroupByInput"),
-    summary_totals: linesFromTextarea("summaryTotalsInput"),
+    avoid_existing_output_paths: true,
+    summarization: summarize,
+    summarization_only: summaryOnly,
+    summarization_group_by: summarize ? selectedColumnPickerValues("summarizationGroupByInput") : [],
+    summarization_totals: summarize ? selectedColumnPickerValues("summarizationTotalsInput") : [],
+    summarization_output_suffix: summarize ? summarizationOutputSuffixValue() : "",
+    summarization_output_format: summarize ? byId("summaryFormatSelect").value : "",
     filters:
-      state.filterMode === "advanced"
+      !cleanup
+        ? { mode: "visual", combine: "and", conditions: [] }
+        : state.filterMode === "advanced"
         ? { mode: "raw", raw: rawFilter }
         : { mode: "visual", combine: byId("combineSelect").value, conditions: visualConditions() },
-    select: linesFromTextarea("selectColumnsInput"),
-    derived_columns: visualDerivedColumns(),
-    renames: linesFromTextarea("renamesInput"),
-    dedupe: byId("dedupeInput").checked,
-    dedupe_keys: linesFromTextarea("dedupeKeyInput"),
-    sort: linesFromTextarea("sortInput"),
+    select: cleanup ? linesFromTextarea("selectColumnsInput") : [],
+    renames: cleanup ? linesFromTextarea("renamesInput") : [],
+    dedupe: cleanup && byId("dedupeInput").checked,
+    dedupe_keys: cleanup ? linesFromTextarea("dedupeKeyInput") : [],
+    sort: cleanup ? linesFromTextarea("sortInput") : [],
     case_insensitive_columns: byId("caseInsensitiveInput").checked,
     zip_passwords: linesFromTextarea("zipPasswordsInput"),
     all_excel_sheets: byId("allExcelSheetsInput").checked,
@@ -1145,6 +1782,14 @@ function payload() {
       null_values: nullValue ? [nullValue] : [],
     },
   };
+  if (state.outputFormatExplicit) {
+    data.output_format = format;
+  }
+  const derivedColumns = cleanup ? visualDerivedColumns() : [];
+  if (derivedColumns.length) {
+    data.derived_columns = derivedColumns;
+  }
+  return data;
 }
 
 async function inspectInput() {
@@ -1159,7 +1804,11 @@ async function inspectInput() {
     const data = handleResponse(await state.api.inspect_csv(payload()));
     byId("inputSizeText").textContent = formatBytes(data.size_bytes);
     state.resolvedInputs = data.inputs || [];
+    if (!state.outputFormatExplicit) {
+      setOutputFormat(defaultFormatForCurrentInput(), false);
+    }
     renderQueue();
+    renderOutputNames();
     showInputWarnings(data.warnings || []);
     setColumns(data.columns);
     setStatus(t("readyTitle"), `${data.columns.length} ${t("columnsLoaded")}`, "done");
@@ -1197,6 +1846,7 @@ async function runFilter() {
   byId("openFolderBtn").classList.add("hidden");
   try {
     const data = handleResponse(await state.api.start_filter_run(payload()));
+    updateJobStatus(data);
     pollJob(data.job_id);
   } catch (error) {
     const retried = await maybePromptForZipPasswordAndRetry(error);
@@ -1259,7 +1909,96 @@ function pollJob(jobId) {
   }, 850);
 }
 
+function progressFromJob(job) {
+  if (job && job.progress) {
+    return job.progress;
+  }
+  if (!job || !job.phase) {
+    return null;
+  }
+  return {
+    phase: job.phase,
+    label: phaseLabel(job.phase),
+    input_index: null,
+    input_total: null,
+    input_name: "",
+    artifact: null,
+    percent: null,
+    determinate: false,
+    timeline: [],
+  };
+}
+
+function progressItemText(progress) {
+  if (!progress.input_index || !progress.input_total) {
+    return "";
+  }
+  return t("progressItem")
+    .replace("{index}", String(progress.input_index))
+    .replace("{total}", String(progress.input_total));
+}
+
+function progressArtifactLabel(artifact) {
+  const labels = {
+    filtered: t("progressArtifactFiltered"),
+    summarization: t("progressArtifactSummarization"),
+  };
+  return labels[artifact] || (artifact ? t("progressArtifactOutput") : "");
+}
+
+function progressStatusText(progress) {
+  const details = [progress.input_name, progressArtifactLabel(progress.artifact)].filter(Boolean);
+  if (progress.determinate && Number.isFinite(progress.percent)) {
+    details.push(t("progressPercentLabel").replace("{percent}", String(progress.percent)));
+  } else {
+    details.push(t("progressIndeterminateLabel"));
+  }
+  return details.join(" · ");
+}
+
+function renderProgress(job) {
+  const progress = progressFromJob(job);
+  const panel = byId("progressPanel");
+  if (!progress) {
+    panel.classList.add("hidden");
+    return;
+  }
+  const progressBar = byId("progressBar");
+  const progressBarFill = byId("progressBarFill");
+  const determinate = Boolean(progress.determinate && Number.isFinite(progress.percent));
+  byId("progressPhaseText").textContent = progress.label || phaseLabel(progress.phase);
+  byId("progressItemText").textContent = progressItemText(progress);
+  byId("progressDetailText").textContent = progressStatusText(progress);
+  progressBar.className = `progress-bar ${determinate ? "determinate" : "indeterminate"} ${progress.phase || ""}`;
+  progressBar.setAttribute("aria-label", t("progressTitle"));
+  if (determinate) {
+    progressBar.setAttribute("aria-valuenow", String(progress.percent));
+    progressBar.setAttribute("aria-valuetext", t("progressPercentLabel").replace("{percent}", String(progress.percent)));
+    progressBarFill.style.transform = `scaleX(${Math.max(0, Math.min(100, Number(progress.percent))) / 100})`;
+  } else {
+    progressBar.removeAttribute("aria-valuenow");
+    progressBar.setAttribute("aria-valuetext", t("progressIndeterminateLabel"));
+    progressBarFill.style.transform = "";
+  }
+  renderProgressTimeline(progress.timeline || []);
+  panel.classList.remove("hidden");
+}
+
+function renderProgressTimeline(timeline) {
+  const list = byId("progressTimeline");
+  list.innerHTML = "";
+  timeline.slice(-6).forEach((entry) => {
+    const item = document.createElement("li");
+    const label = entry.label || phaseLabel(entry.phase);
+    const meta = [progressItemText(entry), entry.input_name, progressArtifactLabel(entry.artifact)].filter(Boolean).join(" · ");
+    item.className = entry.phase === "done" || entry.phase === "error" ? entry.phase : "";
+    item.innerHTML = `<span><strong>${escapeHtml(label)}</strong>${meta ? `<br>${escapeHtml(meta)}` : ""}</span>`;
+    list.appendChild(item);
+  });
+}
+
 function updateJobStatus(job) {
+  renderProgress(job);
   if (job.error) {
     setStatus(t("error"), job.error.message, "error");
     showFriendlyError(job.error);
@@ -1301,6 +2040,7 @@ function updateJobStatus(job) {
 }
 
 function resetResultCards() {
+  byId("progressPanel").classList.add("hidden");
   byId("resultCards").classList.add("hidden");
   byId("outputList").classList.add("hidden");
   byId("outputList").innerHTML = "";
@@ -1345,10 +2085,13 @@ function showResultCards(report) {
 function phaseLabel(phase) {
   const labels = {
     queued: state.language === "en-US" ? "Queued" : "Na fila",
-    inspecting: state.language === "en-US" ? "Reading file" : "Lendo o arquivo",
-    validating: state.language === "en-US" ? "Validating filter" : "Validando o filtro",
-    exporting: state.language === "en-US" ? "Creating output file" : "Gerando o arquivo",
+    queue: state.language === "en-US" ? "Processing queue" : "Processando fila",
+    inspecting: state.language === "en-US" ? "Reading file" : "Lendo arquivo",
+    validating: state.language === "en-US" ? "Validating filter" : "Validando filtro",
+    exporting: state.language === "en-US" ? "Creating output" : "Gerando saída",
     finishing: state.language === "en-US" ? "Finishing" : "Finalizando",
+    done: state.language === "en-US" ? "Done" : "Concluído",
+    error: state.language === "en-US" ? "Error" : "Erro",
   };
   return labels[phase] || phase || t("running");
 }
@@ -1373,25 +2116,67 @@ function setFilterMode(mode) {
   byId("advancedFilterPanel").classList.toggle("hidden", mode !== "advanced");
 }
 
-function setOutputFormat(format) {
+function setOutputFormat(format, explicit = true) {
+  state.outputFormatExplicit = explicit || state.outputFormatExplicit;
   byId("formatSelect").value = format;
   document.querySelectorAll("[data-format-card]").forEach((card) => {
     const active = card.dataset.formatCard === format;
     card.classList.toggle("active", active);
     card.setAttribute("aria-pressed", active ? "true" : "false");
   });
-  syncOutputSuffixWithFormat();
+  if (state.outputFormatExplicit) {
+    syncOutputSuffixWithFormat();
+  }
+  refreshOutputNameDefaults(outputItems());
+  renderOutputNames();
+}
+
+function setSummaryOutputFormat(format) {
+  byId("summaryFormatSelect").value = format;
+  document.querySelectorAll("[data-summary-format-card]").forEach((card) => {
+    const active = card.dataset.summaryFormatCard === format;
+    card.classList.toggle("active", active);
+    card.setAttribute("aria-pressed", active ? "true" : "false");
+  });
+  refreshOutputNameDefaults(outputItems());
+  renderOutputNames();
+}
+
+function handleRouteModeChange() {
+  updateSummarizationMode();
+  refreshOutputNameDefaults(outputItems());
+  renderOutputNames();
+}
+
+async function openInputPicker() {
+  if (state.inputPickerOpen) {
+    return;
+  }
+  state.inputPickerOpen = true;
+  try {
+    const data = handleResponse(await state.api.choose_input_files());
+    const paths = data.paths && data.paths.length ? data.paths : data.path ? [data.path] : [];
+    if (paths.length) {
+      setInputPaths(paths);
+      await inspectInput();
+    }
+  } finally {
+    state.inputPickerOpen = false;
+  }
+}
+
+function isInputPickerKey(event) {
+  return event.key === "Enter" || event.key === " " || event.key === "Spacebar";
 }
 
 function syncOutputSuffixWithFormat() {
   const input = byId("outputPathInput");
   const path = input.value.trim();
   const format = byId("formatSelect").value;
-  if (!path) {
+  if (!path || hasOutputNames()) {
     return;
   }
-  const suffixes = { csv: ".csv", xlsx: ".xlsx", parquet: ".parquet" };
-  const expectedSuffix = suffixes[format] || ".csv";
+  const expectedSuffix = outputExtension();
   if (/\.(csv|xlsx|parquet)$/i.test(path) && !path.toLowerCase().endsWith(expectedSuffix)) {
     setOutputPath(path.replace(/\.(csv|xlsx|parquet)$/i, expectedSuffix));
   }
@@ -1403,17 +2188,8 @@ function bindEvents() {
   }
   state.eventsBound = true;
 
-  byId("browseInputBtn").addEventListener("click", async () => {
-    const data = handleResponse(await state.api.choose_input_files());
-    const paths = data.paths && data.paths.length ? data.paths : data.path ? [data.path] : [];
-    if (paths.length) {
-      setInputPaths(paths);
-      await inspectInput();
-    }
-  });
-
   byId("browseOutputBtn").addEventListener("click", async () => {
-    const data = handleResponse(await state.api.choose_output_file(byId("formatSelect").value));
+    const data = handleResponse(await state.api.choose_output_directory());
     if (data.path) setOutputPath(data.path);
   });
 
@@ -1432,26 +2208,52 @@ function bindEvents() {
     card.addEventListener("click", () => setOutputFormat(card.dataset.formatCard));
   });
 
+  byId("summaryFormatSelect").addEventListener("change", () => setSummaryOutputFormat(byId("summaryFormatSelect").value));
+  document.querySelectorAll("[data-summary-format-card]").forEach((card) => {
+    card.addEventListener("click", () => setSummaryOutputFormat(card.dataset.summaryFormatCard));
+  });
+
+  document.querySelectorAll('input[name="routeMode"]').forEach((input) => {
+    input.addEventListener("change", handleRouteModeChange);
+  });
+
   byId("addFilterBtn").addEventListener("click", () => addFilterRow());
+  document.addEventListener("click", (event) => {
+    if (!event.target.closest(".operator-picker")) {
+      document.querySelectorAll(".filter-row").forEach(closeOperatorPicker);
+    }
+  });
   byId("addDerivedColumnBtn").addEventListener("click", () => addDerivedColumn());
+  byId("selectColumnsInput").addEventListener("input", refreshSummarizationColumnPickers);
+  byId("renamesInput").addEventListener("input", refreshSummarizationColumnPickers);
   byId("saveConfigBtn").addEventListener("click", async () => {
     const data = handleResponse(await state.api.save_config(payload()));
     if (data.path) {
       setStatus(t("readyTitle"), `${t("configSaved")} ${data.path}`, "done");
     }
   });
+  byId("outputNameSuffixInput").addEventListener("input", (event) => {
+    state.outputNameSuffix = event.target.value;
+    state.outputNameSuffixTouched = true;
+    refreshOutputNameDefaults(outputItems());
+    renderOutputNames();
+  });
+  byId("summarizationOutputSuffixInput").addEventListener("input", (event) => {
+    state.summarizationOutputSuffix = event.target.value;
+    state.summarizationOutputSuffixTouched = true;
+    if (routeMode() === "summarizationOnly") {
+      refreshOutputNameDefaults(outputItems());
+    }
+    renderOutputNames();
+  });
+  byId("resetOutputNamesBtn").addEventListener("click", resetOutputNamesToDefaults);
   byId("visualTab").addEventListener("click", () => setFilterMode("visual"));
   byId("advancedTab").addEventListener("click", () => setFilterMode("advanced"));
   byId("checkExpressionBtn").addEventListener("click", validateFilter);
   byId("runBtn").addEventListener("click", runFilter);
   byId("resetBtn").addEventListener("click", () => window.location.reload());
-  byId("summarizeInput").addEventListener("change", updateSummaryMode);
-  byId("summaryOnlyInput").addEventListener("change", () => {
-    if (byId("summaryOnlyInput").checked) {
-      byId("summarizeInput").checked = true;
-    }
-    updateSummaryMode();
-  });
+  bindSummarizationColumnPicker("summarizationGroupByInput");
+  bindSummarizationColumnPicker("summarizationTotalsInput");
 
   byId("openFolderBtn").addEventListener("click", async () => {
     const firstPath = state.outputPaths[0] || byId("outputPathInput").value;
@@ -1462,10 +2264,21 @@ function bindEvents() {
     state.language = event.target.value;
     await state.api.set_language(state.language);
     applyLanguage();
+    renderOutputNames();
     setStatus(t("readyTitle"), t("readyText"));
   });
 
   const dropZone = byId("dropZone");
+  dropZone.addEventListener("click", async () => {
+    await openInputPicker();
+  });
+  dropZone.addEventListener("keydown", async (event) => {
+    if (!isInputPickerKey(event) || event.repeat) {
+      return;
+    }
+    event.preventDefault();
+    await openInputPicker();
+  });
   dropZone.addEventListener("dragover", (event) => {
     event.preventDefault();
     dropZone.classList.add("dragging");
@@ -1491,7 +2304,9 @@ function bindEvents() {
       link.classList.add("active");
     });
   });
-  setOutputFormat(byId("formatSelect").value || "csv");
+  setOutputFormat(byId("formatSelect").value || "csv", false);
+  setSummaryOutputFormat(byId("summaryFormatSelect").value || "xlsx");
+  updateSummarizationMode();
   updateDerivedEmptyState();
 }
 

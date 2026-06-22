@@ -59,11 +59,14 @@ class FilterRunOptions:
     input_path: Path
     output_path: Path
     output_format: OutputFormat = "csv"
+    output_format_explicit: bool = False
     summarize: bool = False
     summary_only: bool = False
     summary_group_by: list[str] = field(default_factory=list)
     summary_totals: list[str] = field(default_factory=list)
     summary_output_path: Path | None = None
+    summary_output_format: OutputFormat = "xlsx"
+    summary_output_suffix: str | None = None
     resolved_input: ResolvedInput | None = None
     where: list[str] = field(default_factory=list)
     select: list[str] = field(default_factory=list)
@@ -87,6 +90,7 @@ class FilterRunOptions:
     batch_size: int = 10_000
     derived_columns: list[DerivedColumnSpec] = field(default_factory=list)
     output_names: list[str] = field(default_factory=list)
+    avoid_existing_output_paths: bool = False
 
 
 def load_config_file(path: Path | None) -> dict[str, Any]:
@@ -221,14 +225,23 @@ def parse_output_format(value: Any, *, source: str) -> OutputFormat | None:
         raise ConfigError(f"{source} must be one of: {valid}.")
     return cast(OutputFormat, normalized)
 
+def parse_optional_string(value: Any, *, key: str) -> str | None:
+    if value is None:
+        return None
+    if not isinstance(value, str):
+        raise ConfigError(f"Config key '{key}' must be a string.")
+    normalized = value.strip()
+    return normalized or None
+
 
 def resolve_output_target(
     output_path: Path,
     *,
     cli_output_format: str | None,
     config_output_format: Any,
+    default_format: OutputFormat = "csv",
     allow_directory: bool = False,
-) -> tuple[Path, OutputFormat]:
+) -> tuple[Path, OutputFormat, bool]:
     cli_format = parse_output_format(cli_output_format, source="--format")
     config_format = (
         None
@@ -239,7 +252,9 @@ def resolve_output_target(
     suffix_format = _format_from_suffix(output_path)
 
     if allow_directory and output_path.exists() and output_path.is_dir():
-        return output_path, explicit_format or "csv"
+        return output_path, explicit_format or default_format, explicit_format is not None
+    if allow_directory and suffix_format is None and not output_path.suffix:
+        return output_path, explicit_format or default_format, explicit_format is not None
 
     if explicit_format is not None:
         if suffix_format is not None and suffix_format != explicit_format:
@@ -250,13 +265,13 @@ def resolve_output_target(
             if output_path.suffix:
                 raise ConfigError("Output path suffix must be .csv, .xlsx, .parquet, or omit the suffix.")
             output_path = output_path.with_suffix(f".{explicit_format}")
-        return output_path, explicit_format
+        return output_path, explicit_format, True
 
     if suffix_format is not None:
-        return output_path, suffix_format
+        return output_path, suffix_format, True
     if output_path.suffix:
         raise ConfigError("Output path suffix must be .csv, .xlsx, .parquet, or omit the suffix.")
-    return output_path.with_suffix(".csv"), "csv"
+    return output_path.with_suffix(f".{default_format}"), default_format, False
 
 
 def _format_from_suffix(path: Path) -> OutputFormat | None:
@@ -300,6 +315,8 @@ def merge_config_and_cli(
     cli_summary_only: bool,
     cli_summary_group_by: list[str],
     cli_summary_totals: list[str],
+    cli_summary_output_format: str | None,
+    cli_summary_output_suffix: str | None,
     cli_renames: list[str],
     cli_dedupe: bool,
     cli_dedupe_keys: list[str],
@@ -322,8 +339,9 @@ def merge_config_and_cli(
     strict_values: bool,
     batch_size: int,
     allow_output_directory: bool = False,
+    avoid_existing_output_paths: bool = False,
 ) -> FilterRunOptions:
-    output_path, output_format = resolve_output_target(
+    output_path, output_format, output_format_explicit = resolve_output_target(
         output_path,
         cli_output_format=cli_output_format,
         config_output_format=preset_config.get("output_format"),
@@ -331,10 +349,35 @@ def merge_config_and_cli(
     )
     config_where = as_list(preset_config.get("where"), key="where")
     config_select = as_list(preset_config.get("select"), key="select")
-    config_summary_group_by = as_list(preset_config.get("summary_group_by"), key="summary_group_by")
-    config_summary_totals = as_list(preset_config.get("summary_totals"), key="summary_totals")
-    summarize = bool(preset_config.get("summarize", False))
-    summary_only = bool(preset_config.get("summary_only", False) or cli_summary_only)
+    config_summary_group_by = as_list(
+        preset_config.get("summarization_group_by", preset_config.get("summary_group_by")),
+        key="summarization_group_by",
+    )
+    config_summary_totals = as_list(
+        preset_config.get("summarization_totals", preset_config.get("summary_totals")),
+        key="summarization_totals",
+    )
+    cli_summary_format = parse_output_format(cli_summary_output_format, source="summarization_output_format")
+    config_summary_format = (
+        None
+        if cli_summary_format is not None
+        else parse_output_format(
+            preset_config.get("summarization_output_format", preset_config.get("summary_output_format")),
+            source="Config key 'summarization_output_format'",
+        )
+    )
+    summary_output_format = cli_summary_format or config_summary_format or "xlsx"
+    config_summary_output_suffix = parse_optional_string(
+        preset_config.get("summarization_output_suffix", preset_config.get("summary_output_suffix")),
+        key="summarization_output_suffix",
+    )
+    summary_output_suffix = (
+        cli_summary_output_suffix if cli_summary_output_suffix is not None else config_summary_output_suffix
+    )
+    summarize = bool(preset_config.get("summarization", preset_config.get("summarize", False)))
+    summary_only = bool(
+        preset_config.get("summarization_only", preset_config.get("summary_only", False)) or cli_summary_only
+    )
     config_dedupe_keys = as_list(preset_config.get("dedupe_key") or preset_config.get("dedupe_keys"), key="dedupe_key")
     config_sorts = as_list(preset_config.get("sort") or preset_config.get("sorts"), key="sort")
     config_lookups = as_list(preset_config.get("lookup") or preset_config.get("lookups"), key="lookup")
@@ -342,6 +385,8 @@ def merge_config_and_cli(
         *as_list(preset_config.get("output_name") or preset_config.get("output_names"), key="output_names"),
         *cli_output_names,
     ]
+    if any(output_names) and output_path.suffix:
+        raise ConfigError("Output names require an output directory destination, not a file path.")
 
     config_renames_raw = preset_config.get("rename") or preset_config.get("renames") or {}
     if isinstance(config_renames_raw, dict):
@@ -384,6 +429,7 @@ def merge_config_and_cli(
         input_path=input_path,
         output_path=output_path,
         output_format=output_format,
+        output_format_explicit=output_format_explicit,
         summarize=(
             summarize
             or cli_summarize
@@ -397,6 +443,8 @@ def merge_config_and_cli(
         summary_group_by=[*config_summary_group_by, *cli_summary_group_by],
         summary_totals=[*config_summary_totals, *cli_summary_totals],
         summary_output_path=None,
+        summary_output_format=summary_output_format,
+        summary_output_suffix=summary_output_suffix,
         where=[*config_where, *cli_where],
         select=select,
         renames=renames,
@@ -419,4 +467,5 @@ def merge_config_and_cli(
         batch_size=batch_size,
         derived_columns=derived_columns,
         output_names=output_names,
+        avoid_existing_output_paths=avoid_existing_output_paths,
     )

@@ -91,6 +91,8 @@ def test_build_script_uses_canonical_spec_and_expected_output() -> None:
     assert "dist\\DataSlicer.exe" in script
     assert "Assert-BuiltExecutableContainsCurrentUiAssets" in script
     assert "CArchiveReader" in script
-    assert "summarizeInput" in script
-    assert "summary_group_by" in script
+    assert "summarizeInput" not in script
+    assert "summaryOnlyInput" not in script
+    assert "bindEnterFlow" in script
+    assert "summarization_group_by" in script
     assert "Bundled UI asset is stale or different" in script

@@ -8,7 +8,7 @@ from pathlib import Path, PurePosixPath
 import re
 import shutil
 import tempfile
-from typing import Callable, Iterable, Literal
+from typing import Callable, Final, Iterable, Literal
 
 from openpyxl import load_workbook
 import pyzipper
@@ -18,9 +18,34 @@ from .filters.compiler import quote_literal
 
 
 InputFormat = Literal["csv", "parquet", "xlsx"]
+OutputFormat = Literal["csv", "parquet", "xlsx"]
 SUPPORTED_INPUT_SUFFIXES = {".csv", ".parquet", ".pq", ".xlsx", ".zip"}
 ZIP_MEMBER_LIMIT = 10_000
 ZIP_UNCOMPRESSED_LIMIT_BYTES = 20 * 1024 * 1024 * 1024
+WINDOWS_RESERVED_NAMES: Final = {
+    "CON",
+    "PRN",
+    "AUX",
+    "NUL",
+    "COM1",
+    "COM2",
+    "COM3",
+    "COM4",
+    "COM5",
+    "COM6",
+    "COM7",
+    "COM8",
+    "COM9",
+    "LPT1",
+    "LPT2",
+    "LPT3",
+    "LPT4",
+    "LPT5",
+    "LPT6",
+    "LPT7",
+    "LPT8",
+    "LPT9",
+}
 
 
 @dataclass(slots=True)
@@ -269,6 +294,24 @@ def detect_input_format(path: Path) -> InputFormat | None:
     return None
 
 
+def default_output_format_for_path(path: Path) -> OutputFormat:
+    input_format = detect_input_format(path)
+    if input_format is None:
+        return "csv"
+    return input_format
+
+
+def default_output_format_for_input(input_: ResolvedInput) -> OutputFormat:
+    if input_.zip_member:
+        member_format = detect_input_format(Path(PurePosixPath(input_.zip_member).name))
+        if member_format is not None:
+            return member_format
+    source_format = detect_input_format(input_.source_path)
+    if source_format is not None:
+        return source_format
+    return input_.format
+
+
 def source_expression(input_: ResolvedInput, *, csv_expr: Callable[[Path], str]) -> str:
     if input_.format == "parquet":
         return f"read_parquet({quote_literal(str(input_.path))})"
@@ -284,13 +327,19 @@ def output_path_for_input(
     output_format: str,
     output_name: str | None = None,
     artifact: str = "filtered",
+    artifact_suffix: str | None = None,
 ) -> Path:
     suffix = f".{output_format}"
-    artifact_suffix = "" if artifact == "filtered" else f"_{_safe_output_stem(artifact, output_format)}"
+    if artifact == "filtered":
+        normalized_artifact_suffix = ""
+    elif artifact_suffix is not None:
+        normalized_artifact_suffix = _safe_output_suffix(artifact_suffix, output_format)
+    else:
+        normalized_artifact_suffix = f"_{_safe_output_stem(artifact, output_format)}"
     if output_name:
         safe_stem = _safe_output_stem(output_name, output_format)
         if artifact != "filtered":
-            safe_stem = f"{safe_stem}{artifact_suffix}"
+            safe_stem = f"{safe_stem}{normalized_artifact_suffix}"
         if base_output.exists() and base_output.is_dir():
             return base_output / f"{safe_stem}{suffix}"
         if not base_output.suffix:
@@ -304,16 +353,16 @@ def output_path_for_input(
     if total == 1:
         if artifact != "filtered":
             if base_output.suffix:
-                return base_output.with_name(f"{base_output.stem}{artifact_suffix}{suffix}")
-            return base_output.with_name(f"{base_output.name}{artifact_suffix}{suffix}")
+                return base_output.with_name(f"{base_output.stem}{normalized_artifact_suffix}{suffix}")
+            return base_output.with_name(f"{base_output.name}{normalized_artifact_suffix}{suffix}")
         return base_output
 
     if base_output.exists() and base_output.is_dir():
-        return base_output / f"{index:03d}_{safe_stem}{artifact_suffix}{suffix}"
+        return base_output / f"{index:03d}_{safe_stem}{normalized_artifact_suffix}{suffix}"
     if not base_output.suffix:
-        return base_output / f"{index:03d}_{safe_stem}{artifact_suffix}{suffix}"
+        return base_output / f"{index:03d}_{safe_stem}{normalized_artifact_suffix}{suffix}"
 
-    return base_output.with_name(f"{base_output.stem}_{index:03d}_{safe_stem}{artifact_suffix}{suffix}")
+    return base_output.with_name(f"{base_output.stem}_{index:03d}_{safe_stem}{normalized_artifact_suffix}{suffix}")
 
 
 def _zip_is_encrypted(path: Path) -> bool:
@@ -348,7 +397,12 @@ def _safe_zip_member_path(root: Path, member_name: str) -> Path:
 
 def _safe_name(value: str) -> str:
     safe = re.sub(r"[^A-Za-z0-9._-]+", "_", value).strip("._-")
-    return safe or "input"
+    if not safe:
+        return "input"
+    stem = safe.split(".", 1)[0].upper()
+    if stem in WINDOWS_RESERVED_NAMES:
+        return f"input_{safe}"
+    return safe
 
 
 def _safe_output_stem(value: str, output_format: str) -> str:
@@ -357,3 +411,11 @@ def _safe_output_stem(value: str, output_format: str) -> str:
     if suffix in {".csv", ".xlsx", ".parquet"} or suffix == f".{output_format}":
         name = name[: -len(suffix)]
     return _safe_name(name)
+
+def _safe_output_suffix(value: str, output_format: str) -> str:
+    name = value.strip()
+    suffix = Path(name).suffix.lower()
+    if suffix in {".csv", ".xlsx", ".parquet"} or suffix == f".{output_format}":
+        name = name[: -len(suffix)]
+    safe = re.sub(r"[^A-Za-z0-9._-]+", "_", name).strip()
+    return safe or "_summarization"

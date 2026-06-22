@@ -87,10 +87,20 @@ def create_app(language: str = DEFAULT_LANGUAGE) -> typer.Typer:
 
     @localized_app.command("ui", help=tr("command.ui.help"), hidden=True)
     @localized_app.command("abrir", help=tr("command.ui.help"))
-    def ui_command() -> None:
+    def ui_command(
+        pywebview_debug: Annotated[
+            bool,
+            typer.Option(
+                "--depurar-pywebview",
+                "--pywebview-debug",
+                help="Developer-only: launch Pywebview with native debug/devtools enabled.",
+                hidden=True,
+            ),
+        ] = False,
+    ) -> None:
         from .ui.app import main as ui_main
 
-        ui_main(language=get_language())
+        ui_main(language=get_language(), debug=pywebview_debug)
 
     @localized_app.command("inspect", help=tr("command.inspect.help"), hidden=True)
     @localized_app.command("inspecionar", help=tr("command.inspect.help"))
@@ -219,6 +229,8 @@ def create_app(language: str = DEFAULT_LANGUAGE) -> typer.Typer:
                 cli_summary_only=False,
                 cli_summary_group_by=[],
                 cli_summary_totals=[],
+                cli_summary_output_format=None,
+                cli_summary_output_suffix=None,
                 cli_renames=[],
                 cli_dedupe=False,
                 cli_dedupe_keys=[],
@@ -329,11 +341,17 @@ def create_app(language: str = DEFAULT_LANGUAGE) -> typer.Typer:
             list[str] | None, typer.Option("--renomear", "--rename", help=tr("option.rename"), metavar="TEXTO")
         ] = None,
         dedupe: Annotated[bool, typer.Option("--deduplicar", "--dedupe")] = False,
-        summarize: Annotated[
-            bool, typer.Option("--resumir", "--summarize", help=tr("option.summarize"))
+        summarization: Annotated[
+            bool, typer.Option("--sumarizacao", "--summarization", help=tr("option.summarize"))
         ] = False,
-        summary_only: Annotated[
-            bool, typer.Option("--somente-resumo", "--summary-only", help=tr("option.summary_only"))
+        legacy_summarize: Annotated[
+            bool, typer.Option("--resumir", "--summarize", hidden=True)
+        ] = False,
+        summarization_only: Annotated[
+            bool, typer.Option("--somente-sumarizacao", "--summarization-only", help=tr("option.summary_only"))
+        ] = False,
+        legacy_summary_only: Annotated[
+            bool, typer.Option("--somente-resumo", "--summary-only", hidden=True)
         ] = False,
         dedupe_key: Annotated[
             list[str] | None, typer.Option("--chave-deduplicacao", "--dedupe-key", metavar="COLUNA")
@@ -341,11 +359,17 @@ def create_app(language: str = DEFAULT_LANGUAGE) -> typer.Typer:
         sort: Annotated[
             list[str] | None, typer.Option("--ordenar", "--sort", help=tr("option.sort"), metavar="TEXTO")
         ] = None,
-        summary_group_by: Annotated[
-            list[str] | None, typer.Option("--grupo-resumo", "--summary-group-by", metavar="COLUNA")
+        summarization_group_by: Annotated[
+            list[str] | None, typer.Option("--grupo-sumarizacao", "--summarization-group-by", metavar="COLUNA")
         ] = None,
-        summary_totals: Annotated[
-            list[str] | None, typer.Option("--totais-resumo", "--summary-totals", metavar="COLUNA")
+        legacy_summary_group_by: Annotated[
+            list[str] | None, typer.Option("--grupo-resumo", "--summary-group-by", hidden=True, metavar="COLUNA")
+        ] = None,
+        summarization_totals: Annotated[
+            list[str] | None, typer.Option("--totais-sumarizacao", "--summarization-totals", metavar="COLUNA")
+        ] = None,
+        legacy_summary_totals: Annotated[
+            list[str] | None, typer.Option("--totais-resumo", "--summary-totals", hidden=True, metavar="COLUNA")
         ] = None,
         encoding: Annotated[str | None, typer.Option("--codificacao", "--encoding", metavar="TEXTO")] = None,
         delimiter: Annotated[str | None, typer.Option("--delimitador", "--delimiter", metavar="TEXTO")] = None,
@@ -439,10 +463,12 @@ def create_app(language: str = DEFAULT_LANGUAGE) -> typer.Typer:
                 cli_select=select or [],
                 select_file=select_file,
                 cli_renames=rename or [],
-                cli_summarize=summarize,
-                cli_summary_only=summary_only,
-                cli_summary_group_by=summary_group_by or [],
-                cli_summary_totals=summary_totals or [],
+                cli_summarize=summarization or legacy_summarize,
+                cli_summary_only=summarization_only or legacy_summary_only,
+                cli_summary_group_by=(summarization_group_by or []) + (legacy_summary_group_by or []),
+                cli_summary_totals=(summarization_totals or []) + (legacy_summary_totals or []),
+                cli_summary_output_format=None,
+                cli_summary_output_suffix=None,
                 cli_dedupe=dedupe,
                 cli_dedupe_keys=dedupe_key or [],
                 cli_sorts=sort or [],
@@ -476,7 +502,7 @@ def create_app(language: str = DEFAULT_LANGUAGE) -> typer.Typer:
                 typed_mode=typed_mode,
                 strict_values=strict_values,
                 batch_size=batch_size,
-                allow_output_directory=len(input_files) > 1 or (output.exists() and output.is_dir()),
+                allow_output_directory=len(input_files) > 1 or bool(output_name) or (output.exists() and output.is_dir()),
             )
             with InputResolutionSession(
                 input_files,
