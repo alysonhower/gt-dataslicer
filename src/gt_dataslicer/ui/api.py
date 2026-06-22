@@ -364,6 +364,12 @@ def build_options_from_payload(
         cli_summary_only=bool(payload.get("summarization_only", payload.get("summary_only", False))),
         cli_summary_group_by=_string_list(payload.get("summarization_group_by") or payload.get("summary_group_by")),
         cli_summary_totals=_string_list(payload.get("summarization_totals") or payload.get("summary_totals")),
+        cli_summary_output_format=_optional_text(
+            payload.get("summarization_output_format") or payload.get("summary_output_format")
+        ),
+        cli_summary_output_suffix=_optional_text(
+            payload.get("summarization_output_suffix") or payload.get("summary_output_suffix")
+        ),
         cli_renames=_rename_items(payload.get("renames") or payload.get("rename")),
         cli_dedupe=bool(payload.get("dedupe", False)),
         cli_dedupe_keys=_string_list(payload.get("dedupe_keys") or payload.get("dedupe_key")),
@@ -435,6 +441,12 @@ def _config_from_payload(payload: dict[str, Any]) -> dict[str, object]:
     summary_totals = _string_list(payload.get("summarization_totals") or payload.get("summary_totals"))
     if summary_totals:
         config["summarization_totals"] = summary_totals
+    summarization_output_format = _optional_text(payload.get("summarization_output_format"))
+    if summarization_output_format is not None:
+        config["summarization_output_format"] = summarization_output_format
+    summarization_output_suffix = _optional_text(payload.get("summarization_output_suffix"))
+    if summarization_output_suffix is not None:
+        config["summarization_output_suffix"] = summarization_output_suffix
     if payload.get("dedupe"):
         config["dedupe"] = True
     dedupe_keys = _string_list(payload.get("dedupe_keys") or payload.get("dedupe_key"))

@@ -17,6 +17,8 @@ def _merge_options(
     cli_summary_only: bool = False,
     cli_summary_group_by: list[str] | None = None,
     cli_summary_totals: list[str] | None = None,
+    cli_summary_output_format: str | None = None,
+    cli_summary_output_suffix: str | None = None,
     cli_output_names: list[str] | None = None,
     allow_output_directory: bool = False,
 ):
@@ -41,6 +43,8 @@ def _merge_options(
         cli_summary_only=cli_summary_only,
         cli_summary_group_by=cli_summary_group_by or [],
         cli_summary_totals=cli_summary_totals or [],
+        cli_summary_output_format=cli_summary_output_format,
+        cli_summary_output_suffix=cli_summary_output_suffix,
         cli_output_names=cli_output_names or [],
         csv_options=CsvOptions(),
         sheet_prefix="Results",
@@ -199,6 +203,8 @@ def test_output_format_defaults_to_csv_for_suffixless_cli_paths(
         cli_summary_only=False,
         cli_summary_group_by=[],
         cli_summary_totals=[],
+        cli_summary_output_format=None,
+        cli_summary_output_suffix=None,
         cli_output_names=[],
         csv_options=CsvOptions(),
         sheet_prefix="Results",
@@ -244,6 +250,61 @@ def test_summary_outputs_default_to_xlsx_when_summary_is_enabled(
     assert options.output_format == "csv"
     assert options.output_path == tmp_path / "result.csv"
     assert options.summary_output_format == "xlsx"
+    assert options.summary_output_suffix is None
+
+
+@pytest.mark.parametrize(
+    ("preset_config", "cli_summary_output_format", "expected_format"),
+    [
+        ({"summarization_output_format": "csv"}, None, "csv"),
+        ({"summary_output_format": "parquet"}, None, "parquet"),
+        ({"summarization_output_format": "parquet"}, "csv", "csv"),
+    ],
+)
+def test_summary_output_format_comes_from_public_legacy_or_ui_value(
+    tmp_path: Path,
+    preset_config: dict[str, object],
+    cli_summary_output_format: str | None,
+    expected_format: str,
+) -> None:
+    options = _merge_options(
+        tmp_path,
+        output_name="result",
+        preset_config=preset_config,
+        cli_summary_output_format=cli_summary_output_format,
+    )
+
+    assert options.summary_output_format == expected_format
+
+
+@pytest.mark.parametrize(
+    ("preset_config", "expected_suffix"),
+    [
+        ({"summarization_output_suffix": "_resumo"}, "_resumo"),
+        ({"summary_output_suffix": "_legacy"}, "_legacy"),
+    ],
+)
+def test_summary_output_suffix_comes_from_public_or_legacy_config_key(
+    tmp_path: Path,
+    preset_config: dict[str, object],
+    expected_suffix: str,
+) -> None:
+    options = _merge_options(
+        tmp_path,
+        output_name="result",
+        preset_config=preset_config,
+    )
+
+    assert options.summary_output_suffix == expected_suffix
+
+
+def test_summary_output_suffix_rejects_non_string_config_value(tmp_path: Path) -> None:
+    with pytest.raises(ConfigError, match="summarization_output_suffix"):
+        _merge_options(
+            tmp_path,
+            output_name="result",
+            preset_config={"summarization_output_suffix": ["_resumo"]},
+        )
 
 
 def test_named_outputs_reject_file_destination(tmp_path: Path) -> None:

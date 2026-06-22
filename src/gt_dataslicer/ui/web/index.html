@@ -223,40 +223,81 @@
             <button id="browseOutputBtn" class="button primary" type="button" data-i18n="chooseFolder">Escolher pasta</button>
           </div>
 
-          <div class="format-card-grid" role="radiogroup" aria-label="Formato">
-            <button class="format-card active" type="button" data-format-card="csv" aria-pressed="true">
-              <strong data-i18n="formatCsvTitle">CSV</strong>
-            </button>
-            <button class="format-card" type="button" data-format-card="xlsx" aria-pressed="false">
-              <strong data-i18n="formatExcelTitle">Excel</strong>
-            </button>
-            <button class="format-card" type="button" data-format-card="parquet" aria-pressed="false">
-              <strong data-i18n="formatParquetTitle">Parquet</strong>
-            </button>
-          </div>
-
-          <select id="formatSelect" class="hidden" aria-label="Formato">
-            <option value="csv">CSV</option>
-            <option value="xlsx">Excel</option>
-            <option value="parquet">Parquet</option>
-          </select>
-
           <label class="output-path-field">
             <span data-i18n="saveToFolder">Pasta de destino</span>
             <input id="outputPathInput" type="text" placeholder="Escolha uma pasta" data-i18n-placeholder="chooseFolderPlaceholder">
           </label>
 
+          <div id="cleanupOutputSettings" class="output-settings-card cleanup-only-section">
+            <div class="mini-heading">
+              <div>
+                <h3 data-i18n="cleanupOutputTitle">Base limpa</h3>
+                <p data-i18n="cleanupOutputHelp">Escolha o formato da base filtrada.</p>
+              </div>
+            </div>
+            <div class="format-card-grid" role="radiogroup" aria-label="Formato da base limpa">
+              <button class="format-card active" type="button" data-format-card="csv" aria-pressed="true">
+                <strong data-i18n="formatCsvTitle">CSV</strong>
+              </button>
+              <button class="format-card" type="button" data-format-card="xlsx" aria-pressed="false">
+                <strong data-i18n="formatExcelTitle">Excel</strong>
+              </button>
+              <button class="format-card" type="button" data-format-card="parquet" aria-pressed="false">
+                <strong data-i18n="formatParquetTitle">Parquet</strong>
+              </button>
+            </div>
+
+            <select id="formatSelect" class="hidden" aria-label="Formato">
+              <option value="csv">CSV</option>
+              <option value="xlsx">Excel</option>
+              <option value="parquet">Parquet</option>
+            </select>
+
+            <label class="output-suffix-field">
+              <span data-i18n="outputNameSuffix">Sufixo da base limpa</span>
+              <input id="outputNameSuffixInput" type="text" value="_tratada" placeholder="_tratada">
+            </label>
+          </div>
+
+          <div id="summarizationOutputSettings" class="output-settings-card summarization-only-section hidden">
+            <div class="mini-heading">
+              <div>
+                <h3 data-i18n="summarizationOutputTitle">Sumarização</h3>
+                <p data-i18n="summarizationOutputHelp">Escolha o formato da sumarização agrupada.</p>
+              </div>
+            </div>
+            <div class="format-card-grid" role="radiogroup" aria-label="Formato da sumarização">
+              <button class="format-card active" type="button" data-summary-format-card="xlsx" aria-pressed="true">
+                <strong data-i18n="formatExcelTitle">Excel</strong>
+              </button>
+              <button class="format-card" type="button" data-summary-format-card="csv" aria-pressed="false">
+                <strong data-i18n="formatCsvTitle">CSV</strong>
+              </button>
+              <button class="format-card" type="button" data-summary-format-card="parquet" aria-pressed="false">
+                <strong data-i18n="formatParquetTitle">Parquet</strong>
+              </button>
+            </div>
+
+            <select id="summaryFormatSelect" class="hidden" aria-label="Formato da sumarização">
+              <option value="xlsx">Excel</option>
+              <option value="csv">CSV</option>
+              <option value="parquet">Parquet</option>
+            </select>
+
+            <label class="output-suffix-field summarization-suffix-field">
+              <span data-i18n="summarizationOutputSuffix">Sufixo da sumarização</span>
+              <input id="summarizationOutputSuffixInput" type="text" value="_sumarizacao" placeholder="_sumarizacao">
+            </label>
+          </div>
+
           <div id="outputNamesPanel" class="output-names-panel hidden" aria-live="polite">
             <div class="mini-heading">
               <div>
-                <h3 data-i18n="outputNamesTitle">Nomes</h3>
+                <h3 data-i18n="generatedOutputNamesTitle">Nomes dos arquivos</h3>
+                <p data-i18n="generatedOutputNamesHelp">Edite apenas o nome base. O formato define a extensão.</p>
               </div>
               <button id="resetOutputNamesBtn" class="button ghost" type="button" data-i18n="resetOutputNames">Redefinir nomes</button>
             </div>
-            <label class="output-suffix-field">
-              <span data-i18n="outputNameSuffix">Sufixo padrão</span>
-              <input id="outputNameSuffixInput" type="text" value="_tratada" placeholder="_tratada">
-            </label>
             <div id="outputNamesList" class="output-names-list"></div>
           </div>
 

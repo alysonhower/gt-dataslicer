@@ -8,6 +8,8 @@ const state = {
   outputNameTouchedIndexes: new Set(),
   outputNameSuffix: "",
   outputNameSuffixTouched: false,
+  summarizationOutputSuffix: "",
+  summarizationOutputSuffixTouched: false,
   outputFormatExplicit: false,
   resolvedInputs: [],
   columns: [],
@@ -133,9 +135,18 @@ const text = {
     chooseSavePlaceholder: "Escolha uma pasta",
     chooseFolderPlaceholder: "Escolha uma pasta",
     outputNamesTitle: "Nomes",
-    outputNameSuffix: "Sufixo dos nomes gerados",
+    cleanupOutputTitle: "Base limpa",
+    cleanupOutputHelp: "Escolha o formato da base filtrada.",
+    summarizationOutputTitle: "Sumarização",
+    summarizationOutputHelp: "Escolha o formato da sumarização agrupada.",
+    generatedOutputNamesTitle: "Nomes dos arquivos",
+    generatedOutputNamesHelp: "Edite apenas o nome base. O formato define a extensão.",
+    outputNameSuffix: "Sufixo da base limpa",
+    outputNameStemPlaceholder: "Nome base",
     resetOutputNames: "Redefinir nomes gerados",
     defaultOutputSuffix: "_tratada",
+    summarizationOutputSuffix: "Sufixo da sumarização",
+    defaultSummarizationOutputSuffix: "_sumarizacao",
     derivedColumnsTitle: "Criar novas colunas",
     derivedColumnsHelp: "Opcional: crie colunas limpas a partir das colunas filtradas.",
     addDerivedColumn: "Adicionar coluna",
@@ -337,9 +348,18 @@ const text = {
     chooseSavePlaceholder: "Choose a folder",
     chooseFolderPlaceholder: "Choose a folder",
     outputNamesTitle: "Names",
-    outputNameSuffix: "Generated name suffix",
+    cleanupOutputTitle: "Cleaned base",
+    cleanupOutputHelp: "Choose the filtered base format.",
+    summarizationOutputTitle: "Summarization",
+    summarizationOutputHelp: "Choose the grouped summarization format.",
+    generatedOutputNamesTitle: "File names",
+    generatedOutputNamesHelp: "Edit only the base name. The format controls the extension.",
+    outputNameSuffix: "Cleaned base suffix",
+    outputNameStemPlaceholder: "Base name",
     resetOutputNames: "Reset generated names",
     defaultOutputSuffix: "_treated",
+    summarizationOutputSuffix: "Summarization suffix",
+    defaultSummarizationOutputSuffix: "_summarization",
     derivedColumnsTitle: "Create new columns",
     derivedColumnsHelp: "Optional: create cleaned columns from filtered columns.",
     addDerivedColumn: "Add column",
@@ -634,6 +654,7 @@ function applyLanguage() {
   document.querySelectorAll(".derived-transform-row").forEach(updateTransformRow);
   document.querySelectorAll(".derived-column-card").forEach(updateDerivedCard);
   refreshOutputNameDefaults();
+  syncSummarizationOutputSuffixField();
   updateFilterHint();
   updateSummarizationMode();
   refreshSummarizationColumnPickers();
@@ -713,10 +734,21 @@ function outputItems(inputs = state.resolvedInputs) {
   return inputs && inputs.length ? inputs : state.inputPaths.map((path) => ({ label: path, format: "" }));
 }
 
-function outputExtension() {
-  const format = byId("formatSelect")?.value || "csv";
+function extensionForFormat(format) {
   const suffixes = { csv: ".csv", xlsx: ".xlsx", parquet: ".parquet" };
   return suffixes[format] || ".csv";
+}
+
+function outputExtension() {
+  return extensionForFormat(byId("formatSelect")?.value || "csv");
+}
+
+function summaryOutputExtension() {
+  return extensionForFormat(byId("summaryFormatSelect")?.value || "xlsx");
+}
+
+function outputNameExtension() {
+  return routeMode() === "summarizationOnly" ? summaryOutputExtension() : outputExtension();
 }
 
 function outputStemFromPath(path) {
@@ -737,21 +769,27 @@ function safeOutputStem(value) {
   return safe;
 }
 
+function outputNameStemValue(value) {
+  const text = String(value || "").trim();
+  return text ? safeOutputStem(text) : "";
+}
+
 function outputBaseStem(item) {
   const source = item.display_name || outputStemFromPath(item.label || item.source_path || item.path);
   return safeOutputStem(item.excel_sheet ? `${source}_${item.excel_sheet}` : source);
 }
 
 function defaultOutputNames(items = outputItems()) {
-  const suffix = state.outputNameSuffix || t("defaultOutputSuffix");
-  const extension = outputExtension();
+  const suffix = routeMode() === "summarizationOnly"
+    ? summarizationOutputSuffixValue()
+    : state.outputNameSuffix || t("defaultOutputSuffix");
   const used = new Set();
   return items.map((item) => {
     const base = safeOutputStem(`${outputBaseStem(item)}${suffix}`);
-    let candidate = `${base}${extension}`;
+    let candidate = base;
     let counter = 2;
     while (used.has(candidate.toLowerCase())) {
-      candidate = `${base}_${String(counter).padStart(3, "0")}${extension}`;
+      candidate = `${base}_${String(counter).padStart(3, "0")}`;
       counter += 1;
     }
     used.add(candidate.toLowerCase());
@@ -764,6 +802,19 @@ function syncOutputSuffixField() {
   if (suffixInput) {
     suffixInput.value = state.outputNameSuffix || t("defaultOutputSuffix");
     suffixInput.placeholder = t("defaultOutputSuffix");
+  }
+}
+
+function summarizationOutputSuffixValue() {
+  const value = (state.summarizationOutputSuffix || t("defaultSummarizationOutputSuffix")).trim();
+  return value || t("defaultSummarizationOutputSuffix");
+}
+
+function syncSummarizationOutputSuffixField() {
+  const suffixInput = byId("summarizationOutputSuffixInput");
+  if (suffixInput) {
+    suffixInput.value = state.summarizationOutputSuffix || t("defaultSummarizationOutputSuffix");
+    suffixInput.placeholder = t("defaultSummarizationOutputSuffix");
   }
 }
 
@@ -780,7 +831,7 @@ function refreshOutputNameDefaults(inputs = outputItems(), options = {}) {
     if (options.resetNames || !state.outputNameTouchedIndexes.has(index)) {
       return name;
     }
-    return state.outputNames[index] || name;
+    return outputNameStemValue(state.outputNames[index]) || name;
   });
   state.outputNames.length = inputs.length;
   state.outputNameTouchedIndexes = new Set(
@@ -790,9 +841,25 @@ function refreshOutputNameDefaults(inputs = outputItems(), options = {}) {
 
 function resetOutputNamesToDefaults() {
   state.outputNameSuffixTouched = false;
+  state.summarizationOutputSuffixTouched = false;
+  state.summarizationOutputSuffix = t("defaultSummarizationOutputSuffix");
   state.outputNameTouchedIndexes = new Set();
   refreshOutputNameDefaults(outputItems(), { resetNames: true, resetSuffix: true });
+  syncSummarizationOutputSuffixField();
   renderOutputNames();
+}
+
+function outputNamePreview(stem) {
+  const mode = routeMode();
+  if (mode === "summarizationOnly") {
+    return `${t("summarizationOutputTitle")}: ${stem}${summaryOutputExtension()}`;
+  }
+  const cleanupName = `${stem}${outputExtension()}`;
+  if (mode === "cleanThenSummarization") {
+    const summaryStem = safeOutputStem(`${stem}${summarizationOutputSuffixValue()}`);
+    return `${t("cleanupOutputTitle")}: ${cleanupName} · ${t("summarizationOutputTitle")}: ${summaryStem}${summaryOutputExtension()}`;
+  }
+  return `${t("cleanupOutputTitle")}: ${cleanupName}`;
 }
 
 function renderOutputNames(inputs = state.resolvedInputs) {
@@ -805,21 +872,40 @@ function renderOutputNames(inputs = state.resolvedInputs) {
     return;
   }
   refreshOutputNameDefaults(items);
+  const extension = outputNameExtension();
   items.forEach((item, index) => {
     const label = document.createElement("label");
     label.className = "queue-output-name";
     const labelText = document.createElement("span");
+    labelText.className = "output-source-label";
     labelText.textContent = `${index + 1}. ${item.label || item.display_name || item.source_path || item.path}`;
+    const editor = document.createElement("div");
+    editor.className = "output-name-editor";
     const input = document.createElement("input");
     input.type = "text";
-    input.value = state.outputNames[index] || item.output_name || "";
-    input.placeholder = t("outputNamePlaceholder");
+    input.value = outputNameStemValue(state.outputNames[index] || item.output_name || "");
+    input.placeholder = t("outputNameStemPlaceholder");
+    const extensionBadge = document.createElement("span");
+    extensionBadge.className = "output-extension-badge";
+    extensionBadge.textContent = extension;
+    const preview = document.createElement("span");
+    preview.className = "output-name-preview";
+    preview.textContent = outputNamePreview(input.value);
     input.addEventListener("input", () => {
-      state.outputNames[index] = input.value;
+      const rawValue = input.value;
+      const withoutExtension = rawValue.replace(/\.(csv|xlsx|parquet)$/i, "");
+      const extensionWasTyped = withoutExtension !== rawValue;
+      const storedValue = extensionWasTyped ? outputNameStemValue(withoutExtension) : withoutExtension;
+      if (extensionWasTyped) {
+        input.value = storedValue;
+      }
+      state.outputNames[index] = storedValue;
       state.outputNameTouchedIndexes.add(index);
+      preview.textContent = outputNamePreview(outputNameStemValue(storedValue));
       normalizeDestinationForOutputNames();
     });
-    label.append(labelText, input);
+    editor.append(input, extensionBadge);
+    label.append(labelText, editor, preview);
     list.appendChild(label);
   });
   panel.classList.remove("hidden");
@@ -1415,7 +1501,11 @@ function transformPayload(row) {
 function outputNameItems() {
   const count = (state.resolvedInputs && state.resolvedInputs.length) || state.inputPaths.length;
   refreshOutputNameDefaults(outputItems());
-  return Array.from({ length: count }, (_item, index) => (state.outputNames[index] || "").trim());
+  const extension = outputNameExtension();
+  return Array.from({ length: count }, (_item, index) => {
+    const stem = outputNameStemValue(state.outputNames[index] || "");
+    return stem ? `${stem}${extension}` : "";
+  });
 }
 
 function hasOutputNames() {
@@ -1666,6 +1756,8 @@ function payload() {
     summarization_only: summaryOnly,
     summarization_group_by: summarize ? selectedColumnPickerValues("summarizationGroupByInput") : [],
     summarization_totals: summarize ? selectedColumnPickerValues("summarizationTotalsInput") : [],
+    summarization_output_suffix: summarize ? summarizationOutputSuffixValue() : "",
+    summarization_output_format: summarize ? byId("summaryFormatSelect").value : "",
     filters:
       !cleanup
         ? { mode: "visual", combine: "and", conditions: [] }
@@ -1712,6 +1804,9 @@ async function inspectInput() {
     const data = handleResponse(await state.api.inspect_csv(payload()));
     byId("inputSizeText").textContent = formatBytes(data.size_bytes);
     state.resolvedInputs = data.inputs || [];
+    if (!state.outputFormatExplicit) {
+      setOutputFormat(defaultFormatForCurrentInput(), false);
+    }
     renderQueue();
     renderOutputNames();
     showInputWarnings(data.warnings || []);
@@ -2036,6 +2131,23 @@ function setOutputFormat(format, explicit = true) {
   renderOutputNames();
 }
 
+function setSummaryOutputFormat(format) {
+  byId("summaryFormatSelect").value = format;
+  document.querySelectorAll("[data-summary-format-card]").forEach((card) => {
+    const active = card.dataset.summaryFormatCard === format;
+    card.classList.toggle("active", active);
+    card.setAttribute("aria-pressed", active ? "true" : "false");
+  });
+  refreshOutputNameDefaults(outputItems());
+  renderOutputNames();
+}
+
+function handleRouteModeChange() {
+  updateSummarizationMode();
+  refreshOutputNameDefaults(outputItems());
+  renderOutputNames();
+}
+
 async function openInputPicker() {
   if (state.inputPickerOpen) {
     return;
@@ -2064,8 +2176,7 @@ function syncOutputSuffixWithFormat() {
   if (!path || hasOutputNames()) {
     return;
   }
-  const suffixes = { csv: ".csv", xlsx: ".xlsx", parquet: ".parquet" };
-  const expectedSuffix = suffixes[format] || ".csv";
+  const expectedSuffix = outputExtension();
   if (/\.(csv|xlsx|parquet)$/i.test(path) && !path.toLowerCase().endsWith(expectedSuffix)) {
     setOutputPath(path.replace(/\.(csv|xlsx|parquet)$/i, expectedSuffix));
   }
@@ -2097,8 +2208,13 @@ function bindEvents() {
     card.addEventListener("click", () => setOutputFormat(card.dataset.formatCard));
   });
 
+  byId("summaryFormatSelect").addEventListener("change", () => setSummaryOutputFormat(byId("summaryFormatSelect").value));
+  document.querySelectorAll("[data-summary-format-card]").forEach((card) => {
+    card.addEventListener("click", () => setSummaryOutputFormat(card.dataset.summaryFormatCard));
+  });
+
   document.querySelectorAll('input[name="routeMode"]').forEach((input) => {
-    input.addEventListener("change", updateSummarizationMode);
+    input.addEventListener("change", handleRouteModeChange);
   });
 
   byId("addFilterBtn").addEventListener("click", () => addFilterRow());
@@ -2120,6 +2236,14 @@ function bindEvents() {
     state.outputNameSuffix = event.target.value;
     state.outputNameSuffixTouched = true;
     refreshOutputNameDefaults(outputItems());
+    renderOutputNames();
+  });
+  byId("summarizationOutputSuffixInput").addEventListener("input", (event) => {
+    state.summarizationOutputSuffix = event.target.value;
+    state.summarizationOutputSuffixTouched = true;
+    if (routeMode() === "summarizationOnly") {
+      refreshOutputNameDefaults(outputItems());
+    }
     renderOutputNames();
   });
   byId("resetOutputNamesBtn").addEventListener("click", resetOutputNamesToDefaults);
@@ -2181,6 +2305,7 @@ function bindEvents() {
     });
   });
   setOutputFormat(byId("formatSelect").value || "csv", false);
+  setSummaryOutputFormat(byId("summaryFormatSelect").value || "xlsx");
   updateSummarizationMode();
   updateDerivedEmptyState();
 }

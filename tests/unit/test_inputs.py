@@ -170,6 +170,48 @@ def test_custom_output_names_are_windows_safe_and_extension_normalized(tmp_path:
     assert output == output_dir / "input_CON.csv"
 
 
+def test_custom_summary_artifact_suffix_preserves_typed_separator(tmp_path: Path) -> None:
+    output_dir = tmp_path / "outputs"
+    output_dir.mkdir()
+    input_path = tmp_path / "first.csv"
+    input_path.write_text("A\n1\n", encoding="utf-8")
+    resolved = ResolvedInput(path=input_path, format="csv", display_name="first", source_path=input_path)
+
+    output = output_path_for_input(
+        output_dir,
+        resolved,
+        index=1,
+        total=1,
+        output_format="xlsx",
+        output_name="first_tratada.csv",
+        artifact="summarization",
+        artifact_suffix="-resumo",
+    )
+
+    assert output == output_dir / "first_tratada-resumo.xlsx"
+
+
+def test_custom_summary_artifact_suffix_strips_file_extension(tmp_path: Path) -> None:
+    output_dir = tmp_path / "outputs"
+    output_dir.mkdir()
+    input_path = tmp_path / "first.csv"
+    input_path.write_text("A\n1\n", encoding="utf-8")
+    resolved = ResolvedInput(path=input_path, format="csv", display_name="first", source_path=input_path)
+
+    output = output_path_for_input(
+        output_dir,
+        resolved,
+        index=1,
+        total=1,
+        output_format="xlsx",
+        output_name="first_tratada.csv",
+        artifact="summarization",
+        artifact_suffix="_resumo.xlsx",
+    )
+
+    assert output == output_dir / "first_tratada_resumo.xlsx"
+
+
 def test_generated_output_path_keeps_excel_sheet_and_zip_member_safe(tmp_path: Path) -> None:
     output_dir = tmp_path / "outputs"
     output_dir.mkdir()

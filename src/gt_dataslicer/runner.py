@@ -190,6 +190,7 @@ def _output_paths_for_input(
         return summary_path, summary_path
     summary_format = base_options.summary_output_format if output_name is not None else base_options.output_format
     summary_artifact = "summarization" if output_name is not None else "summary"
+    summary_artifact_suffix = base_options.summary_output_suffix if base_options.summary_output_suffix else None
     summary_path = output_path_for_input(
         base_options.output_path,
         input_,
@@ -198,6 +199,7 @@ def _output_paths_for_input(
         output_format=summary_format,
         output_name=output_name,
         artifact=summary_artifact,
+        artifact_suffix=summary_artifact_suffix,
     )
     return filtered_path, summary_path
 

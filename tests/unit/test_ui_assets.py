@@ -143,8 +143,8 @@ def test_browser_app_syncs_output_suffix_when_format_changes() -> None:
     assert 'parquet: ".parquet"' in script
     assert "syncOutputSuffixWithFormat();" in script
     assert 'data-format-card="csv"' in markup
-    assert 'data-format-card="xlsx"' in markup
-    assert 'data-format-card="parquet"' in markup
+    assert 'data-summary-format-card="xlsx"' in markup
+    assert 'id="summaryFormatSelect"' in markup
     assert "formatCsvHelp" not in markup
     assert "formatExcelHelp" not in markup
     assert "formatParquetHelp" not in markup
@@ -170,6 +170,7 @@ def test_browser_app_uses_directory_first_output_destination() -> None:
     assert 'data-i18n="chooseOutputFolder"' in markup
     assert 'data-i18n="saveToFolder"' in markup
     assert 'data-i18n-placeholder="chooseFolderPlaceholder"' in markup
+    assert markup.index('id="outputPathInput"') < markup.index('data-format-card="csv"')
     assert "Salvar em" not in markup
     assert "Save as" not in script
     assert "Escolha onde salvar" not in script
@@ -179,19 +180,30 @@ def test_browser_app_generates_localized_default_output_names() -> None:
     script = APP_JS.read_text(encoding="utf-8")
     markup = INDEX_HTML.read_text(encoding="utf-8")
 
-    assert 'data-i18n="outputNamesTitle"' in markup
+    assert 'data-i18n="generatedOutputNamesTitle"' in markup
     assert 'data-i18n="individualOutputNames"' not in markup
     assert "individualOutputNames" not in script
     assert "Individual names" not in script
     assert "Nomes individuais" not in script
     assert "individualOutputNamesHelp" not in script
     assert 'id="outputNameSuffixInput"' in markup
+    assert 'id="summarizationOutputSuffixInput"' in markup
+    output_panel = markup[markup.index('id="outputNamesPanel"') : markup.index('id="outputNamesList"')]
+    assert 'id="summarizationOutputSuffixInput"' not in output_panel
     assert 'id="resetOutputNamesBtn"' in markup
     assert 'defaultOutputSuffix: "_tratada"' in script
     assert 'defaultOutputSuffix: "_treated"' in script
+    assert 'defaultSummarizationOutputSuffix: "_sumarizacao"' in script
+    assert 'defaultSummarizationOutputSuffix: "_summarization"' in script
     assert "function refreshOutputNameDefaults" in script
     assert "state.outputNameTouchedIndexes.add(index)" in script
     assert "state.outputNameSuffixTouched = true" in script
+    assert "state.summarizationOutputSuffixTouched = true" in script
+    assert "summarization_output_suffix" in script
+    assert "summarization_output_format" in script
+    assert "outputNameExtension()" in script
+    assert "outputNameStemValue" in script
+    assert "output-extension-badge" in script
     assert 'avoid_existing_output_paths: true' in script
 
 
@@ -210,16 +222,24 @@ def test_browser_app_copy_contract_stays_bilingual_and_concise() -> None:
         "Operator " "meaning:",
         "Significado do " "operador:",
         "Significado: " "igual a",
+        "Generated name suffix",
+        "Sufixo dos nomes gerados",
     ):
         assert forbidden_copy not in combined
 
     for expected_copy in (
-        'outputNamesTitle: "Nomes"',
-        'outputNamesTitle: "Names"',
+        'generatedOutputNamesTitle: "Nomes dos arquivos"',
+        'generatedOutputNamesTitle: "File names"',
+        'cleanupOutputTitle: "Base limpa"',
+        'cleanupOutputTitle: "Cleaned base"',
+        'summarizationOutputTitle: "Sumarização"',
+        'summarizationOutputTitle: "Summarization"',
         'chooseOutput: "Escolha a pasta de destino antes de continuar."',
         'chooseOutput: "Choose a destination folder before continuing."',
-        'outputNameSuffix: "Sufixo dos nomes gerados"',
-        'outputNameSuffix: "Generated name suffix"',
+        'outputNameSuffix: "Sufixo da base limpa"',
+        'outputNameSuffix: "Cleaned base suffix"',
+        'summarizationOutputSuffix: "Sufixo da sumarização"',
+        'summarizationOutputSuffix: "Summarization suffix"',
         'progressArtifactSummarization: "Sumarização"',
         'progressArtifactSummarization: "Summarization"',
         'derivedSummaryEmpty: "Escolha a coluna de origem e pelo menos uma ação."',

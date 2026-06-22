@@ -327,13 +327,19 @@ def output_path_for_input(
     output_format: str,
     output_name: str | None = None,
     artifact: str = "filtered",
+    artifact_suffix: str | None = None,
 ) -> Path:
     suffix = f".{output_format}"
-    artifact_suffix = "" if artifact == "filtered" else f"_{_safe_output_stem(artifact, output_format)}"
+    if artifact == "filtered":
+        normalized_artifact_suffix = ""
+    elif artifact_suffix is not None:
+        normalized_artifact_suffix = _safe_output_suffix(artifact_suffix, output_format)
+    else:
+        normalized_artifact_suffix = f"_{_safe_output_stem(artifact, output_format)}"
     if output_name:
         safe_stem = _safe_output_stem(output_name, output_format)
         if artifact != "filtered":
-            safe_stem = f"{safe_stem}{artifact_suffix}"
+            safe_stem = f"{safe_stem}{normalized_artifact_suffix}"
         if base_output.exists() and base_output.is_dir():
             return base_output / f"{safe_stem}{suffix}"
         if not base_output.suffix:
@@ -347,16 +353,16 @@ def output_path_for_input(
     if total == 1:
         if artifact != "filtered":
             if base_output.suffix:
-                return base_output.with_name(f"{base_output.stem}{artifact_suffix}{suffix}")
-            return base_output.with_name(f"{base_output.name}{artifact_suffix}{suffix}")
+                return base_output.with_name(f"{base_output.stem}{normalized_artifact_suffix}{suffix}")
+            return base_output.with_name(f"{base_output.name}{normalized_artifact_suffix}{suffix}")
         return base_output
 
     if base_output.exists() and base_output.is_dir():
-        return base_output / f"{index:03d}_{safe_stem}{artifact_suffix}{suffix}"
+        return base_output / f"{index:03d}_{safe_stem}{normalized_artifact_suffix}{suffix}"
     if not base_output.suffix:
-        return base_output / f"{index:03d}_{safe_stem}{artifact_suffix}{suffix}"
+        return base_output / f"{index:03d}_{safe_stem}{normalized_artifact_suffix}{suffix}"
 
-    return base_output.with_name(f"{base_output.stem}_{index:03d}_{safe_stem}{artifact_suffix}{suffix}")
+    return base_output.with_name(f"{base_output.stem}_{index:03d}_{safe_stem}{normalized_artifact_suffix}{suffix}")
 
 
 def _zip_is_encrypted(path: Path) -> bool:
@@ -405,3 +411,11 @@ def _safe_output_stem(value: str, output_format: str) -> str:
     if suffix in {".csv", ".xlsx", ".parquet"} or suffix == f".{output_format}":
         name = name[: -len(suffix)]
     return _safe_name(name)
+
+def _safe_output_suffix(value: str, output_format: str) -> str:
+    name = value.strip()
+    suffix = Path(name).suffix.lower()
+    if suffix in {".csv", ".xlsx", ".parquet"} or suffix == f".{output_format}":
+        name = name[: -len(suffix)]
+    safe = re.sub(r"[^A-Za-z0-9._-]+", "_", name).strip()
+    return safe or "_summarization"

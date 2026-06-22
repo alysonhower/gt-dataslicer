@@ -167,7 +167,7 @@ def test_ui_api_reports_queue_progress_from_known_item_counts(tmp_path: Path) ->
         {
             "input_paths": [str(first_path), str(second_path)],
             "output_path": str(output_dir),
-            "output_names": ["first.csv", "second.csv"],
+            "output_names": ["first", "second"],
             "avoid_existing_output_paths": True,
             "csv_options": {"delimiter": ","},
             "filters": {"mode": "visual", "conditions": []},
@@ -203,7 +203,7 @@ def test_ui_api_directory_output_names_avoid_existing_files(tmp_path: Path) -> N
         {
             "input_path": str(csv_path),
             "output_path": str(output_dir),
-            "output_names": ["people_tratada.csv"],
+            "output_names": ["people_tratada"],
             "avoid_existing_output_paths": True,
             "csv_options": {"delimiter": ","},
             "filters": {
@@ -266,12 +266,14 @@ def test_ui_api_runs_summarization_and_summarization_only_outputs(tmp_path: Path
         {
             "input_path": str(csv_path),
             "output_path": str(tmp_path),
-            "output_names": ["filtered.csv"],
+            "output_names": ["filtered"],
             "avoid_existing_output_paths": True,
             "csv_options": {"delimiter": ","},
             "summarization": True,
             "summarization_group_by": ["Status"],
             "summarization_totals": ["Valor"],
+            "summarization_output_suffix": "_resumo",
+            "summarization_output_format": "csv",
             "filters": {
                 "mode": "visual",
                 "conditions": [{"column": "Nome", "operator": "contains", "value": "Silva"}],
@@ -288,23 +290,24 @@ def test_ui_api_runs_summarization_and_summarization_only_outputs(tmp_path: Path
     assert summary_report["output_rows"] == 2
     assert summary_report["output_paths"] == [
         str(output_path.with_suffix(".csv")),
-        str(output_path.with_name("filtered_summarization.xlsx")),
+        str(output_path.with_name("filtered_resumo.csv")),
     ]
     assert output_path.with_suffix(".csv").exists()
-    assert output_path.with_name("filtered_summarization.xlsx").exists()
+    assert output_path.with_name("filtered_resumo.csv").exists()
 
     summary_only_path = tmp_path / "only_summarization"
     summary_only_response = api.start_filter_run(
         {
             "input_path": str(csv_path),
             "output_path": str(tmp_path),
-            "output_names": ["only_summarization.xlsx"],
+            "output_names": ["only_summarization"],
             "avoid_existing_output_paths": True,
             "csv_options": {"delimiter": ","},
             "summarization": True,
             "summarization_only": True,
             "summarization_group_by": ["Status"],
             "summarization_totals": ["Valor"],
+            "summarization_output_format": "csv",
             "filters": {
                 "mode": "visual",
                 "combine": "or",
@@ -319,8 +322,9 @@ def test_ui_api_runs_summarization_and_summarization_only_outputs(tmp_path: Path
     summary_only_report = summary_only_job["report"]
     assert isinstance(summary_only_report, dict)
     assert summary_only_report["output_rows"] == 1
-    assert summary_only_report["output_paths"] == [str(summary_only_path.with_suffix(".xlsx"))]
-    assert summary_only_path.with_suffix(".xlsx").exists()
+    assert summary_only_report["output_paths"] == [str(summary_only_path.with_suffix(".csv"))]
+    assert summary_only_path.with_suffix(".csv").exists()
+    assert not summary_only_path.with_name("only_summarization_summarization.csv").exists()
     assert not summary_only_path.with_name("only_summarization_summarization.xlsx").exists()
 
 
@@ -458,6 +462,8 @@ def test_ui_api_saves_summarization_config_with_public_keys(tmp_path: Path, monk
             "summarization_only": True,
             "summarization_group_by": ["Status"],
             "summarization_totals": ["Valor"],
+            "summarization_output_suffix": "_resumo",
+            "summarization_output_format": "csv",
         }
     )
 
@@ -467,4 +473,8 @@ def test_ui_api_saves_summarization_config_with_public_keys(tmp_path: Path, monk
     assert "summarization_only: true" in contents
     assert "summarization_group_by:" in contents
     assert "summarization_totals:" in contents
+    assert "summarization_output_suffix: _resumo" in contents
+    assert "summarization_output_format: csv" in contents
     assert "summary_group_by" not in contents
+    assert "summary_output_suffix" not in contents
+    assert "summary_output_format" not in contents

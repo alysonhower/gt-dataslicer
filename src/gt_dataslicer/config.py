@@ -66,6 +66,7 @@ class FilterRunOptions:
     summary_totals: list[str] = field(default_factory=list)
     summary_output_path: Path | None = None
     summary_output_format: OutputFormat = "xlsx"
+    summary_output_suffix: str | None = None
     resolved_input: ResolvedInput | None = None
     where: list[str] = field(default_factory=list)
     select: list[str] = field(default_factory=list)
@@ -224,6 +225,14 @@ def parse_output_format(value: Any, *, source: str) -> OutputFormat | None:
         raise ConfigError(f"{source} must be one of: {valid}.")
     return cast(OutputFormat, normalized)
 
+def parse_optional_string(value: Any, *, key: str) -> str | None:
+    if value is None:
+        return None
+    if not isinstance(value, str):
+        raise ConfigError(f"Config key '{key}' must be a string.")
+    normalized = value.strip()
+    return normalized or None
+
 
 def resolve_output_target(
     output_path: Path,
@@ -306,6 +315,8 @@ def merge_config_and_cli(
     cli_summary_only: bool,
     cli_summary_group_by: list[str],
     cli_summary_totals: list[str],
+    cli_summary_output_format: str | None,
+    cli_summary_output_suffix: str | None,
     cli_renames: list[str],
     cli_dedupe: bool,
     cli_dedupe_keys: list[str],
@@ -345,6 +356,23 @@ def merge_config_and_cli(
     config_summary_totals = as_list(
         preset_config.get("summarization_totals", preset_config.get("summary_totals")),
         key="summarization_totals",
+    )
+    cli_summary_format = parse_output_format(cli_summary_output_format, source="summarization_output_format")
+    config_summary_format = (
+        None
+        if cli_summary_format is not None
+        else parse_output_format(
+            preset_config.get("summarization_output_format", preset_config.get("summary_output_format")),
+            source="Config key 'summarization_output_format'",
+        )
+    )
+    summary_output_format = cli_summary_format or config_summary_format or "xlsx"
+    config_summary_output_suffix = parse_optional_string(
+        preset_config.get("summarization_output_suffix", preset_config.get("summary_output_suffix")),
+        key="summarization_output_suffix",
+    )
+    summary_output_suffix = (
+        cli_summary_output_suffix if cli_summary_output_suffix is not None else config_summary_output_suffix
     )
     summarize = bool(preset_config.get("summarization", preset_config.get("summarize", False)))
     summary_only = bool(
@@ -415,7 +443,8 @@ def merge_config_and_cli(
         summary_group_by=[*config_summary_group_by, *cli_summary_group_by],
         summary_totals=[*config_summary_totals, *cli_summary_totals],
         summary_output_path=None,
-        summary_output_format="xlsx",
+        summary_output_format=summary_output_format,
+        summary_output_suffix=summary_output_suffix,
         where=[*config_where, *cli_where],
         select=select,
         renames=renames,
