@@ -5,4 +5,4 @@ __pycache__/
 build/
 dist/
 manual-test-data/
-gtil-global-sub-brand-guidelines.pdf
+!gtil-global-sub-brand-guidelines.pdf

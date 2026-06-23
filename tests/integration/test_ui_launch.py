@@ -80,6 +80,7 @@ def test_dataslicer_entrypoint_builds_webview_window(monkeypatch) -> None:
         FileDialog=SimpleNamespace(OPEN="open", SAVE="save"),
     )
     monkeypatch.setitem(sys.modules, "webview", fake_webview)
+    monkeypatch.setattr(ui_app.sys, "platform", "win32")
 
     ui_app.main()
 

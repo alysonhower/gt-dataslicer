@@ -8,7 +8,7 @@ APP_JS = ROOT / "src" / "gt_dataslicer" / "ui" / "web" / "app.js"
 INDEX_HTML = ROOT / "src" / "gt_dataslicer" / "ui" / "web" / "index.html"
 STYLES_CSS = ROOT / "src" / "gt_dataslicer" / "ui" / "web" / "styles.css"
 DOCUMENTED_CONTEXTUAL_HEX: Final = {
-    "#eef9fa",
+    "#f3eef8",
     "#fbfafc",
     "#f7f5fa",
     "#f7f7f8",
