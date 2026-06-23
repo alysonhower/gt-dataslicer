@@ -5,4 +5,13 @@ __pycache__/
 build/
 dist/
 manual-test-data/
+
+# Local agent/tooling state
+.omo/
+omo/
+.playwright-mcp/
+artifacts/
+uv.lock
+
+# Repository-approved brand reference asset
 !gtil-global-sub-brand-guidelines.pdf
