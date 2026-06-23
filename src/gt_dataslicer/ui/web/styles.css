@@ -388,7 +388,7 @@ h2 {
 
 .queue-output-name {
   display: grid;
-  grid-template-columns: minmax(120px, max-content) minmax(180px, 1fr);
+  grid-template-columns: minmax(96px, max-content) minmax(180px, 1fr);
   align-items: center;
   gap: 8px 12px;
   margin-top: 6px;
@@ -396,13 +396,21 @@ h2 {
 }
 
 .output-source-label {
+  display: grid;
+  gap: 2px;
+  align-items: start;
+}
+
+.output-artifact-label {
   color: var(--purple-dark);
-  font-size: 0.82rem;
+  font-size: 0.86rem;
   font-weight: 700;
 }
 
+
 .output-name-editor {
   display: flex;
+  align-items: stretch;
   min-width: 0;
 }
 
@@ -414,24 +422,28 @@ h2 {
   padding: 7px 9px;
 }
 
+.output-suffix-badge,
 .output-extension-badge {
   display: inline-flex;
   align-items: center;
   min-height: 34px;
   border: 1px solid var(--line);
   border-left: 0;
-  border-radius: 0 6px 6px 0;
   padding: 0 10px;
   background: var(--surface-soft);
   color: var(--muted);
   font-weight: 700;
 }
 
-.output-name-preview {
-  grid-column: 2;
-  color: var(--muted);
-  font-size: 0.82rem;
+.output-suffix-badge {
+  border-radius: 0;
+  color: var(--purple-dark);
 }
+
+.output-extension-badge {
+  border-radius: 0 6px 6px 0;
+}
+
 
 .advanced-line {
   margin-top: 16px;
@@ -1124,9 +1136,6 @@ textarea {
     grid-template-columns: 1fr;
   }
 
-  .output-name-preview {
-    grid-column: auto;
-  }
 
   .filter-row {
     grid-template-columns: 1fr;

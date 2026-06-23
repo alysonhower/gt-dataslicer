@@ -5,7 +5,9 @@ const state = {
   outputPath: "",
   outputPaths: [],
   outputNames: [],
+  summarizationOutputNames: [],
   outputNameTouchedIndexes: new Set(),
+  summarizationOutputNameTouchedIndexes: new Set(),
   outputNameSuffix: "",
   outputNameSuffixTouched: false,
   summarizationOutputSuffix: "",
@@ -36,7 +38,7 @@ const FILTER_OPERATOR_OPTIONS = [
   { id: "contains", symbol: "…x…", labelKey: "opContains" },
   { id: "starts_with", symbol: "x…", labelKey: "opStartsWith" },
   { id: "ends_with", symbol: "…x", labelKey: "opEndsWith" },
-  { id: "regex", symbol: ".*", labelKey: "opRegex" },
+  { id: "regex", symbol: "≈", labelKey: "opRegex" },
   { id: "is_blank", symbol: "∅", labelKey: "opIsBlank" },
   { id: "is_not_blank", symbol: "≠ ∅", labelKey: "opIsNotBlank" },
 ];
@@ -55,7 +57,8 @@ const text = {
     chooseOutput: "Escolha a pasta de destino antes de continuar.",
     chooseOutputDirectory: "Escolha a pasta de destino.",
     noColumns: "Escolha um arquivo para carregar as colunas.",
-    droppedFileNeedsPicker: "Clique na área do arquivo para escolher pelo computador e liberar o caminho completo.",
+    droppedFileNeedsPicker:
+      "Clique na área do arquivo para escolher pelo computador e liberar o caminho completo.",
     noFile: "Nenhum arquivo escolhido",
     columnsLoaded: "colunas carregadas.",
     columnSearchPlaceholder: "Buscar coluna",
@@ -65,18 +68,28 @@ const text = {
     zipPasswords: "Senhas de ZIP",
     onePasswordPerLine: "Uma senha por linha",
     allExcelSheets: "Processar todas as abas do Excel",
-    reuseSchema: "Reutilizar o esquema do primeiro arquivo",
+    reuseSchema: "Reutilizar estrutura do primeiro arquivo",
     deleteZipAfterExtract: "Excluir ZIP após extrair com sucesso",
     rowsWritten: "linhas gravadas.",
     progressTitle: "Andamento",
     progressItem: "Item {index} de {total}",
-    progressArtifactFiltered: "Base filtrada",
+    progressArtifactFiltered: "Base limpa",
     progressArtifactSummarization: "Sumarização",
     progressArtifactOutput: "Saída",
     progressPercentLabel: "{percent}% concluído",
-    progressIndeterminateLabel: "Andamento em execução sem percentual confiável",
-    bridgeNotReady: "A ponte com Python ainda não está pronta.",
-    bridgeWaiting: "Aguardando a ponte com Python.",
+    progressIndeterminateLabel:
+      "Andamento em execução sem percentual confiável",
+    stepsNavLabel: "Etapas",
+    filterModeLabel: "Modo de filtro",
+    cleanupFormatLabel: "Formato da base limpa",
+    summaryFormatLabel: "Formato da sumarização",
+    progressTimelineLabel: "Linha do tempo do andamento",
+    columnAriaLabel: "Coluna",
+    transformationAriaLabel: "Transformação",
+    cleanupOutputNameAriaLabel: "Nome base da base limpa",
+    summarizationOutputNameAriaLabel: "Nome base da sumarização",
+    bridgeNotReady: "A tela visual ainda está carregando.",
+    bridgeWaiting: "Aguardando a tela visual ficar pronta.",
     language: "Idioma",
     stepFile: "Arquivo",
     stepFilter: "Filtro",
@@ -95,7 +108,7 @@ const text = {
     readOptions: "Opções de leitura",
     encoding: "Codificação",
     delimiter: "Delimitador",
-    nullValue: "Valor nulo",
+    nullValue: "Texto tratado como vazio",
     emptyPlaceholder: "vazio",
     buildFilter: "Monte o filtro",
     visual: "Visual",
@@ -108,47 +121,51 @@ const text = {
     advancedFilter: "Filtro avançado",
     checkExpression: "Verificar expressão",
     chooseOutputTitle: "Escolha a saída",
-    chooseOutputFolder: "Escolha a pasta de saída",
+    chooseOutputFolder: "Destino",
     chooseDestination: "Escolher destino",
     chooseFolder: "Escolher pasta",
     routeModeTitle: "O que você quer gerar?",
-    routeModeHelp: "Sumarização aqui significa uma análise agrupada com totais, no estilo IDEA.",
+    routeModeHelp:
+      "Agrupe os dados por uma ou mais colunas e calcule totais por grupo.",
     cleanBase: "Limpar base",
     cleanBaseHelp: "Filtra e salva a base limpa.",
     cleanThenSummarization: "Limpar e sumarizar base limpa",
-    cleanThenSummarizationHelp: "Salva a base limpa e também a sumarização agrupada com totais.",
+    cleanThenSummarizationHelp:
+      "Salva a base limpa e também a sumarização agrupada com totais.",
     summarizationOnly: "Sumarizar bases de entrada",
     summarizationOnlyHelp: "Gera somente a sumarização agrupada com totais.",
     summarization: "Gerar sumarização",
     summarizationOnlyOption: "Gerar apenas a sumarização",
     summarizationGroupBy: "Agrupar por",
-    summarizationTotals: "Somar colunas na sumarização",
+    summarizationTotals: "Sumarizar",
     summarizationColumnPlaceholder: "Uma coluna por linha",
     summarizationSetupTitle: "Configure a sumarização",
-    summarizationSetupHelp: "Escolha as colunas de agrupamento e as colunas numéricas que serão totalizadas.",
+    summarizationSetupHelp:
+      "Escolha as colunas de agrupamento e as colunas numéricas que serão totalizadas.",
     format: "Formato",
     formatCsvTitle: "CSV",
     formatExcelTitle: "Excel",
     formatParquetTitle: "Parquet",
     saveAs: "Pasta de destino",
-    saveToFolder: "Pasta de destino",
+    saveToFolder: "Pasta",
     chooseSavePlaceholder: "Escolha uma pasta",
-    chooseFolderPlaceholder: "Escolha uma pasta",
+    chooseFolderPlaceholder: "Caminho da pasta",
     outputNamesTitle: "Nomes",
     cleanupOutputTitle: "Base limpa",
-    cleanupOutputHelp: "Escolha o formato da base filtrada.",
+    cleanupOutputHelp: "Formato do arquivo exportado.",
     summarizationOutputTitle: "Sumarização",
-    summarizationOutputHelp: "Escolha o formato da sumarização agrupada.",
+    summarizationOutputHelp: "Formato do resumo agrupado.",
     generatedOutputNamesTitle: "Nomes dos arquivos",
-    generatedOutputNamesHelp: "Edite apenas o nome base. O formato define a extensão.",
+    generatedOutputNamesHelp: "Edite só o nome base.",
     outputNameSuffix: "Sufixo da base limpa",
     outputNameStemPlaceholder: "Nome base",
-    resetOutputNames: "Redefinir nomes gerados",
+    resetOutputNames: "Redefinir",
     defaultOutputSuffix: "_tratada",
     summarizationOutputSuffix: "Sufixo da sumarização",
     defaultSummarizationOutputSuffix: "_sumarizacao",
     derivedColumnsTitle: "Criar novas colunas",
-    derivedColumnsHelp: "Opcional: crie colunas limpas a partir das colunas filtradas.",
+    derivedColumnsHelp:
+      "Opcional: crie colunas limpas a partir das colunas filtradas.",
     addDerivedColumn: "Adicionar coluna",
     noDerivedColumns: "Nenhuma coluna nova será criada.",
     saveConfig: "Salvar configuração",
@@ -169,7 +186,7 @@ const text = {
     positionTarget: "Coluna de referência",
     newColumn: "Nova coluna",
     derivedSummaryEmpty: "Escolha a coluna de origem e pelo menos uma ação.",
-    derivedSummary: "Criar coluna `{name}` a partir de `{source}`.",
+    derivedSummary: "Origem: `{source}`.",
     advancedOptions: "Opções avançadas",
     columnsToSave: "Colunas para salvar",
     oneColumnPerLine: "Uma coluna por linha",
@@ -181,8 +198,8 @@ const text = {
     columnPlaceholder: "COLUNA",
     removeDuplicates: "Remover linhas duplicadas",
     caseInsensitive: "Não diferenciar maiúsculas em nomes de colunas",
-    jsonReport: "Relatório JSON",
-    rejectsCsv: "Rejeitados CSV",
+    jsonReport: "Relatório da execução",
+    rejectsCsv: "Linhas rejeitadas",
     optional: "Opcional",
     chooseReport: "Escolher relatório",
     chooseRejects: "Escolher rejeitados",
@@ -202,7 +219,7 @@ const text = {
     opContains: "contém",
     opStartsWith: "começa com",
     opEndsWith: "termina com",
-    opRegex: "expressão regular",
+    opRegex: "combina com padrão",
     opIsBlank: "é branco ou vazio",
     opIsNotBlank: "não é branco nem vazio",
     operatorAriaLabel: "Operador: {symbol}, {meaning}",
@@ -246,9 +263,11 @@ const text = {
     filesProcessed: "Arquivos processados",
     warnings: "Avisos",
     filesFailed: "Não foi possível processar",
-    queuePartialDone: "Alguns arquivos foram gerados, mas outros precisam de atenção.",
-    queueAllFailed: "Nenhum arquivo foi gerado. Veja os itens que precisam de atenção.",
-    technicalDetails: "Detalhes técnicos",
+    queuePartialDone:
+      "Alguns arquivos foram gerados, mas outros precisam de atenção.",
+    queueAllFailed:
+      "Nenhum arquivo foi gerado. Veja os itens que precisam de atenção.",
+    technicalDetails: "Detalhes para suporte",
     likelyCause: "Provável causa",
     nextStep: "Próximo passo",
     zipPasswordNeeded: "Este ZIP precisa de senha.",
@@ -268,7 +287,8 @@ const text = {
     chooseOutput: "Choose a destination folder before continuing.",
     chooseOutputDirectory: "Choose the destination folder.",
     noColumns: "Choose a file to load columns.",
-    droppedFileNeedsPicker: "Click the file area to choose from your computer and allow access to the full path.",
+    droppedFileNeedsPicker:
+      "Click the file area to choose from your computer and allow access to the full path.",
     noFile: "No file selected",
     columnsLoaded: "columns loaded.",
     columnSearchPlaceholder: "Search column",
@@ -278,18 +298,27 @@ const text = {
     zipPasswords: "ZIP passwords",
     onePasswordPerLine: "One password per line",
     allExcelSheets: "Process all Excel sheets",
-    reuseSchema: "Reuse the first file schema",
+    reuseSchema: "Reuse the first file structure",
     deleteZipAfterExtract: "Delete ZIP after successful extraction",
     rowsWritten: "rows written.",
     progressTitle: "Progress",
     progressItem: "Item {index} of {total}",
-    progressArtifactFiltered: "Filtered base",
+    progressArtifactFiltered: "Cleaned base",
     progressArtifactSummarization: "Summarization",
     progressArtifactOutput: "Output",
     progressPercentLabel: "{percent}% complete",
     progressIndeterminateLabel: "Running without a reliable percentage",
-    bridgeNotReady: "The Python bridge is not ready yet.",
-    bridgeWaiting: "Waiting for the Python bridge.",
+    stepsNavLabel: "Steps",
+    filterModeLabel: "Filter mode",
+    cleanupFormatLabel: "Cleaned base format",
+    summaryFormatLabel: "Summarization format",
+    progressTimelineLabel: "Progress timeline",
+    columnAriaLabel: "Column",
+    transformationAriaLabel: "Transformation",
+    cleanupOutputNameAriaLabel: "Cleaned base name",
+    summarizationOutputNameAriaLabel: "Summarization base name",
+    bridgeNotReady: "The visual interface is still loading.",
+    bridgeWaiting: "Waiting for the visual interface to be ready.",
     language: "Language",
     stepFile: "File",
     stepFilter: "Filter",
@@ -308,7 +337,7 @@ const text = {
     readOptions: "Read options",
     encoding: "Encoding",
     delimiter: "Delimiter",
-    nullValue: "Null value",
+    nullValue: "Text treated as empty",
     emptyPlaceholder: "empty",
     buildFilter: "Build the filter",
     visual: "Visual",
@@ -321,47 +350,51 @@ const text = {
     advancedFilter: "Advanced filter",
     checkExpression: "Check expression",
     chooseOutputTitle: "Choose the output",
-    chooseOutputFolder: "Choose the output folder",
+    chooseOutputFolder: "Destination",
     chooseDestination: "Choose destination",
     chooseFolder: "Choose folder",
     routeModeTitle: "What do you want to create?",
-    routeModeHelp: "Summarization means IDEA-style grouped data analysis with totals.",
+    routeModeHelp:
+      "Group the data by one or more columns and calculate totals for each group.",
     cleanBase: "Clean base",
     cleanBaseHelp: "Filter and save the clean base.",
     cleanThenSummarization: "Clean, then run summarization",
-    cleanThenSummarizationHelp: "Save the clean base and the grouped summarization with totals.",
+    cleanThenSummarizationHelp:
+      "Save the clean base and the grouped summarization with totals.",
     summarizationOnly: "Run summarization only",
     summarizationOnlyHelp: "Create only the grouped summarization with totals.",
     summarization: "Generate summarization",
     summarizationOnlyOption: "Generate only summarization",
     summarizationGroupBy: "Group by",
-    summarizationTotals: "Sum columns in summarization",
+    summarizationTotals: "Summarize",
     summarizationColumnPlaceholder: "One column per line",
     summarizationSetupTitle: "Configure summarization",
-    summarizationSetupHelp: "Choose grouping columns and numeric columns to total.",
+    summarizationSetupHelp:
+      "Choose grouping columns and numeric columns to total.",
     format: "Format",
     formatCsvTitle: "CSV",
     formatExcelTitle: "Excel",
     formatParquetTitle: "Parquet",
     saveAs: "Destination folder",
-    saveToFolder: "Destination folder",
+    saveToFolder: "Folder",
     chooseSavePlaceholder: "Choose a folder",
-    chooseFolderPlaceholder: "Choose a folder",
+    chooseFolderPlaceholder: "Folder path",
     outputNamesTitle: "Names",
     cleanupOutputTitle: "Cleaned base",
-    cleanupOutputHelp: "Choose the filtered base format.",
+    cleanupOutputHelp: "Export file format.",
     summarizationOutputTitle: "Summarization",
-    summarizationOutputHelp: "Choose the grouped summarization format.",
+    summarizationOutputHelp: "Grouped summary format.",
     generatedOutputNamesTitle: "File names",
-    generatedOutputNamesHelp: "Edit only the base name. The format controls the extension.",
+    generatedOutputNamesHelp: "Edit only the base name.",
     outputNameSuffix: "Cleaned base suffix",
     outputNameStemPlaceholder: "Base name",
-    resetOutputNames: "Reset generated names",
+    resetOutputNames: "Reset",
     defaultOutputSuffix: "_treated",
     summarizationOutputSuffix: "Summarization suffix",
     defaultSummarizationOutputSuffix: "_summarization",
     derivedColumnsTitle: "Create new columns",
-    derivedColumnsHelp: "Optional: create cleaned columns from filtered columns.",
+    derivedColumnsHelp:
+      "Optional: create cleaned columns from filtered columns.",
     addDerivedColumn: "Add column",
     noDerivedColumns: "No new column will be created.",
     saveConfig: "Save configuration",
@@ -382,7 +415,7 @@ const text = {
     positionTarget: "Reference column",
     newColumn: "New column",
     derivedSummaryEmpty: "Choose the source column and at least one action.",
-    derivedSummary: "Create column `{name}` from `{source}`.",
+    derivedSummary: "Source: `{source}`.",
     advancedOptions: "Advanced options",
     columnsToSave: "Columns to save",
     oneColumnPerLine: "One column per line",
@@ -394,8 +427,8 @@ const text = {
     columnPlaceholder: "COLUMN",
     removeDuplicates: "Remove duplicate rows",
     caseInsensitive: "Ignore case in column names",
-    jsonReport: "JSON report",
-    rejectsCsv: "Rejected rows CSV",
+    jsonReport: "Run report",
+    rejectsCsv: "Rejected rows",
     optional: "Optional",
     chooseReport: "Choose report",
     chooseRejects: "Choose rejected rows",
@@ -415,7 +448,7 @@ const text = {
     opContains: "contains",
     opStartsWith: "starts with",
     opEndsWith: "ends with",
-    opRegex: "regular expression",
+    opRegex: "matches pattern",
     opIsBlank: "is blank or empty",
     opIsNotBlank: "is not blank or empty",
     operatorAriaLabel: "Operator: {symbol}, {meaning}",
@@ -460,8 +493,9 @@ const text = {
     warnings: "Warnings",
     filesFailed: "Could not process",
     queuePartialDone: "Some files were created, but others need attention.",
-    queueAllFailed: "No file was created. Review the items that need attention.",
-    technicalDetails: "Technical details",
+    queueAllFailed:
+      "No file was created. Review the items that need attention.",
+    technicalDetails: "Support details",
     likelyCause: "Likely cause",
     nextStep: "Next step",
     zipPasswordNeeded: "This ZIP needs a password.",
@@ -506,7 +540,10 @@ function updateVisibleStepNumbers() {
   if (activeLink && activeLink.classList.contains("hidden")) {
     activeLink.classList.remove("active");
   }
-  if (!visibleLinks.some((link) => link.classList.contains("active")) && visibleLinks[0]) {
+  if (
+    !visibleLinks.some((link) => link.classList.contains("active")) &&
+    visibleLinks[0]
+  ) {
     visibleLinks[0].classList.add("active");
   }
 }
@@ -525,7 +562,8 @@ function showDetails(value) {
     details.textContent = "";
     return;
   }
-  details.textContent = typeof value === "string" ? value : JSON.stringify(value, null, 2);
+  details.textContent =
+    typeof value === "string" ? value : JSON.stringify(value, null, 2);
   detailsWrapper.classList.remove("hidden");
 }
 
@@ -545,7 +583,9 @@ function showFriendlyError(error) {
     return;
   }
   const message = error.message || t("error");
-  const isZipPassword = error.type === "ZipPasswordRequiredError" || String(message).toLowerCase().includes("zip");
+  const isZipPassword =
+    error.type === "ZipPasswordRequiredError" ||
+    String(message).toLowerCase().includes("zip");
   const cause = isZipPassword ? t("zipPasswordNeeded") : message;
   const next = isZipPassword ? t("zipPasswordAsk") : t("reviewAndTryAgain");
   box.innerHTML = `
@@ -560,7 +600,8 @@ function handleResponse(response) {
   if (response && response.ok) {
     return response.data;
   }
-  const error = response && response.error ? response.error : { message: t("error") };
+  const error =
+    response && response.error ? response.error : { message: t("error") };
   setStatus(t("error"), error.message, "error");
   showFriendlyError(error);
   showDetails(error.details || error);
@@ -624,6 +665,8 @@ function setInputPaths(paths) {
   state.inputPath = state.inputPaths[0] || "";
   state.outputNames = [];
   state.outputNameTouchedIndexes = new Set();
+  state.summarizationOutputNames = [];
+  state.summarizationOutputNameTouchedIndexes = new Set();
   state.resolvedInputs = [];
   byId("inputPathText").textContent = state.inputPath || t("noFile");
   renderQueue();
@@ -646,12 +689,19 @@ function applyLanguage() {
   document.querySelectorAll("[data-i18n-title]").forEach((element) => {
     element.setAttribute("title", t(element.dataset.i18nTitle));
   });
+  document.querySelectorAll("[data-i18n-aria-label]").forEach((element) => {
+    element.setAttribute("aria-label", t(element.dataset.i18nAriaLabel));
+  });
   if (!state.inputPath) {
     byId("inputPathText").textContent = t("noFile");
   }
-  document.querySelectorAll(".filter-column").forEach((input) => updateColumnOptions(input));
+  document
+    .querySelectorAll(".filter-column")
+    .forEach((input) => updateColumnOptions(input));
   document.querySelectorAll(".filter-row").forEach(updateOperatorPicker);
-  document.querySelectorAll(".derived-transform-row").forEach(updateTransformRow);
+  document
+    .querySelectorAll(".derived-transform-row")
+    .forEach(updateTransformRow);
   document.querySelectorAll(".derived-column-card").forEach(updateDerivedCard);
   refreshOutputNameDefaults();
   syncSummarizationOutputSuffixField();
@@ -662,7 +712,9 @@ function applyLanguage() {
 }
 
 function updateFilterHint() {
-  const hasActiveRules = Array.from(document.querySelectorAll(".filter-row")).some(visualConditionIsComplete);
+  const hasActiveRules = Array.from(
+    document.querySelectorAll(".filter-row"),
+  ).some(visualConditionIsComplete);
   byId("noFilterHint").classList.toggle("hidden", hasActiveRules);
 }
 
@@ -676,30 +728,48 @@ function updateSummarizationMode() {
     card.classList.toggle("active", input.checked);
   });
   summarizationSection.classList.toggle("hidden", !summarize);
-  document.querySelectorAll(".summarization-only-section").forEach((element) => {
-    element.classList.toggle("hidden", !summarize);
-  });
-  document.querySelectorAll(".cleanup-only-section, .cleanup-option").forEach((element) => {
-    element.classList.toggle("hidden", !cleanup);
-  });
-  Array.from(summarizationSection.querySelectorAll("input")).forEach((field) => {
-    field.disabled = !summarize;
-  });
-  document.querySelectorAll("#step-filter input, #step-filter select, #step-filter textarea, #step-filter button, .derived-section input, .derived-section select, .derived-section textarea, .derived-section button, .cleanup-option input, .cleanup-option select, .cleanup-option textarea").forEach((field) => {
-    field.disabled = !cleanup;
-  });
+  document
+    .querySelectorAll(".summarization-only-section")
+    .forEach((element) => {
+      element.classList.toggle("hidden", !summarize);
+    });
+  document
+    .querySelectorAll(".cleanup-only-section, .cleanup-option")
+    .forEach((element) => {
+      element.classList.toggle("hidden", !cleanup);
+    });
+  Array.from(summarizationSection.querySelectorAll("input")).forEach(
+    (field) => {
+      field.disabled = !summarize;
+    },
+  );
+  document
+    .querySelectorAll(
+      "#step-filter input, #step-filter select, #step-filter textarea, #step-filter button, .derived-section input, .derived-section select, .derived-section textarea, .derived-section button, .cleanup-option input, .cleanup-option select, .cleanup-option textarea",
+    )
+    .forEach((field) => {
+      field.disabled = !cleanup;
+    });
   updateVisibleStepNumbers();
 }
 
 function routeMode() {
   const mode = document.querySelector('input[name="routeMode"]:checked')?.value;
-  return ["cleanBase", "cleanThenSummarization", "summarizationOnly"].includes(mode) ? mode : "cleanBase";
+  return ["cleanBase", "cleanThenSummarization", "summarizationOnly"].includes(
+    mode,
+  )
+    ? mode
+    : "cleanBase";
 }
 
 function setColumns(columns) {
   state.columns = columns || [];
-  byId("columnCountText").textContent = state.columns.length ? String(state.columns.length) : "-";
-  document.querySelectorAll(".filter-column").forEach((input) => updateColumnOptions(input));
+  byId("columnCountText").textContent = state.columns.length
+    ? String(state.columns.length)
+    : "-";
+  document
+    .querySelectorAll(".filter-column")
+    .forEach((input) => updateColumnOptions(input));
   updateSummarizationMode();
   refreshSummarizationColumnPickers();
 }
@@ -707,7 +777,10 @@ function setColumns(columns) {
 function renderQueue(inputs = state.resolvedInputs) {
   const panel = byId("queuePanel");
   const list = byId("queueList");
-  const items = inputs && inputs.length ? inputs : state.inputPaths.map((path) => ({ label: path, format: "" }));
+  const items =
+    inputs && inputs.length
+      ? inputs
+      : state.inputPaths.map((path) => ({ label: path, format: "" }));
   list.innerHTML = "";
   if (!items.length) {
     panel.classList.add("hidden");
@@ -716,8 +789,13 @@ function renderQueue(inputs = state.resolvedInputs) {
   items.forEach((item, index) => {
     const row = document.createElement("div");
     row.className = "queue-item";
-    const label = item.label || item.display_name || item.source_path || item.path;
-    const meta = [item.format, item.excel_sheet ? `aba: ${item.excel_sheet}` : "", item.zip_source ? "ZIP" : ""]
+    const label =
+      item.label || item.display_name || item.source_path || item.path;
+    const meta = [
+      item.format,
+      item.excel_sheet ? `aba: ${item.excel_sheet}` : "",
+      item.zip_source ? "ZIP" : "",
+    ]
       .filter(Boolean)
       .join(" · ");
     const title = document.createElement("strong");
@@ -731,7 +809,9 @@ function renderQueue(inputs = state.resolvedInputs) {
 }
 
 function outputItems(inputs = state.resolvedInputs) {
-  return inputs && inputs.length ? inputs : state.inputPaths.map((path) => ({ label: path, format: "" }));
+  return inputs && inputs.length
+    ? inputs
+    : state.inputPaths.map((path) => ({ label: path, format: "" }));
 }
 
 function extensionForFormat(format) {
@@ -748,22 +828,60 @@ function summaryOutputExtension() {
 }
 
 function outputNameExtension() {
-  return routeMode() === "summarizationOnly" ? summaryOutputExtension() : outputExtension();
+  return routeMode() === "summarizationOnly"
+    ? summaryOutputExtension()
+    : outputExtension();
 }
 
 function outputStemFromPath(path) {
-  const leaf = String(path || "").split(/[\\/]/).filter(Boolean).pop() || "input";
+  const leaf =
+    String(path || "")
+      .split(/[\\/]/)
+      .filter(Boolean)
+      .pop() || "input";
   return leaf.replace(/\.(csv|xlsx|parquet|pq)$/i, "");
 }
 
+const OUTPUT_STEM_SPACED_SEPARATOR_PATTERN = /\s+[._-]+\s*|\s*[._-]+\s+/g;
+
 function safeOutputStem(value) {
-  const withoutExtension = String(value || "").trim().replace(/\.(csv|xlsx|parquet)$/i, "");
-  let safe = withoutExtension.replace(/[^A-Za-z0-9._-]+/g, "_").replace(/^[._-]+|[._-]+$/g, "");
+  const withoutExtension = String(value || "")
+    .trim()
+    .replace(/\.(csv|xlsx|parquet)$/i, "");
+  let safe = withoutExtension
+    .replace(OUTPUT_STEM_SPACED_SEPARATOR_PATTERN, "_")
+    .replace(/[^A-Za-z0-9._-]+/g, "_")
+    .replace(/^[._-]+|[._-]+$/g, "");
   if (!safe) {
     safe = "input";
   }
   const reservedStem = safe.split(".")[0].toUpperCase();
-  if (["CON", "PRN", "AUX", "NUL", "COM1", "COM2", "COM3", "COM4", "COM5", "COM6", "COM7", "COM8", "COM9", "LPT1", "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9"].includes(reservedStem)) {
+  if (
+    [
+      "CON",
+      "PRN",
+      "AUX",
+      "NUL",
+      "COM1",
+      "COM2",
+      "COM3",
+      "COM4",
+      "COM5",
+      "COM6",
+      "COM7",
+      "COM8",
+      "COM9",
+      "LPT1",
+      "LPT2",
+      "LPT3",
+      "LPT4",
+      "LPT5",
+      "LPT6",
+      "LPT7",
+      "LPT8",
+      "LPT9",
+    ].includes(reservedStem)
+  ) {
     safe = `input_${safe}`;
   }
   return safe;
@@ -775,17 +893,31 @@ function outputNameStemValue(value) {
 }
 
 function outputBaseStem(item) {
-  const source = item.display_name || outputStemFromPath(item.label || item.source_path || item.path);
-  return safeOutputStem(item.excel_sheet ? `${source}_${item.excel_sheet}` : source);
+  const source =
+    item.display_name ||
+    outputStemFromPath(item.label || item.source_path || item.path);
+  return safeOutputStem(
+    item.excel_sheet ? `${source}_${item.excel_sheet}` : source,
+  );
 }
 
-function defaultOutputNames(items = outputItems()) {
-  const suffix = routeMode() === "summarizationOnly"
-    ? summarizationOutputSuffixValue()
-    : state.outputNameSuffix || t("defaultOutputSuffix");
+function defaultOutputBaseNames(items = outputItems()) {
   const used = new Set();
+  const knownSuffixes = [
+    cleanupOutputSuffixValue(),
+    summarizationOutputSuffixValue(),
+    text["pt-BR"].defaultOutputSuffix,
+    text["pt-BR"].defaultSummarizationOutputSuffix,
+    text["en-US"].defaultOutputSuffix,
+    text["en-US"].defaultSummarizationOutputSuffix,
+  ];
   return items.map((item) => {
-    const base = safeOutputStem(`${outputBaseStem(item)}${suffix}`);
+    const originalBase = outputBaseStem(item);
+    const base =
+      knownSuffixes.reduce(
+        (current, suffix) => stripOutputSuffix(current, suffix),
+        originalBase,
+      ) || originalBase;
     let candidate = base;
     let counter = 2;
     while (used.has(candidate.toLowerCase())) {
@@ -797,45 +929,83 @@ function defaultOutputNames(items = outputItems()) {
   });
 }
 
+function cleanupOutputSuffixValue() {
+  const value = (state.outputNameSuffix || t("defaultOutputSuffix")).trim();
+  return value || t("defaultOutputSuffix");
+}
+
 function syncOutputSuffixField() {
   const suffixInput = byId("outputNameSuffixInput");
   if (suffixInput) {
-    suffixInput.value = state.outputNameSuffix || t("defaultOutputSuffix");
+    suffixInput.value = cleanupOutputSuffixValue();
     suffixInput.placeholder = t("defaultOutputSuffix");
   }
 }
 
 function summarizationOutputSuffixValue() {
-  const value = (state.summarizationOutputSuffix || t("defaultSummarizationOutputSuffix")).trim();
+  const value = (
+    state.summarizationOutputSuffix || t("defaultSummarizationOutputSuffix")
+  ).trim();
   return value || t("defaultSummarizationOutputSuffix");
 }
 
 function syncSummarizationOutputSuffixField() {
   const suffixInput = byId("summarizationOutputSuffixInput");
   if (suffixInput) {
-    suffixInput.value = state.summarizationOutputSuffix || t("defaultSummarizationOutputSuffix");
+    suffixInput.value = summarizationOutputSuffixValue();
     suffixInput.placeholder = t("defaultSummarizationOutputSuffix");
   }
 }
 
 function refreshOutputNameDefaults(inputs = outputItems(), options = {}) {
-  if (!inputs.length) {
-    return;
-  }
   if (options.resetSuffix || !state.outputNameSuffixTouched) {
     state.outputNameSuffix = t("defaultOutputSuffix");
   }
+  if (options.resetSuffix || !state.summarizationOutputSuffixTouched) {
+    state.summarizationOutputSuffix = t("defaultSummarizationOutputSuffix");
+  }
   syncOutputSuffixField();
-  const defaults = defaultOutputNames(inputs);
+  syncSummarizationOutputSuffixField();
+  if (!inputs.length) {
+    return;
+  }
+  const defaults = defaultOutputBaseNames(inputs);
   state.outputNames = defaults.map((name, index) => {
     if (options.resetNames || !state.outputNameTouchedIndexes.has(index)) {
       return name;
     }
-    return outputNameStemValue(state.outputNames[index]) || name;
+    return (
+      stripOutputSuffix(
+        outputNameStemValue(state.outputNames[index]),
+        cleanupOutputSuffixValue(),
+      ) || name
+    );
+  });
+  state.summarizationOutputNames = defaults.map((name, index) => {
+    if (
+      options.resetNames ||
+      !state.summarizationOutputNameTouchedIndexes.has(index)
+    ) {
+      return name;
+    }
+    return (
+      stripOutputSuffix(
+        outputNameStemValue(state.summarizationOutputNames[index]),
+        summarizationOutputSuffixValue(),
+      ) || name
+    );
   });
   state.outputNames.length = inputs.length;
+  state.summarizationOutputNames.length = inputs.length;
   state.outputNameTouchedIndexes = new Set(
-    Array.from(state.outputNameTouchedIndexes).filter((index) => index < inputs.length),
+    Array.from(state.outputNameTouchedIndexes).filter(
+      (index) => index < inputs.length,
+    ),
+  );
+  state.summarizationOutputNameTouchedIndexes = new Set(
+    Array.from(state.summarizationOutputNameTouchedIndexes).filter(
+      (index) => index < inputs.length,
+    ),
   );
 }
 
@@ -843,70 +1013,151 @@ function resetOutputNamesToDefaults() {
   state.outputNameSuffixTouched = false;
   state.summarizationOutputSuffixTouched = false;
   state.summarizationOutputSuffix = t("defaultSummarizationOutputSuffix");
+  state.outputNames = [];
+  state.summarizationOutputNames = [];
   state.outputNameTouchedIndexes = new Set();
-  refreshOutputNameDefaults(outputItems(), { resetNames: true, resetSuffix: true });
-  syncSummarizationOutputSuffixField();
+  state.summarizationOutputNameTouchedIndexes = new Set();
+  refreshOutputNameDefaults(outputItems(), {
+    resetNames: true,
+    resetSuffix: true,
+  });
   renderOutputNames();
 }
 
-function outputNamePreview(stem) {
+const OUTPUT_SUFFIX_SEPARATOR = "_";
+const OUTPUT_SUFFIX_SEPARATOR_PATTERN = /^[._-]+/;
+const OUTPUT_SUFFIX_TRAILING_PATTERN = /[._-]+$/;
+
+function escapeRegExp(value) {
+  return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function outputSuffixParts(suffix) {
+  const raw = String(suffix || "").trim();
+  const separator =
+    raw.match(OUTPUT_SUFFIX_SEPARATOR_PATTERN)?.[0]?.charAt(0) ||
+    OUTPUT_SUFFIX_SEPARATOR;
+  const body = outputNameStemValue(raw);
+  return { separator, body };
+}
+
+function stripOutputSuffix(base, suffix) {
+  const stem = outputNameStemValue(base);
+  const { body } = outputSuffixParts(suffix);
+  if (!stem || !body) {
+    return stem;
+  }
+  const suffixPattern = new RegExp(`(?:^|[._-]+)${escapeRegExp(body)}$`, "i");
+  if (!suffixPattern.test(stem)) {
+    return stem;
+  }
+  const stripped = stem.replace(suffixPattern, "");
+  return stripped ? outputNameStemValue(stripped) : stem;
+}
+
+function outputNameWithSuffix(base, suffix) {
+  const normalizedBase = stripOutputSuffix(base, suffix).replace(
+    OUTPUT_SUFFIX_TRAILING_PATTERN,
+    "",
+  );
+  const { separator, body } = outputSuffixParts(suffix);
+  if (!normalizedBase) {
+    return "";
+  }
+  if (!body) {
+    return normalizedBase;
+  }
+  return safeOutputStem(`${normalizedBase}${separator}${body}`);
+}
+
+function outputNameArtifacts() {
   const mode = routeMode();
+  const cleanupArtifact = {
+    kind: "cleanup",
+    titleKey: "cleanupOutputTitle",
+    names: state.outputNames,
+    touched: state.outputNameTouchedIndexes,
+    suffix: cleanupOutputSuffixValue(),
+    extension: outputExtension(),
+    ariaKey: "cleanupOutputNameAriaLabel",
+  };
+  const summarizationArtifact = {
+    kind: "summarization",
+    titleKey: "summarizationOutputTitle",
+    names: state.summarizationOutputNames,
+    touched: state.summarizationOutputNameTouchedIndexes,
+    suffix: summarizationOutputSuffixValue(),
+    extension: summaryOutputExtension(),
+    ariaKey: "summarizationOutputNameAriaLabel",
+  };
   if (mode === "summarizationOnly") {
-    return `${t("summarizationOutputTitle")}: ${stem}${summaryOutputExtension()}`;
+    return [summarizationArtifact];
   }
-  const cleanupName = `${stem}${outputExtension()}`;
   if (mode === "cleanThenSummarization") {
-    const summaryStem = safeOutputStem(`${stem}${summarizationOutputSuffixValue()}`);
-    return `${t("cleanupOutputTitle")}: ${cleanupName} · ${t("summarizationOutputTitle")}: ${summaryStem}${summaryOutputExtension()}`;
+    return [cleanupArtifact, summarizationArtifact];
   }
-  return `${t("cleanupOutputTitle")}: ${cleanupName}`;
+  return [cleanupArtifact];
 }
 
 function renderOutputNames(inputs = state.resolvedInputs) {
   const panel = byId("outputNamesPanel");
   const list = byId("outputNamesList");
-  const items = inputs && inputs.length ? inputs : state.inputPaths.map((path) => ({ label: path, format: "" }));
+  const items =
+    inputs && inputs.length
+      ? inputs
+      : state.inputPaths.map((path) => ({ label: path, format: "" }));
   list.innerHTML = "";
   if (!items.length) {
     panel.classList.add("hidden");
     return;
   }
   refreshOutputNameDefaults(items);
-  const extension = outputNameExtension();
+  const artifacts = outputNameArtifacts();
   items.forEach((item, index) => {
-    const label = document.createElement("label");
-    label.className = "queue-output-name";
-    const labelText = document.createElement("span");
-    labelText.className = "output-source-label";
-    labelText.textContent = `${index + 1}. ${item.label || item.display_name || item.source_path || item.path}`;
-    const editor = document.createElement("div");
-    editor.className = "output-name-editor";
-    const input = document.createElement("input");
-    input.type = "text";
-    input.value = outputNameStemValue(state.outputNames[index] || item.output_name || "");
-    input.placeholder = t("outputNameStemPlaceholder");
-    const extensionBadge = document.createElement("span");
-    extensionBadge.className = "output-extension-badge";
-    extensionBadge.textContent = extension;
-    const preview = document.createElement("span");
-    preview.className = "output-name-preview";
-    preview.textContent = outputNamePreview(input.value);
-    input.addEventListener("input", () => {
-      const rawValue = input.value;
-      const withoutExtension = rawValue.replace(/\.(csv|xlsx|parquet)$/i, "");
-      const extensionWasTyped = withoutExtension !== rawValue;
-      const storedValue = extensionWasTyped ? outputNameStemValue(withoutExtension) : withoutExtension;
-      if (extensionWasTyped) {
-        input.value = storedValue;
-      }
-      state.outputNames[index] = storedValue;
-      state.outputNameTouchedIndexes.add(index);
-      preview.textContent = outputNamePreview(outputNameStemValue(storedValue));
-      normalizeDestinationForOutputNames();
+    artifacts.forEach((artifact) => {
+      const label = document.createElement("label");
+      label.className = `queue-output-name queue-output-name--${artifact.kind}`;
+      const labelText = document.createElement("span");
+      labelText.className = "output-source-label";
+      const artifactLabel = document.createElement("span");
+      artifactLabel.className = "output-artifact-label";
+      artifactLabel.textContent = t(artifact.titleKey);
+      labelText.append(artifactLabel);
+      const editor = document.createElement("div");
+      editor.className = "output-name-editor";
+      const input = document.createElement("input");
+      input.type = "text";
+      input.spellcheck = false;
+      input.value = stripOutputSuffix(
+        artifact.names[index] || outputBaseStem(item),
+        artifact.suffix,
+      );
+      input.placeholder = t("outputNameStemPlaceholder");
+      input.setAttribute("aria-label", t(artifact.ariaKey));
+      const suffixBadge = document.createElement("span");
+      suffixBadge.className = "output-suffix-badge";
+      suffixBadge.textContent = artifact.suffix;
+      const extensionBadge = document.createElement("span");
+      extensionBadge.className = "output-extension-badge";
+      extensionBadge.textContent = artifact.extension;
+      input.addEventListener("input", () => {
+        const rawValue = input.value;
+        const withoutExtension = rawValue.replace(/\.(csv|xlsx|parquet)$/i, "");
+        const storedValue = stripOutputSuffix(
+          withoutExtension,
+          artifact.suffix,
+        );
+        if (storedValue !== rawValue) {
+          input.value = storedValue;
+        }
+        artifact.names[index] = storedValue;
+        artifact.touched.add(index);
+        normalizeDestinationForOutputNames();
+      });
+      editor.append(input, suffixBadge, extensionBadge);
+      label.append(labelText, editor);
+      list.appendChild(label);
     });
-    editor.append(input, extensionBadge);
-    label.append(labelText, editor, preview);
-    list.appendChild(label);
   });
   panel.classList.remove("hidden");
 }
@@ -928,7 +1179,9 @@ function showInputWarnings(warnings = []) {
 }
 
 function prepareColumnSearch(input) {
-  const suggestions = input.parentElement.querySelector(".filter-column-suggestions");
+  const suggestions = input.parentElement.querySelector(
+    ".filter-column-suggestions",
+  );
   if (!suggestions.id) {
     state.columnSuggestionListId += 1;
     suggestions.id = `filterColumnSuggestions${state.columnSuggestionListId}`;
@@ -938,7 +1191,9 @@ function prepareColumnSearch(input) {
 
 function updateColumnOptions(input, columns = state.columns) {
   prepareColumnSearch(input);
-  const suggestions = input.parentElement.querySelector(".filter-column-suggestions");
+  const suggestions = input.parentElement.querySelector(
+    ".filter-column-suggestions",
+  );
   const current = input.value;
   suggestions.innerHTML = "";
   input.dataset.activeIndex = "-1";
@@ -958,21 +1213,32 @@ function updateColumnOptions(input, columns = state.columns) {
     option.className = "column-suggestion";
     option.setAttribute("role", "option");
     option.textContent = column;
-    option.title = column;
     option.dataset.value = column;
     option.tabIndex = -1;
     option.addEventListener("mousedown", (event) => event.preventDefault());
-    option.addEventListener("click", () => chooseColumnSuggestion(input, column));
+    option.addEventListener("click", () =>
+      chooseColumnSuggestion(input, column),
+    );
     suggestions.appendChild(option);
   });
-  suggestions.classList.toggle("hidden", document.activeElement !== input || !suggestions.children.length);
-  input.setAttribute("aria-expanded", suggestions.classList.contains("hidden") ? "false" : "true");
+  suggestions.classList.toggle(
+    "hidden",
+    document.activeElement !== input || !suggestions.children.length,
+  );
+  input.setAttribute(
+    "aria-expanded",
+    suggestions.classList.contains("hidden") ? "false" : "true",
+  );
 }
 
 function closeColumnSuggestions(input) {
-  const suggestions = input.parentElement.querySelector(".filter-column-suggestions");
+  const suggestions = input.parentElement.querySelector(
+    ".filter-column-suggestions",
+  );
   suggestions.classList.add("hidden");
-  suggestions.querySelectorAll(".column-suggestion").forEach((option) => option.classList.remove("active"));
+  suggestions
+    .querySelectorAll(".column-suggestion")
+    .forEach((option) => option.classList.remove("active"));
   input.setAttribute("aria-expanded", "false");
   input.dataset.activeIndex = "-1";
   input.removeAttribute("aria-activedescendant");
@@ -986,8 +1252,12 @@ function chooseColumnSuggestion(input, column) {
 }
 
 function setActiveColumnSuggestion(input, nextIndex) {
-  const suggestions = input.parentElement.querySelector(".filter-column-suggestions");
-  const options = Array.from(suggestions.querySelectorAll(".column-suggestion"));
+  const suggestions = input.parentElement.querySelector(
+    ".filter-column-suggestions",
+  );
+  const options = Array.from(
+    suggestions.querySelectorAll(".column-suggestion"),
+  );
   if (!options.length) {
     return;
   }
@@ -1002,8 +1272,13 @@ function setActiveColumnSuggestion(input, nextIndex) {
 }
 
 function moveColumnSuggestion(input, direction) {
-  const suggestions = input.parentElement.querySelector(".filter-column-suggestions");
-  if (suggestions.classList.contains("hidden") || !suggestions.children.length) {
+  const suggestions = input.parentElement.querySelector(
+    ".filter-column-suggestions",
+  );
+  if (
+    suggestions.classList.contains("hidden") ||
+    !suggestions.children.length
+  ) {
     updateColumnOptions(input);
   }
   const options = suggestions.querySelectorAll(".column-suggestion");
@@ -1011,13 +1286,22 @@ function moveColumnSuggestion(input, direction) {
     return;
   }
   const currentIndex = Number(input.dataset.activeIndex || "-1");
-  const nextIndex = currentIndex < 0 ? (direction > 0 ? 0 : options.length - 1) : (currentIndex + direction + options.length) % options.length;
+  const nextIndex =
+    currentIndex < 0
+      ? direction > 0
+        ? 0
+        : options.length - 1
+      : (currentIndex + direction + options.length) % options.length;
   setActiveColumnSuggestion(input, nextIndex);
 }
 
 function chooseActiveColumnSuggestion(input) {
-  const suggestions = input.parentElement.querySelector(".filter-column-suggestions");
-  const options = Array.from(suggestions.querySelectorAll(".column-suggestion"));
+  const suggestions = input.parentElement.querySelector(
+    ".filter-column-suggestions",
+  );
+  const options = Array.from(
+    suggestions.querySelectorAll(".column-suggestion"),
+  );
   const activeIndex = Number(input.dataset.activeIndex || "-1");
   if (activeIndex < 0 || activeIndex >= options.length) {
     return false;
@@ -1027,7 +1311,9 @@ function chooseActiveColumnSuggestion(input) {
 }
 
 function chooseFirstColumnSuggestion(input) {
-  const suggestions = input.parentElement.querySelector(".filter-column-suggestions");
+  const suggestions = input.parentElement.querySelector(
+    ".filter-column-suggestions",
+  );
   const firstOption = suggestions.querySelector(".column-suggestion");
   if (!firstOption) {
     closeColumnSuggestions(input);
@@ -1047,7 +1333,8 @@ function bindEnterFlow(column, onAccept = () => {}) {
       moveColumnSuggestion(column, -1);
     } else if (event.key === "Enter") {
       event.preventDefault();
-      chooseActiveColumnSuggestion(column) || chooseFirstColumnSuggestion(column);
+      chooseActiveColumnSuggestion(column) ||
+        chooseFirstColumnSuggestion(column);
       onAccept(column);
     } else if (event.key === "Escape") {
       closeColumnSuggestions(column);
@@ -1074,7 +1361,14 @@ function columnSearchParts(value) {
 }
 
 function everyQueryTokenMatches(candidateTokens, queryTokens, matcher) {
-  return queryTokens.length > 0 && queryTokens.every((queryToken) => candidateTokens.some((candidateToken) => matcher(candidateToken, queryToken)));
+  return (
+    queryTokens.length > 0 &&
+    queryTokens.every((queryToken) =>
+      candidateTokens.some((candidateToken) =>
+        matcher(candidateToken, queryToken),
+      ),
+    )
+  );
 }
 
 function fuzzyScore(candidate, query) {
@@ -1083,29 +1377,51 @@ function fuzzyScore(candidate, query) {
   if (!queryParts.compact) {
     return 0;
   }
-  if (candidateParts.normalized === queryParts.normalized || candidateParts.compact === queryParts.compact) {
+  if (
+    candidateParts.normalized === queryParts.normalized ||
+    candidateParts.compact === queryParts.compact
+  ) {
     return 100000;
   }
-  if (candidateParts.normalized.startsWith(queryParts.normalized) || candidateParts.compact.startsWith(queryParts.compact)) {
+  if (
+    candidateParts.normalized.startsWith(queryParts.normalized) ||
+    candidateParts.compact.startsWith(queryParts.compact)
+  ) {
     return 90000 - candidateParts.compact.length;
   }
   if (candidateParts.tokens.some((token) => token === queryParts.compact)) {
     return 85000 - candidateParts.compact.length;
   }
-  if (everyQueryTokenMatches(candidateParts.tokens, queryParts.tokens, (candidateToken, queryToken) => candidateToken.startsWith(queryToken))) {
+  if (
+    everyQueryTokenMatches(
+      candidateParts.tokens,
+      queryParts.tokens,
+      (candidateToken, queryToken) => candidateToken.startsWith(queryToken),
+    )
+  ) {
     return 82000 - candidateParts.compact.length;
   }
   if (candidateParts.initials.startsWith(queryParts.compact)) {
     return 78000 - candidateParts.compact.length;
   }
   if (candidateParts.normalized.includes(queryParts.normalized)) {
-    return 72000 - candidateParts.normalized.indexOf(queryParts.normalized) * 20 - candidateParts.compact.length;
+    return (
+      72000 -
+      candidateParts.normalized.indexOf(queryParts.normalized) * 20 -
+      candidateParts.compact.length
+    );
   }
   const containsIndex = candidateParts.compact.indexOf(queryParts.compact);
   if (containsIndex >= 0) {
     return 68000 - containsIndex * 20 - candidateParts.compact.length;
   }
-  if (everyQueryTokenMatches(candidateParts.tokens, queryParts.tokens, (candidateToken, queryToken) => candidateToken.includes(queryToken))) {
+  if (
+    everyQueryTokenMatches(
+      candidateParts.tokens,
+      queryParts.tokens,
+      (candidateToken, queryToken) => candidateToken.includes(queryToken),
+    )
+  ) {
     return 62000 - candidateParts.compact.length;
   }
 
@@ -1114,7 +1430,11 @@ function fuzzyScore(candidate, query) {
 
 function rankedColumns(query, columns = state.columns) {
   return columns
-    .map((column, index) => ({ column, index, score: fuzzyScore(column, query) }))
+    .map((column, index) => ({
+      column,
+      index,
+      score: fuzzyScore(column, query),
+    }))
     .filter((item) => item.score > Number.NEGATIVE_INFINITY)
     .sort((left, right) => right.score - left.score || left.index - right.index)
     .slice(0, 50)
@@ -1125,17 +1445,32 @@ function updateFilterRow(row) {
   const operator = row.querySelector(".filter-operator").value;
   const value = row.querySelector(".filter-value");
   const value2 = row.querySelector(".filter-value2");
-  const noValue = ["is_null", "is_not_null", "is_empty", "is_not_empty", "is_blank", "is_not_blank"].includes(operator);
+  const noValue = [
+    "is_null",
+    "is_not_null",
+    "is_empty",
+    "is_not_empty",
+    "is_blank",
+    "is_not_blank",
+  ].includes(operator);
   const between = operator === "between";
   row.classList.toggle("no-value", noValue);
   row.classList.toggle("is-between", between && !noValue);
   value.classList.toggle("hidden", noValue);
   value2.classList.toggle("hidden", !between || noValue);
-  value.placeholder = operator === "in" || operator === "not_in" ? t("valueList") : t("value");
+  value.placeholder =
+    operator === "in" || operator === "not_in" ? t("valueList") : t("value");
 }
 
 function filterOperatorNeedsValue(operator) {
-  return !["is_null", "is_not_null", "is_empty", "is_not_empty", "is_blank", "is_not_blank"].includes(operator);
+  return ![
+    "is_null",
+    "is_not_null",
+    "is_empty",
+    "is_not_empty",
+    "is_blank",
+    "is_not_blank",
+  ].includes(operator);
 }
 
 function addFilterRowAndFocus() {
@@ -1157,7 +1492,16 @@ function conditionIsComplete(condition) {
   if (!condition.column) {
     return false;
   }
-  if (["is_null", "is_not_null", "is_empty", "is_not_empty", "is_blank", "is_not_blank"].includes(condition.operator)) {
+  if (
+    [
+      "is_null",
+      "is_not_null",
+      "is_empty",
+      "is_not_empty",
+      "is_blank",
+      "is_not_blank",
+    ].includes(condition.operator)
+  ) {
     return true;
   }
   if (condition.operator === "between") {
@@ -1169,7 +1513,11 @@ function conditionIsComplete(condition) {
 function inferredTypeForCondition(operator, value) {
   if (["gt", "gte", "lt", "lte"].includes(operator)) {
     const text = String(value || "").trim();
-    if (/^\d{4}-\d{2}-\d{2}(?:[T ][0-2]\d:[0-5]\d(?::[0-5]\d(?:\.\d+)?)?)?$/.test(text)) {
+    if (
+      /^\d{4}-\d{2}-\d{2}(?:[T ][0-2]\d:[0-5]\d(?::[0-5]\d(?:\.\d+)?)?)?$/.test(
+        text,
+      )
+    ) {
       return "auto";
     }
     return "number";
@@ -1181,7 +1529,10 @@ function inferredTypeForCondition(operator, value) {
 }
 
 function operatorOption(operator) {
-  return FILTER_OPERATOR_OPTIONS.find((option) => option.id === operator) || FILTER_OPERATOR_OPTIONS[0];
+  return (
+    FILTER_OPERATOR_OPTIONS.find((option) => option.id === operator) ||
+    FILTER_OPERATOR_OPTIONS[0]
+  );
 }
 
 function operatorLabel(option) {
@@ -1250,7 +1601,10 @@ function closeOtherOperatorPickers(row) {
 
 function selectedOperatorButton(row) {
   const operator = row.querySelector(".filter-operator").value;
-  return row.querySelector(`.operator-option[data-operator="${operator}"]`) || row.querySelector(".operator-option");
+  return (
+    row.querySelector(`.operator-option[data-operator="${operator}"]`) ||
+    row.querySelector(".operator-option")
+  );
 }
 
 function moveOperatorFocus(row, step) {
@@ -1290,7 +1644,11 @@ function bindOperatorPicker(row) {
   trigger.setAttribute("aria-controls", pickerId);
   trigger.addEventListener("click", () => openOperatorPicker(row));
   trigger.addEventListener("keydown", (event) => {
-    if (event.key === "ArrowDown" || event.key === "ArrowUp" || event.key === " ") {
+    if (
+      event.key === "ArrowDown" ||
+      event.key === "ArrowUp" ||
+      event.key === " "
+    ) {
       event.preventDefault();
       openOperatorPicker(row);
       if (event.key === "ArrowUp") {
@@ -1415,27 +1773,37 @@ function formatDerivedName(source, prefix, suffix, separator) {
   if (!source) {
     return t("newColumn");
   }
-  const before = prefix ? `${prefix}${separator && !prefix.endsWith(separator) ? separator : ""}` : "";
-  const after = suffix ? `${separator && !suffix.startsWith(separator) ? separator : ""}${suffix}` : "";
+  const before = prefix
+    ? `${prefix}${separator && !prefix.endsWith(separator) ? separator : ""}`
+    : "";
+  const after = suffix
+    ? `${separator && !suffix.startsWith(separator) ? separator : ""}${suffix}`
+    : "";
   return `${before}${source}${after}`;
 }
 
 function visualDerivedColumns() {
-  return Array.from(document.querySelectorAll(".derived-column-card")).map((card) => {
-    const source = card.querySelector(".derived-source-column").value.trim();
-    const prefix = card.querySelector(".derived-prefix").value.trim();
-    const suffix = card.querySelector(".derived-suffix").value.trim();
-    const separator = card.querySelector(".derived-separator").value;
-    const mode = card.querySelector(".derived-position-mode").value;
-    const target = card.querySelector(".derived-position-target").value.trim();
-    const transforms = Array.from(card.querySelectorAll(".derived-transform-row")).map(transformPayload);
-    return {
-      source,
-      name: { prefix, suffix, separator },
-      position: { mode, target },
-      transforms,
-    };
-  });
+  return Array.from(document.querySelectorAll(".derived-column-card")).map(
+    (card) => {
+      const source = card.querySelector(".derived-source-column").value.trim();
+      const prefix = card.querySelector(".derived-prefix").value.trim();
+      const suffix = card.querySelector(".derived-suffix").value.trim();
+      const separator = card.querySelector(".derived-separator").value;
+      const mode = card.querySelector(".derived-position-mode").value;
+      const target = card
+        .querySelector(".derived-position-target")
+        .value.trim();
+      const transforms = Array.from(
+        card.querySelectorAll(".derived-transform-row"),
+      ).map(transformPayload);
+      return {
+        source,
+        name: { prefix, suffix, separator },
+        position: { mode, target },
+        transforms,
+      };
+    },
+  );
 }
 
 function uniqueColumnNames(columns) {
@@ -1458,7 +1826,10 @@ function projectedOutputColumns() {
         if (separator < 0) {
           return [item.trim(), ""];
         }
-        return [item.slice(0, separator).trim(), item.slice(separator + 1).trim()];
+        return [
+          item.slice(0, separator).trim(),
+          item.slice(separator + 1).trim(),
+        ];
       })
       .filter(([source, output]) => source && output),
   );
@@ -1471,12 +1842,23 @@ function derivedOutputNames() {
   return uniqueColumnNames(
     visualDerivedColumns()
       .filter((column) => column.source)
-      .map((column) => formatDerivedName(column.source, column.name.prefix, column.name.suffix, column.name.separator)),
+      .map((column) =>
+        formatDerivedName(
+          column.source,
+          column.name.prefix,
+          column.name.suffix,
+          column.name.separator,
+        ),
+      ),
   );
 }
 
 function summaryColumnCandidates() {
-  return uniqueColumnNames([...state.columns, ...projectedOutputColumns(), ...derivedOutputNames()]);
+  return uniqueColumnNames([
+    ...state.columns,
+    ...projectedOutputColumns(),
+    ...derivedOutputNames(),
+  ]);
 }
 
 function transformPayload(row) {
@@ -1489,27 +1871,72 @@ function transformPayload(row) {
   if (["pad_left", "pad_right"].includes(operation)) {
     return { operation, count: value, fill: extra || " " };
   }
-  if (["take_first", "take_last", "remove_first", "remove_last"].includes(operation)) {
+  if (
+    ["take_first", "take_last", "remove_first", "remove_last"].includes(
+      operation,
+    )
+  ) {
     return { operation, count: value };
   }
-  if (["add_prefix", "add_suffix", "extract_before", "extract_after", "default_if_blank"].includes(operation)) {
+  if (
+    [
+      "add_prefix",
+      "add_suffix",
+      "extract_before",
+      "extract_after",
+      "default_if_blank",
+    ].includes(operation)
+  ) {
     return { operation, text: value };
   }
   return { operation };
 }
 
-function outputNameItems() {
-  const count = (state.resolvedInputs && state.resolvedInputs.length) || state.inputPaths.length;
-  refreshOutputNameDefaults(outputItems());
-  const extension = outputNameExtension();
+function outputNamesWithSuffix(names, suffix, extension, count) {
   return Array.from({ length: count }, (_item, index) => {
-    const stem = outputNameStemValue(state.outputNames[index] || "");
+    const base = stripOutputSuffix(names[index] || "", suffix);
+    const stem = outputNameWithSuffix(base, suffix);
     return stem ? `${stem}${extension}` : "";
   });
 }
 
+function outputNameItems() {
+  if (routeMode() === "summarizationOnly") {
+    return [];
+  }
+  const count =
+    (state.resolvedInputs && state.resolvedInputs.length) ||
+    state.inputPaths.length;
+  refreshOutputNameDefaults(outputItems());
+  return outputNamesWithSuffix(
+    state.outputNames,
+    cleanupOutputSuffixValue(),
+    outputExtension(),
+    count,
+  );
+}
+
+function summarizationOutputNameItems() {
+  if (routeMode() === "cleanBase") {
+    return [];
+  }
+  const count =
+    (state.resolvedInputs && state.resolvedInputs.length) ||
+    state.inputPaths.length;
+  refreshOutputNameDefaults(outputItems());
+  return outputNamesWithSuffix(
+    state.summarizationOutputNames,
+    summarizationOutputSuffixValue(),
+    summaryOutputExtension(),
+    count,
+  );
+}
+
 function hasOutputNames() {
-  return outputNameItems().some(Boolean);
+  return (
+    outputNameItems().some(Boolean) ||
+    summarizationOutputNameItems().some(Boolean)
+  );
 }
 
 function normalizeDestinationForOutputNames() {
@@ -1520,7 +1947,10 @@ function normalizeDestinationForOutputNames() {
   if (!/\.(csv|xlsx|parquet)$/i.test(path)) {
     return;
   }
-  const separatorIndex = Math.max(path.lastIndexOf("\\"), path.lastIndexOf("/"));
+  const separatorIndex = Math.max(
+    path.lastIndexOf("\\"),
+    path.lastIndexOf("/"),
+  );
   if (separatorIndex >= 0) {
     setOutputPath(path.slice(0, separatorIndex));
   }
@@ -1531,7 +1961,11 @@ function defaultFormatForCurrentInput() {
   if (["csv", "xlsx", "parquet"].includes(resolvedFormat)) {
     return resolvedFormat;
   }
-  const source = (state.resolvedInputs[0]?.source_path || state.inputPath || "").toLowerCase();
+  const source = (
+    state.resolvedInputs[0]?.source_path ||
+    state.inputPath ||
+    ""
+  ).toLowerCase();
   if (source.endsWith(".xlsx")) {
     return "xlsx";
   }
@@ -1548,25 +1982,38 @@ function addDerivedColumn(initial = {}) {
   card.dataset.derivedId = String(state.derivedColumnId);
   const source = card.querySelector(".derived-source-column");
   const target = card.querySelector(".derived-position-target");
-  [source, target].forEach((input) => bindColumnSearchInput(input, () => updateDerivedCard(card)));
+  [source, target].forEach((input) =>
+    bindColumnSearchInput(input, () => updateDerivedCard(card)),
+  );
   if (initial.source) source.value = initial.source;
   card.querySelector(".derived-prefix").value = initial.name?.prefix || "";
   card.querySelector(".derived-suffix").value = initial.name?.suffix || "";
-  card.querySelector(".derived-separator").value = initial.name?.separator ?? "_";
-  card.querySelector(".derived-position-mode").value = initial.position?.mode || "append";
-  card.querySelector(".derived-position-target").value = initial.position?.target || "";
+  card.querySelector(".derived-separator").value =
+    initial.name?.separator ?? "_";
+  card.querySelector(".derived-position-mode").value =
+    initial.position?.mode || "append";
+  card.querySelector(".derived-position-target").value =
+    initial.position?.target || "";
   card.querySelector(".remove-derived-column").addEventListener("click", () => {
     card.remove();
     updateDerivedEmptyState();
     refreshSummarizationColumnPickers();
   });
-  card.querySelector(".add-derived-transform").addEventListener("click", () => addDerivedTransform(card));
-  card.querySelectorAll(".derived-prefix, .derived-suffix, .derived-separator, .derived-position-mode").forEach((input) => {
-    input.addEventListener("input", () => updateDerivedCard(card));
-    input.addEventListener("change", () => updateDerivedCard(card));
-  });
+  card
+    .querySelector(".add-derived-transform")
+    .addEventListener("click", () => addDerivedTransform(card));
+  card
+    .querySelectorAll(
+      ".derived-prefix, .derived-suffix, .derived-separator, .derived-position-mode",
+    )
+    .forEach((input) => {
+      input.addEventListener("input", () => updateDerivedCard(card));
+      input.addEventListener("change", () => updateDerivedCard(card));
+    });
   byId("derivedColumnsList").appendChild(card);
-  (initial.transforms || [{ operation: "trim" }]).forEach((transform) => addDerivedTransform(card, transform));
+  (initial.transforms || [{ operation: "trim" }]).forEach((transform) =>
+    addDerivedTransform(card, transform),
+  );
   applyLanguage();
   updateDerivedCard(card);
   updateDerivedEmptyState();
@@ -1585,11 +2032,15 @@ function addDerivedTransform(card, initial = {}) {
     updateTransformRow(row);
     updateDerivedCard(card);
   });
-  [value, extra].forEach((input) => input.addEventListener("input", () => updateDerivedCard(card)));
-  row.querySelector(".remove-derived-transform").addEventListener("click", () => {
-    row.remove();
-    updateDerivedCard(card);
-  });
+  [value, extra].forEach((input) =>
+    input.addEventListener("input", () => updateDerivedCard(card)),
+  );
+  row
+    .querySelector(".remove-derived-transform")
+    .addEventListener("click", () => {
+      row.remove();
+      updateDerivedCard(card);
+    });
   card.querySelector(".derived-transforms").appendChild(row);
   updateTransformRow(row);
   updateDerivedCard(card);
@@ -1615,14 +2066,21 @@ function updateTransformRow(row) {
     "format_phone",
   ].includes(operation);
   value.classList.toggle("hidden", noValue);
-  extra.classList.toggle("hidden", noValue || !["replace_text", "pad_left", "pad_right"].includes(operation));
+  extra.classList.toggle(
+    "hidden",
+    noValue || !["replace_text", "pad_left", "pad_right"].includes(operation),
+  );
   if (operation === "replace_text") {
     value.placeholder = t("transformValue");
     extra.placeholder = t("transformNewValue");
   } else if (["pad_left", "pad_right"].includes(operation)) {
     value.placeholder = t("transformCount");
     extra.placeholder = t("transformFill");
-  } else if (["take_first", "take_last", "remove_first", "remove_last"].includes(operation)) {
+  } else if (
+    ["take_first", "take_last", "remove_first", "remove_last"].includes(
+      operation,
+    )
+  ) {
     value.placeholder = t("transformCount");
   } else if (["extract_before", "extract_after"].includes(operation)) {
     value.placeholder = t("transformSeparator");
@@ -1642,20 +2100,18 @@ function updateDerivedCard(card) {
     card.querySelector(".derived-separator").value,
   );
   card.querySelector(".derived-preview").textContent = name;
-  const transformLabels = Array.from(card.querySelectorAll(".derived-transform-operation"))
-    .map((select) => select.options[select.selectedIndex]?.textContent.trim())
-    .filter(Boolean);
   const summary = source
-    ? t("derivedSummary").replace("{name}", name).replace("{source}", source)
+    ? t("derivedSummary").replace("{source}", source)
     : t("derivedSummaryEmpty");
-  card.querySelector(".derived-summary").textContent = transformLabels.length
-    ? `${summary} ${transformLabels.join(", ")}.`
-    : summary;
+  card.querySelector(".derived-summary").textContent = summary;
   refreshSummarizationColumnPickers();
 }
 
 function updateDerivedEmptyState() {
-  byId("noDerivedColumnsText").classList.toggle("hidden", Boolean(document.querySelector(".derived-column-card")));
+  byId("noDerivedColumnsText").classList.toggle(
+    "hidden",
+    Boolean(document.querySelector(".derived-column-card")),
+  );
 }
 
 function bindColumnSearchInput(input, onChange) {
@@ -1674,7 +2130,9 @@ function bindColumnSearchInput(input, onChange) {
 }
 
 function selectedColumnPickerValues(id) {
-  return Array.from(byId(id).querySelectorAll(".summarization-picker-chip")).map((chip) => chip.dataset.value).filter(Boolean);
+  return Array.from(byId(id).querySelectorAll(".summarization-picker-chip"))
+    .map((chip) => chip.dataset.value)
+    .filter(Boolean);
 }
 
 function removeUnavailableSummarizationChips(container, candidates) {
@@ -1698,14 +2156,20 @@ function refreshSummarizationColumnPickers() {
     const container = byId(id);
     const candidates = new Set(summaryColumnCandidates());
     removeUnavailableSummarizationChips(container, candidates);
-    updateSummaryColumnOptions(container.querySelector(".summarization-column-input"));
+    updateSummaryColumnOptions(
+      container.querySelector(".summarization-column-input"),
+    );
   });
 }
 
 function addSummarizationColumn(container, input) {
   const value = input.value.trim();
   const candidates = new Set(summaryColumnCandidates());
-  if (!value || !candidates.has(value) || selectedColumnPickerValues(container.id).includes(value)) {
+  if (
+    !value ||
+    !candidates.has(value) ||
+    selectedColumnPickerValues(container.id).includes(value)
+  ) {
     input.value = "";
     updateSummaryColumnOptions(input);
     return;
@@ -1715,7 +2179,6 @@ function addSummarizationColumn(container, input) {
   chip.className = "summarization-picker-chip";
   chip.dataset.value = value;
   chip.textContent = value;
-  chip.title = value;
   chip.addEventListener("click", () => chip.remove());
   container.querySelector(".summarization-picker-chips").appendChild(chip);
   input.value = "";
@@ -1733,7 +2196,9 @@ function bindSummarizationColumnPicker(id) {
   input.addEventListener("blur", () => {
     setTimeout(() => closeColumnSuggestions(input), 120);
   });
-  input.addEventListener("change", () => addSummarizationColumn(container, input));
+  input.addEventListener("change", () =>
+    addSummarizationColumn(container, input),
+  );
 }
 
 function payload() {
@@ -1742,7 +2207,8 @@ function payload() {
   const format = byId("formatSelect").value;
   const rawFilter = byId("rawFilterInput").value.trim();
   const mode = routeMode();
-  const summarize = mode === "cleanThenSummarization" || mode === "summarizationOnly";
+  const summarize =
+    mode === "cleanThenSummarization" || mode === "summarizationOnly";
   const summaryOnly = mode === "summarizationOnly";
   const cleanup = mode !== "summarizationOnly";
   const nullValue = byId("nullValueInput").value;
@@ -1751,19 +2217,31 @@ function payload() {
     input_paths: state.inputPaths,
     output_path: byId("outputPathInput").value.trim(),
     output_names: outputNameItems(),
+    summarization_output_names: summarize ? summarizationOutputNameItems() : [],
     avoid_existing_output_paths: true,
     summarization: summarize,
     summarization_only: summaryOnly,
-    summarization_group_by: summarize ? selectedColumnPickerValues("summarizationGroupByInput") : [],
-    summarization_totals: summarize ? selectedColumnPickerValues("summarizationTotalsInput") : [],
-    summarization_output_suffix: summarize ? summarizationOutputSuffixValue() : "",
-    summarization_output_format: summarize ? byId("summaryFormatSelect").value : "",
-    filters:
-      !cleanup
-        ? { mode: "visual", combine: "and", conditions: [] }
-        : state.filterMode === "advanced"
+    summarization_group_by: summarize
+      ? selectedColumnPickerValues("summarizationGroupByInput")
+      : [],
+    summarization_totals: summarize
+      ? selectedColumnPickerValues("summarizationTotalsInput")
+      : [],
+    summarization_output_suffix: summarize
+      ? summarizationOutputSuffixValue()
+      : "",
+    summarization_output_format: summarize
+      ? byId("summaryFormatSelect").value
+      : "",
+    filters: !cleanup
+      ? { mode: "visual", combine: "and", conditions: [] }
+      : state.filterMode === "advanced"
         ? { mode: "raw", raw: rawFilter }
-        : { mode: "visual", combine: byId("combineSelect").value, conditions: visualConditions() },
+        : {
+            mode: "visual",
+            combine: byId("combineSelect").value,
+            conditions: visualConditions(),
+          },
     select: cleanup ? linesFromTextarea("selectColumnsInput") : [],
     renames: cleanup ? linesFromTextarea("renamesInput") : [],
     dedupe: cleanup && byId("dedupeInput").checked,
@@ -1811,7 +2289,11 @@ async function inspectInput() {
     renderOutputNames();
     showInputWarnings(data.warnings || []);
     setColumns(data.columns);
-    setStatus(t("readyTitle"), `${data.columns.length} ${t("columnsLoaded")}`, "done");
+    setStatus(
+      t("readyTitle"),
+      `${data.columns.length} ${t("columnsLoaded")}`,
+      "done",
+    );
   } catch (error) {
     await maybePromptForZipPasswordAndRetryInspect(error);
   }
@@ -1889,7 +2371,12 @@ function isZipPasswordError(error) {
   if (!error) {
     return false;
   }
-  return error.type === "ZipPasswordRequiredError" || String(error.message || error).toLowerCase().includes("zip");
+  return (
+    error.type === "ZipPasswordRequiredError" ||
+    String(error.message || error)
+      .toLowerCase()
+      .includes("zip")
+  );
 }
 
 function pollJob(jobId) {
@@ -1947,9 +2434,14 @@ function progressArtifactLabel(artifact) {
 }
 
 function progressStatusText(progress) {
-  const details = [progress.input_name, progressArtifactLabel(progress.artifact)].filter(Boolean);
+  const details = [
+    progress.input_name,
+    progressArtifactLabel(progress.artifact),
+  ].filter(Boolean);
   if (progress.determinate && Number.isFinite(progress.percent)) {
-    details.push(t("progressPercentLabel").replace("{percent}", String(progress.percent)));
+    details.push(
+      t("progressPercentLabel").replace("{percent}", String(progress.percent)),
+    );
   } else {
     details.push(t("progressIndeterminateLabel"));
   }
@@ -1965,15 +2457,21 @@ function renderProgress(job) {
   }
   const progressBar = byId("progressBar");
   const progressBarFill = byId("progressBarFill");
-  const determinate = Boolean(progress.determinate && Number.isFinite(progress.percent));
-  byId("progressPhaseText").textContent = progress.label || phaseLabel(progress.phase);
+  const determinate = Boolean(
+    progress.determinate && Number.isFinite(progress.percent),
+  );
+  byId("progressPhaseText").textContent =
+    progress.label || phaseLabel(progress.phase);
   byId("progressItemText").textContent = progressItemText(progress);
   byId("progressDetailText").textContent = progressStatusText(progress);
   progressBar.className = `progress-bar ${determinate ? "determinate" : "indeterminate"} ${progress.phase || ""}`;
   progressBar.setAttribute("aria-label", t("progressTitle"));
   if (determinate) {
     progressBar.setAttribute("aria-valuenow", String(progress.percent));
-    progressBar.setAttribute("aria-valuetext", t("progressPercentLabel").replace("{percent}", String(progress.percent)));
+    progressBar.setAttribute(
+      "aria-valuetext",
+      t("progressPercentLabel").replace("{percent}", String(progress.percent)),
+    );
     progressBarFill.style.transform = `scaleX(${Math.max(0, Math.min(100, Number(progress.percent))) / 100})`;
   } else {
     progressBar.removeAttribute("aria-valuenow");
@@ -1990,8 +2488,15 @@ function renderProgressTimeline(timeline) {
   timeline.slice(-6).forEach((entry) => {
     const item = document.createElement("li");
     const label = entry.label || phaseLabel(entry.phase);
-    const meta = [progressItemText(entry), entry.input_name, progressArtifactLabel(entry.artifact)].filter(Boolean).join(" · ");
-    item.className = entry.phase === "done" || entry.phase === "error" ? entry.phase : "";
+    const meta = [
+      progressItemText(entry),
+      entry.input_name,
+      progressArtifactLabel(entry.artifact),
+    ]
+      .filter(Boolean)
+      .join(" · ");
+    item.className =
+      entry.phase === "done" || entry.phase === "error" ? entry.phase : "";
     item.innerHTML = `<span><strong>${escapeHtml(label)}</strong>${meta ? `<br>${escapeHtml(meta)}` : ""}</span>`;
     list.appendChild(item);
   });
@@ -2018,7 +2523,9 @@ function updateJobStatus(job) {
   state.outputPaths = report.output_paths || [];
   const failed = report.failed_inputs || (report.errors || []).length || 0;
   if (failed) {
-    const message = state.outputPaths.length ? t("queuePartialDone") : t("queueAllFailed");
+    const message = state.outputPaths.length
+      ? t("queuePartialDone")
+      : t("queueAllFailed");
     setStatus(t("error"), message, "error");
     showFriendlyError({
       message,
@@ -2031,7 +2538,11 @@ function updateJobStatus(job) {
     }
     return;
   }
-  setStatus(t("readyTitle"), `${t("done")} ${report.output_rows || 0} ${t("rowsWritten")}`, "done");
+  setStatus(
+    t("readyTitle"),
+    `${t("done")} ${report.output_rows || 0} ${t("rowsWritten")}`,
+    "done",
+  );
   showResultCards(report);
   showDetails(report);
   if (state.outputPaths.length) {
@@ -2044,7 +2555,13 @@ function resetResultCards() {
   byId("resultCards").classList.add("hidden");
   byId("outputList").classList.add("hidden");
   byId("outputList").innerHTML = "";
-  ["filesCreatedValue", "rowsSavedValue", "filesProcessedValue", "warningsValue", "filesFailedValue"].forEach((id) => {
+  [
+    "filesCreatedValue",
+    "rowsSavedValue",
+    "filesProcessedValue",
+    "warningsValue",
+    "filesFailedValue",
+  ].forEach((id) => {
     byId(id).textContent = "0";
   });
 }
@@ -2056,7 +2573,9 @@ function showResultCards(report) {
   const failed = report.failed_inputs || (report.errors || []).length || 0;
   byId("filesCreatedValue").textContent = String(paths.length);
   byId("rowsSavedValue").textContent = String(report.output_rows || 0);
-  byId("filesProcessedValue").textContent = String(report.processed_inputs || (runs.length || (paths.length ? 1 : 0)));
+  byId("filesProcessedValue").textContent = String(
+    report.processed_inputs || runs.length || (paths.length ? 1 : 0),
+  );
   byId("warningsValue").textContent = String(warnings.length);
   byId("filesFailedValue").textContent = String(failed);
   byId("resultCards").classList.remove("hidden");
@@ -2068,18 +2587,25 @@ function showResultCards(report) {
     row.type = "button";
     row.className = "output-row";
     row.textContent = path;
-    row.addEventListener("click", async () => handleResponse(await state.api.open_output_folder(path)));
+    row.addEventListener("click", async () =>
+      handleResponse(await state.api.open_output_folder(path)),
+    );
     outputList.appendChild(row);
   });
   (report.errors || []).forEach((error) => {
     const row = document.createElement("div");
     row.className = "output-row output-error";
-    const source = error.input_path ? `<strong>${escapeHtml(error.input_path)}</strong>` : "";
+    const source = error.input_path
+      ? `<strong>${escapeHtml(error.input_path)}</strong>`
+      : "";
     const message = escapeHtml(error.message || t("error"));
     row.innerHTML = `${source}<span>${message}</span>`;
     outputList.appendChild(row);
   });
-  outputList.classList.toggle("hidden", !paths.length && !(report.errors || []).length);
+  outputList.classList.toggle(
+    "hidden",
+    !paths.length && !(report.errors || []).length,
+  );
 }
 
 function phaseLabel(phase) {
@@ -2087,7 +2613,8 @@ function phaseLabel(phase) {
     queued: state.language === "en-US" ? "Queued" : "Na fila",
     queue: state.language === "en-US" ? "Processing queue" : "Processando fila",
     inspecting: state.language === "en-US" ? "Reading file" : "Lendo arquivo",
-    validating: state.language === "en-US" ? "Validating filter" : "Validando filtro",
+    validating:
+      state.language === "en-US" ? "Validating filter" : "Validando filtro",
     exporting: state.language === "en-US" ? "Creating output" : "Gerando saída",
     finishing: state.language === "en-US" ? "Finishing" : "Finalizando",
     done: state.language === "en-US" ? "Done" : "Concluído",
@@ -2155,7 +2682,12 @@ async function openInputPicker() {
   state.inputPickerOpen = true;
   try {
     const data = handleResponse(await state.api.choose_input_files());
-    const paths = data.paths && data.paths.length ? data.paths : data.path ? [data.path] : [];
+    const paths =
+      data.paths && data.paths.length
+        ? data.paths
+        : data.path
+          ? [data.path]
+          : [];
     if (paths.length) {
       setInputPaths(paths);
       await inspectInput();
@@ -2177,7 +2709,10 @@ function syncOutputSuffixWithFormat() {
     return;
   }
   const expectedSuffix = outputExtension();
-  if (/\.(csv|xlsx|parquet)$/i.test(path) && !path.toLowerCase().endsWith(expectedSuffix)) {
+  if (
+    /\.(csv|xlsx|parquet)$/i.test(path) &&
+    !path.toLowerCase().endsWith(expectedSuffix)
+  ) {
     setOutputPath(path.replace(/\.(csv|xlsx|parquet)$/i, expectedSuffix));
   }
 }
@@ -2203,14 +2738,22 @@ function bindEvents() {
     if (data.path) byId("rejectsPathInput").value = data.path;
   });
 
-  byId("formatSelect").addEventListener("change", () => setOutputFormat(byId("formatSelect").value));
+  byId("formatSelect").addEventListener("change", () =>
+    setOutputFormat(byId("formatSelect").value),
+  );
   document.querySelectorAll("[data-format-card]").forEach((card) => {
-    card.addEventListener("click", () => setOutputFormat(card.dataset.formatCard));
+    card.addEventListener("click", () =>
+      setOutputFormat(card.dataset.formatCard),
+    );
   });
 
-  byId("summaryFormatSelect").addEventListener("change", () => setSummaryOutputFormat(byId("summaryFormatSelect").value));
+  byId("summaryFormatSelect").addEventListener("change", () =>
+    setSummaryOutputFormat(byId("summaryFormatSelect").value),
+  );
   document.querySelectorAll("[data-summary-format-card]").forEach((card) => {
-    card.addEventListener("click", () => setSummaryOutputFormat(card.dataset.summaryFormatCard));
+    card.addEventListener("click", () =>
+      setSummaryOutputFormat(card.dataset.summaryFormatCard),
+    );
   });
 
   document.querySelectorAll('input[name="routeMode"]').forEach((input) => {
@@ -2223,9 +2766,17 @@ function bindEvents() {
       document.querySelectorAll(".filter-row").forEach(closeOperatorPicker);
     }
   });
-  byId("addDerivedColumnBtn").addEventListener("click", () => addDerivedColumn());
-  byId("selectColumnsInput").addEventListener("input", refreshSummarizationColumnPickers);
-  byId("renamesInput").addEventListener("input", refreshSummarizationColumnPickers);
+  byId("addDerivedColumnBtn").addEventListener("click", () =>
+    addDerivedColumn(),
+  );
+  byId("selectColumnsInput").addEventListener(
+    "input",
+    refreshSummarizationColumnPickers,
+  );
+  byId("renamesInput").addEventListener(
+    "input",
+    refreshSummarizationColumnPickers,
+  );
   byId("saveConfigBtn").addEventListener("click", async () => {
     const data = handleResponse(await state.api.save_config(payload()));
     if (data.path) {
@@ -2235,20 +2786,23 @@ function bindEvents() {
   byId("outputNameSuffixInput").addEventListener("input", (event) => {
     state.outputNameSuffix = event.target.value;
     state.outputNameSuffixTouched = true;
-    refreshOutputNameDefaults(outputItems());
+    syncOutputSuffixField();
     renderOutputNames();
   });
   byId("summarizationOutputSuffixInput").addEventListener("input", (event) => {
     state.summarizationOutputSuffix = event.target.value;
     state.summarizationOutputSuffixTouched = true;
-    if (routeMode() === "summarizationOnly") {
-      refreshOutputNameDefaults(outputItems());
-    }
+    syncSummarizationOutputSuffixField();
     renderOutputNames();
   });
-  byId("resetOutputNamesBtn").addEventListener("click", resetOutputNamesToDefaults);
+  byId("resetOutputNamesBtn").addEventListener(
+    "click",
+    resetOutputNamesToDefaults,
+  );
   byId("visualTab").addEventListener("click", () => setFilterMode("visual"));
-  byId("advancedTab").addEventListener("click", () => setFilterMode("advanced"));
+  byId("advancedTab").addEventListener("click", () =>
+    setFilterMode("advanced"),
+  );
   byId("checkExpressionBtn").addEventListener("click", validateFilter);
   byId("runBtn").addEventListener("click", runFilter);
   byId("resetBtn").addEventListener("click", () => window.location.reload());
@@ -2257,7 +2811,8 @@ function bindEvents() {
 
   byId("openFolderBtn").addEventListener("click", async () => {
     const firstPath = state.outputPaths[0] || byId("outputPathInput").value;
-    if (firstPath) handleResponse(await state.api.open_output_folder(firstPath));
+    if (firstPath)
+      handleResponse(await state.api.open_output_folder(firstPath));
   });
 
   byId("languageSelect").addEventListener("change", async (event) => {
@@ -2283,7 +2838,9 @@ function bindEvents() {
     event.preventDefault();
     dropZone.classList.add("dragging");
   });
-  dropZone.addEventListener("dragleave", () => dropZone.classList.remove("dragging"));
+  dropZone.addEventListener("dragleave", () =>
+    dropZone.classList.remove("dragging"),
+  );
   dropZone.addEventListener("drop", async (event) => {
     event.preventDefault();
     dropZone.classList.remove("dragging");
@@ -2300,7 +2857,9 @@ function bindEvents() {
 
   document.querySelectorAll(".step-link").forEach((link) => {
     link.addEventListener("click", () => {
-      document.querySelectorAll(".step-link").forEach((item) => item.classList.remove("active"));
+      document
+        .querySelectorAll(".step-link")
+        .forEach((item) => item.classList.remove("active"));
       link.classList.add("active");
     });
   });
@@ -2315,7 +2874,7 @@ async function initialize() {
     state.api = createBrowserFallbackApi();
     applyLanguage();
     bindEvents();
-    setStatus("Pywebview", t("bridgeNotReady"), "error");
+    setStatus(t("error"), t("bridgeNotReady"), "error");
     return;
   }
   state.api = window.pywebview.api;
@@ -2335,7 +2894,7 @@ window.addEventListener("load", () => {
       state.api = createBrowserFallbackApi();
       applyLanguage();
       bindEvents();
-      setStatus("Pywebview", t("bridgeWaiting"), "running");
+      setStatus(t("readyTitle"), t("bridgeWaiting"), "running");
     }
   }, 600);
 });

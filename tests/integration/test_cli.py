@@ -210,6 +210,44 @@ def test_filter_command_generates_summarization_and_summary_output(tmp_path: Pat
     ]
 
 
+def test_filter_command_accepts_independent_summarization_output_name(tmp_path: Path) -> None:
+    csv_path = tmp_path / "input.csv"
+    output_dir = tmp_path / "outputs"
+    csv_path.write_text("STATUS,VALOR_TOTAL\nATIVO,10\nATIVO,30\nSUSPENSO,20\n", encoding="utf-8")
+
+    result = runner.invoke(
+        app,
+        [
+            "filtrar",
+            str(csv_path),
+            "--saida",
+            str(output_dir),
+            "--filtro",
+            'STATUS = "ATIVO"',
+            "--sumarizacao",
+            "--grupo-sumarizacao",
+            "STATUS",
+            "--totais-sumarizacao",
+            "VALOR_TOTAL",
+            "--nome-saida",
+            "filtered_custom",
+            "--nome-saida-sumarizacao",
+            "summary_custom",
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert rows_from_csv(output_dir / "filtered_custom.csv") == [
+        ("STATUS", "VALOR_TOTAL"),
+        ("ATIVO", "10"),
+        ("ATIVO", "30"),
+    ]
+    assert rows_from_xlsx(output_dir / "summary_custom.xlsx") == [
+        ("STATUS", "total_VALOR_TOTAL", "count"),
+        ("ATIVO", 40, 2),
+    ]
+
+
 def test_filter_command_summarization_only_generates_only_requested_output_file(tmp_path: Path) -> None:
     csv_path = tmp_path / "input.csv"
     output_path = tmp_path / "output.csv"

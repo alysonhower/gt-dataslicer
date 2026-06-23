@@ -1,531 +1,1303 @@
 <!doctype html>
 <html lang="pt-BR">
-  <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>DataSlicer</title>
-    <link rel="stylesheet" href="./styles.css?v=20260619-4">
-  </head>
-  <body>
-    <div class="app-shell">
-      <header class="topbar">
-        <div>
-          <p class="descriptor">Powered by Grant Thornton Brasil</p>
-          <h1>DataSlicer</h1>
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <title>DataSlicer</title>
+        <link rel="stylesheet" href="./styles.css?v=20260619-4" />
+    </head>
+    <body>
+        <div class="app-shell">
+            <header class="topbar">
+                <div>
+                    <p class="descriptor">Powered by Grant Thornton Brasil</p>
+                    <h1>DataSlicer</h1>
+                </div>
+                <label class="language-switch">
+                    <span data-i18n="language">Idioma</span>
+                    <select id="languageSelect">
+                        <option value="pt-BR">Português</option>
+                        <option value="en-US">English</option>
+                    </select>
+                </label>
+            </header>
+
+            <main class="workspace">
+                <nav
+                    class="steps"
+                    aria-label="Etapas"
+                    data-i18n-aria-label="stepsNavLabel"
+                >
+                    <a
+                        href="#step-file"
+                        class="step-link active"
+                        data-step-label-key="stepFile"
+                        >1. Arquivo</a
+                    >
+                    <a
+                        href="#step-filter"
+                        class="step-link cleanup-only-section"
+                        data-step-label-key="stepFilter"
+                        >2. Filtro</a
+                    >
+                    <a
+                        href="#step-derived"
+                        class="step-link cleanup-only-section"
+                        data-step-label-key="stepDerived"
+                        >3. Novas colunas</a
+                    >
+                    <a
+                        href="#step-summarization"
+                        class="step-link summarization-only-section hidden"
+                        data-step-label-key="stepSummarization"
+                        >4. Sumarização</a
+                    >
+                    <a
+                        href="#step-output"
+                        class="step-link"
+                        data-step-label-key="stepOutput"
+                        >4. Saída</a
+                    >
+                    <a
+                        href="#step-run"
+                        class="step-link"
+                        data-step-label-key="stepRun"
+                        >5. Gerar</a
+                    >
+                </nav>
+
+                <section id="step-file" class="panel" data-workflow-step>
+                    <fieldset class="route-mode-panel">
+                        <legend data-i18n="routeModeTitle">
+                            O que você quer gerar?
+                        </legend>
+                        <p data-i18n="routeModeHelp">
+                            Agrupe os dados por uma ou mais colunas e calcule
+                            totais por grupo.
+                        </p>
+                        <div class="route-mode-grid">
+                            <label
+                                class="route-card ui-card ui-card--interactive active"
+                            >
+                                <input
+                                    type="radio"
+                                    name="routeMode"
+                                    value="cleanBase"
+                                    checked
+                                    spellcheck="false"
+                                />
+                                <strong data-i18n="cleanBase"
+                                    >Limpar base</strong
+                                >
+                                <span data-i18n="cleanBaseHelp"
+                                    >Filtra e salva a base limpa.</span
+                                >
+                            </label>
+                            <label
+                                class="route-card ui-card ui-card--interactive"
+                            >
+                                <input
+                                    type="radio"
+                                    name="routeMode"
+                                    value="cleanThenSummarization"
+                                    spellcheck="false"
+                                />
+                                <strong data-i18n="cleanThenSummarization"
+                                    >Limpar e sumarizar base limpa</strong
+                                >
+                                <span data-i18n="cleanThenSummarizationHelp"
+                                    >Salva a base limpa e também a sumarização
+                                    agrupada com totais.</span
+                                >
+                            </label>
+                            <label
+                                class="route-card ui-card ui-card--interactive"
+                            >
+                                <input
+                                    type="radio"
+                                    name="routeMode"
+                                    value="summarizationOnly"
+                                    spellcheck="false"
+                                />
+                                <strong data-i18n="summarizationOnly"
+                                    >Sumarizar bases de entrada</strong
+                                >
+                                <span data-i18n="summarizationOnlyHelp"
+                                    >Gera somente a sumarização agrupada com
+                                    totais.</span
+                                >
+                            </label>
+                        </div>
+                    </fieldset>
+
+                    <div class="section-heading">
+                        <div>
+                            <p class="eyebrow" data-step-eyebrow>Etapa 1</p>
+                            <h2 data-i18n="chooseFile">Escolha o arquivo</h2>
+                        </div>
+                    </div>
+
+                    <div
+                        id="dropZone"
+                        class="drop-zone"
+                        role="button"
+                        tabindex="0"
+                        aria-labelledby="dropZoneTitle"
+                        aria-describedby="dropZoneHelp"
+                    >
+                        <strong id="dropZoneTitle" data-i18n="dropStrong"
+                            >Clique ou arraste o arquivo aqui</strong
+                        >
+                        <span id="dropZoneHelp" data-i18n="dropHelp"
+                            >Pressione Enter ou Espaço para escolher pelo
+                            computador.</span
+                        >
+                    </div>
+
+                    <div class="file-summary" aria-live="polite">
+                        <div class="ui-card file-summary-card">
+                            <span class="label" data-i18n="fileLabel"
+                                >Arquivo</span
+                            >
+                            <strong id="inputPathText" data-i18n="noFile"
+                                >Nenhum arquivo escolhido</strong
+                            >
+                        </div>
+                        <div class="ui-card file-summary-card">
+                            <span class="label" data-i18n="sizeLabel"
+                                >Tamanho</span
+                            >
+                            <strong id="inputSizeText">-</strong>
+                        </div>
+                        <div class="ui-card file-summary-card">
+                            <span class="label" data-i18n="columnsLabel"
+                                >Colunas</span
+                            >
+                            <strong id="columnCountText">-</strong>
+                        </div>
+                    </div>
+
+                    <div
+                        id="queuePanel"
+                        class="queue-panel hidden"
+                        aria-live="polite"
+                    >
+                        <h3 data-i18n="inputQueue">Arquivos na fila</h3>
+                        <div id="queueList" class="queue-list"></div>
+                    </div>
+
+                    <div
+                        id="inputWarningsPanel"
+                        class="notice input-warnings hidden"
+                        aria-live="polite"
+                    >
+                        <strong data-i18n="warnings">Avisos</strong>
+                        <ul id="inputWarningsList"></ul>
+                    </div>
+
+                    <details class="advanced-line">
+                        <summary data-i18n="readOptions">
+                            Opções de leitura
+                        </summary>
+                        <div class="field-grid compact">
+                            <label>
+                                <span data-i18n="encoding">Codificação</span>
+                                <input
+                                    id="encodingInput"
+                                    type="text"
+                                    placeholder="utf-8"
+                                    spellcheck="false"
+                                />
+                            </label>
+                            <label>
+                                <span data-i18n="delimiter">Delimitador</span>
+                                <input
+                                    id="delimiterInput"
+                                    type="text"
+                                    maxlength="4"
+                                    placeholder="auto"
+                                    spellcheck="false"
+                                />
+                            </label>
+                            <label>
+                                <span data-i18n="nullValue"
+                                    >Texto tratado como vazio</span
+                                >
+                                <input
+                                    id="nullValueInput"
+                                    type="text"
+                                    placeholder="vazio"
+                                    data-i18n-placeholder="emptyPlaceholder"
+                                    spellcheck="false"
+                                />
+                            </label>
+                            <label>
+                                <span data-i18n="zipPasswords"
+                                    >Senhas de ZIP</span
+                                >
+                                <textarea
+                                    id="zipPasswordsInput"
+                                    rows="3"
+                                    placeholder="Uma senha por linha"
+                                    data-i18n-placeholder="onePasswordPerLine"
+                                    spellcheck="false"
+                                ></textarea>
+                            </label>
+                            <label class="checkline">
+                                <input
+                                    id="allExcelSheetsInput"
+                                    type="checkbox"
+                                    spellcheck="false"
+                                />
+                                <span data-i18n="allExcelSheets"
+                                    >Processar todas as abas do Excel</span
+                                >
+                            </label>
+                            <label class="checkline">
+                                <input
+                                    id="reuseSchemaInput"
+                                    type="checkbox"
+                                    spellcheck="false"
+                                />
+                                <span data-i18n="reuseSchema"
+                                    >Reutilizar estrutura do primeiro
+                                    arquivo</span
+                                >
+                            </label>
+                            <label class="checkline">
+                                <input
+                                    id="deleteZipInput"
+                                    type="checkbox"
+                                    spellcheck="false"
+                                />
+                                <span data-i18n="deleteZipAfterExtract"
+                                    >Excluir ZIP após extrair com sucesso</span
+                                >
+                            </label>
+                        </div>
+                    </details>
+                </section>
+
+                <section
+                    id="step-filter"
+                    class="panel cleanup-only-section"
+                    data-workflow-step
+                >
+                    <div class="section-heading">
+                        <div>
+                            <p class="eyebrow" data-step-eyebrow>Etapa 2</p>
+                            <h2 data-i18n="buildFilter">Monte o filtro</h2>
+                        </div>
+                        <div
+                            class="segmented"
+                            role="tablist"
+                            aria-label="Modo de filtro"
+                            data-i18n-aria-label="filterModeLabel"
+                        >
+                            <button
+                                id="visualTab"
+                                class="segment active"
+                                type="button"
+                                data-i18n="visual"
+                            >
+                                Visual
+                            </button>
+                            <button
+                                id="advancedTab"
+                                class="segment"
+                                type="button"
+                                data-i18n="advanced"
+                            >
+                                Avançado
+                            </button>
+                        </div>
+                    </div>
+
+                    <div id="visualFilterPanel">
+                        <div class="toolbar-row">
+                            <label>
+                                <span data-i18n="combineRules"
+                                    >Combinar regras</span
+                                >
+                                <select id="combineSelect">
+                                    <option value="and" data-i18n="allRules">
+                                        todas as regras
+                                    </option>
+                                    <option value="or" data-i18n="anyRule">
+                                        qualquer regra
+                                    </option>
+                                </select>
+                            </label>
+                            <button
+                                id="addFilterBtn"
+                                class="button secondary"
+                                type="button"
+                                data-i18n="addRule"
+                            >
+                                Adicionar regra
+                            </button>
+                        </div>
+                        <p
+                            id="noFilterHint"
+                            class="hint"
+                            data-i18n="noFilterHint"
+                        >
+                            Sem regras, todas as linhas serão exportadas.
+                        </p>
+                        <div id="filterRows" class="filter-rows"></div>
+                    </div>
+
+                    <div id="advancedFilterPanel" class="hidden">
+                        <label>
+                            <span data-i18n="advancedFilter"
+                                >Filtro avançado</span
+                            >
+                            <textarea
+                                id="rawFilterInput"
+                                rows="6"
+                                spellcheck="false"
+                                placeholder='STATUS EM ("ATIVO", "SUSPENSO") E VALOR_TOTAL > 1000'
+                            ></textarea>
+                        </label>
+                        <div class="toolbar-row end">
+                            <button
+                                id="checkExpressionBtn"
+                                class="button secondary"
+                                type="button"
+                                data-i18n="checkExpression"
+                            >
+                                Verificar expressão
+                            </button>
+                        </div>
+                    </div>
+                </section>
+
+                <section
+                    id="step-derived"
+                    class="panel cleanup-only-section derived-section"
+                    data-workflow-step
+                >
+                    <div class="section-heading">
+                        <div>
+                            <p class="eyebrow" data-step-eyebrow>Etapa 3</p>
+                            <h2 data-i18n="derivedColumnsTitle">
+                                Criar novas colunas
+                            </h2>
+                            <p class="muted" data-i18n="derivedColumnsHelp">
+                                Opcional: crie colunas limpas a partir das
+                                colunas filtradas.
+                            </p>
+                        </div>
+                        <button
+                            id="addDerivedColumnBtn"
+                            class="button secondary"
+                            type="button"
+                            data-i18n="addDerivedColumn"
+                        >
+                            Adicionar coluna
+                        </button>
+                    </div>
+                    <div
+                        id="derivedColumnsList"
+                        class="derived-columns-list"
+                    ></div>
+                    <p
+                        id="noDerivedColumnsText"
+                        class="muted"
+                        data-i18n="noDerivedColumns"
+                    >
+                        Nenhuma coluna nova será criada.
+                    </p>
+                    <div class="toolbar-row end">
+                        <button
+                            id="saveConfigBtn"
+                            class="button ghost"
+                            type="button"
+                            data-i18n="saveConfig"
+                        >
+                            Salvar configuração
+                        </button>
+                    </div>
+                </section>
+
+                <section
+                    id="step-summarization"
+                    class="panel summarization-only-section hidden"
+                    data-workflow-step
+                >
+                    <div class="section-heading">
+                        <div>
+                            <p class="eyebrow" data-step-eyebrow>Etapa 4</p>
+                            <h2 data-i18n="summarizationSetupTitle">
+                                Configure a sumarização
+                            </h2>
+                            <p class="muted" data-i18n="summarizationSetupHelp">
+                                Escolha as colunas de agrupamento e as colunas
+                                numéricas que serão totalizadas.
+                            </p>
+                        </div>
+                    </div>
+
+                    <div
+                        id="summarizationFields"
+                        class="field-grid summarization-fields"
+                    >
+                        <label class="summarization-picker-field">
+                            <span data-i18n="summarizationGroupBy"
+                                >Agrupar por</span
+                            >
+                            <div
+                                id="summarizationGroupByInput"
+                                class="summarization-column-picker"
+                                data-values=""
+                            >
+                                <div
+                                    class="summarization-picker-chips"
+                                    aria-live="polite"
+                                ></div>
+                                <div class="column-search">
+                                    <input
+                                        class="filter-column summarization-column-input"
+                                        type="search"
+                                        autocomplete="off"
+                                        aria-label="Agrupar por"
+                                        data-i18n-aria-label="summarizationGroupBy"
+                                        aria-autocomplete="list"
+                                        aria-expanded="false"
+                                        aria-haspopup="listbox"
+                                        placeholder="Buscar coluna"
+                                        data-i18n-placeholder="columnSearchPlaceholder"
+                                        spellcheck="false"
+                                    />
+                                    <div
+                                        class="filter-column-suggestions hidden"
+                                        role="listbox"
+                                    ></div>
+                                </div>
+                            </div>
+                        </label>
+                        <label class="summarization-picker-field">
+                            <span data-i18n="summarizationTotals"
+                                >Sumarizar</span
+                            >
+                            <div
+                                id="summarizationTotalsInput"
+                                class="summarization-column-picker"
+                                data-values=""
+                            >
+                                <div
+                                    class="summarization-picker-chips"
+                                    aria-live="polite"
+                                ></div>
+                                <div class="column-search">
+                                    <input
+                                        class="filter-column summarization-column-input"
+                                        type="search"
+                                        autocomplete="off"
+                                        aria-label="Sumarizar"
+                                        data-i18n-aria-label="summarizationTotals"
+                                        aria-autocomplete="list"
+                                        aria-expanded="false"
+                                        aria-haspopup="listbox"
+                                        placeholder="Buscar coluna"
+                                        data-i18n-placeholder="columnSearchPlaceholder"
+                                        spellcheck="false"
+                                    />
+                                    <div
+                                        class="filter-column-suggestions hidden"
+                                        role="listbox"
+                                    ></div>
+                                </div>
+                            </div>
+                        </label>
+                    </div>
+                </section>
+
+                <section id="step-output" class="panel" data-workflow-step>
+                    <div class="section-heading">
+                        <div>
+                            <p class="eyebrow" data-step-eyebrow>Etapa 4</p>
+                            <h2 data-i18n="chooseOutputFolder">Destino</h2>
+                        </div>
+                        <button
+                            id="browseOutputBtn"
+                            class="button primary"
+                            type="button"
+                            data-i18n="chooseFolder"
+                        >
+                            Escolher pasta
+                        </button>
+                    </div>
+
+                    <label class="output-path-field">
+                        <span data-i18n="saveToFolder">Pasta</span>
+                        <input
+                            id="outputPathInput"
+                            type="text"
+                            placeholder="Caminho da pasta"
+                            data-i18n-placeholder="chooseFolderPlaceholder"
+                            spellcheck="false"
+                        />
+                    </label>
+
+                    <div
+                        id="cleanupOutputSettings"
+                        class="output-settings-card cleanup-only-section"
+                    >
+                        <div class="mini-heading">
+                            <div>
+                                <h3 data-i18n="cleanupOutputTitle">
+                                    Base limpa
+                                </h3>
+                                <p data-i18n="cleanupOutputHelp">
+                                    Formato do arquivo exportado.
+                                </p>
+                            </div>
+                        </div>
+                        <div
+                            class="format-card-grid"
+                            role="radiogroup"
+                            aria-label="Formato da base limpa"
+                            data-i18n-aria-label="cleanupFormatLabel"
+                        >
+                            <button
+                                class="format-card active"
+                                type="button"
+                                data-format-card="csv"
+                                aria-pressed="true"
+                            >
+                                <strong data-i18n="formatCsvTitle">CSV</strong>
+                            </button>
+                            <button
+                                class="format-card"
+                                type="button"
+                                data-format-card="xlsx"
+                                aria-pressed="false"
+                            >
+                                <strong data-i18n="formatExcelTitle"
+                                    >Excel</strong
+                                >
+                            </button>
+                            <button
+                                class="format-card"
+                                type="button"
+                                data-format-card="parquet"
+                                aria-pressed="false"
+                            >
+                                <strong data-i18n="formatParquetTitle"
+                                    >Parquet</strong
+                                >
+                            </button>
+                        </div>
+
+                        <select
+                            id="formatSelect"
+                            class="hidden"
+                            aria-label="Formato"
+                            data-i18n-aria-label="format"
+                        >
+                            <option value="csv">CSV</option>
+                            <option value="xlsx">Excel</option>
+                            <option value="parquet">Parquet</option>
+                        </select>
+                    </div>
+
+                    <div
+                        id="summarizationOutputSettings"
+                        class="output-settings-card summarization-only-section hidden"
+                    >
+                        <div class="mini-heading">
+                            <div>
+                                <h3 data-i18n="summarizationOutputTitle">
+                                    Sumarização
+                                </h3>
+                                <p data-i18n="summarizationOutputHelp">
+                                    Formato do resumo agrupado.
+                                </p>
+                            </div>
+                        </div>
+                        <div
+                            class="format-card-grid"
+                            role="radiogroup"
+                            aria-label="Formato da sumarização"
+                            data-i18n-aria-label="summaryFormatLabel"
+                        >
+                            <button
+                                class="format-card active"
+                                type="button"
+                                data-summary-format-card="xlsx"
+                                aria-pressed="true"
+                            >
+                                <strong data-i18n="formatExcelTitle"
+                                    >Excel</strong
+                                >
+                            </button>
+                            <button
+                                class="format-card"
+                                type="button"
+                                data-summary-format-card="csv"
+                                aria-pressed="false"
+                            >
+                                <strong data-i18n="formatCsvTitle">CSV</strong>
+                            </button>
+                            <button
+                                class="format-card"
+                                type="button"
+                                data-summary-format-card="parquet"
+                                aria-pressed="false"
+                            >
+                                <strong data-i18n="formatParquetTitle"
+                                    >Parquet</strong
+                                >
+                            </button>
+                        </div>
+
+                        <select
+                            id="summaryFormatSelect"
+                            class="hidden"
+                            aria-label="Formato da sumarização"
+                            data-i18n-aria-label="summaryFormatLabel"
+                        >
+                            <option value="xlsx">Excel</option>
+                            <option value="csv">CSV</option>
+                            <option value="parquet">Parquet</option>
+                        </select>
+                    </div>
+
+                    <div
+                        id="outputNamesPanel"
+                        class="output-names-panel hidden"
+                        aria-live="polite"
+                    >
+                        <div class="mini-heading">
+                            <div>
+                                <h3 data-i18n="generatedOutputNamesTitle">
+                                    Nomes dos arquivos
+                                </h3>
+                                <p data-i18n="generatedOutputNamesHelp">
+                                    Edite só o nome base.
+                                </p>
+                            </div>
+                            <button
+                                id="resetOutputNamesBtn"
+                                class="button ghost"
+                                type="button"
+                                data-i18n="resetOutputNames"
+                            >
+                                Redefinir
+                            </button>
+                        </div>
+                        <div
+                            id="outputNamesList"
+                            class="output-names-list"
+                        ></div>
+                    </div>
+
+                    <details class="advanced-line">
+                        <summary data-i18n="advancedOptions">
+                            Opções avançadas
+                        </summary>
+                        <div class="field-grid">
+                            <label class="output-suffix-field cleanup-option">
+                                <span data-i18n="outputNameSuffix"
+                                    >Sufixo da base limpa</span
+                                >
+                                <input
+                                    id="outputNameSuffixInput"
+                                    type="text"
+                                    value="_tratada"
+                                    placeholder="_tratada"
+                                    spellcheck="false"
+                                />
+                            </label>
+                            <label
+                                class="output-suffix-field summarization-only-section hidden"
+                            >
+                                <span data-i18n="summarizationOutputSuffix"
+                                    >Sufixo da sumarização</span
+                                >
+                                <input
+                                    id="summarizationOutputSuffixInput"
+                                    type="text"
+                                    value="_sumarizacao"
+                                    placeholder="_sumarizacao"
+                                    spellcheck="false"
+                                />
+                            </label>
+                            <label class="cleanup-option">
+                                <span data-i18n="columnsToSave"
+                                    >Colunas para salvar</span
+                                >
+                                <textarea
+                                    id="selectColumnsInput"
+                                    rows="4"
+                                    placeholder="Uma coluna por linha"
+                                    data-i18n-placeholder="oneColumnPerLine"
+                                    spellcheck="false"
+                                ></textarea>
+                            </label>
+                            <label class="cleanup-option">
+                                <span data-i18n="renameColumns"
+                                    >Renomear colunas</span
+                                >
+                                <textarea
+                                    id="renamesInput"
+                                    rows="4"
+                                    placeholder="ANTIGO=Novo nome"
+                                    data-i18n-placeholder="renamePlaceholder"
+                                    spellcheck="false"
+                                ></textarea>
+                            </label>
+                            <label class="cleanup-option">
+                                <span data-i18n="sortBy">Ordenar por</span>
+                                <input
+                                    id="sortInput"
+                                    type="text"
+                                    placeholder="COLUNA ou COLUNA:desc"
+                                    data-i18n-placeholder="sortPlaceholder"
+                                    spellcheck="false"
+                                />
+                            </label>
+                            <label class="cleanup-option">
+                                <span data-i18n="dedupeKey"
+                                    >Chave de deduplicação</span
+                                >
+                                <input
+                                    id="dedupeKeyInput"
+                                    type="text"
+                                    placeholder="COLUNA"
+                                    data-i18n-placeholder="columnPlaceholder"
+                                    spellcheck="false"
+                                />
+                            </label>
+                            <label class="checkline cleanup-option">
+                                <input
+                                    id="dedupeInput"
+                                    type="checkbox"
+                                    spellcheck="false"
+                                />
+                                <span data-i18n="removeDuplicates"
+                                    >Remover linhas duplicadas</span
+                                >
+                            </label>
+                            <label class="checkline">
+                                <input
+                                    id="caseInsensitiveInput"
+                                    type="checkbox"
+                                    spellcheck="false"
+                                />
+                                <span data-i18n="caseInsensitive"
+                                    >Não diferenciar maiúsculas em nomes de
+                                    colunas</span
+                                >
+                            </label>
+                            <label>
+                                <span data-i18n="jsonReport"
+                                    >Relatório da execução</span
+                                >
+                                <div class="inline-field">
+                                    <input
+                                        id="reportPathInput"
+                                        type="text"
+                                        placeholder="Opcional"
+                                        data-i18n-placeholder="optional"
+                                        spellcheck="false"
+                                    />
+                                    <button
+                                        id="browseReportBtn"
+                                        class="icon-button"
+                                        type="button"
+                                        aria-label="Escolher relatório"
+                                        data-i18n-aria-label="chooseReport"
+                                        title="Escolher relatório"
+                                        data-i18n-title="chooseReport"
+                                    >
+                                        ...
+                                    </button>
+                                </div>
+                            </label>
+                            <label>
+                                <span data-i18n="rejectsCsv"
+                                    >Linhas rejeitadas</span
+                                >
+                                <div class="inline-field">
+                                    <input
+                                        id="rejectsPathInput"
+                                        type="text"
+                                        placeholder="Opcional"
+                                        data-i18n-placeholder="optional"
+                                        spellcheck="false"
+                                    />
+                                    <button
+                                        id="browseRejectsBtn"
+                                        class="icon-button"
+                                        type="button"
+                                        aria-label="Escolher rejeitados"
+                                        data-i18n-aria-label="chooseRejects"
+                                        title="Escolher rejeitados"
+                                        data-i18n-title="chooseRejects"
+                                    >
+                                        ...
+                                    </button>
+                                </div>
+                            </label>
+                        </div>
+                    </details>
+                </section>
+
+                <section id="step-run" class="panel" data-workflow-step>
+                    <div class="section-heading">
+                        <div>
+                            <p class="eyebrow" data-step-eyebrow>Etapa 5</p>
+                            <h2 data-i18n="generateFile">Gerar arquivo</h2>
+                        </div>
+                        <button
+                            id="runBtn"
+                            class="button primary"
+                            type="button"
+                            data-i18n="generateResult"
+                        >
+                            Gerar resultado
+                        </button>
+                    </div>
+
+                    <div class="status-strip ui-card" aria-live="polite">
+                        <span id="statusDot" class="status-dot idle"></span>
+                        <div>
+                            <strong id="statusTitle">Pronto</strong>
+                            <p id="statusText">
+                                Escolha um arquivo de entrada para começar.
+                            </p>
+                        </div>
+                    </div>
+
+                    <div
+                        id="progressPanel"
+                        class="progress-card ui-card hidden"
+                        aria-live="polite"
+                    >
+                        <div class="progress-card-header">
+                            <div>
+                                <span class="label" data-i18n="progressTitle"
+                                    >Andamento</span
+                                >
+                                <strong id="progressPhaseText">Na fila</strong>
+                            </div>
+                            <span
+                                id="progressItemText"
+                                class="progress-meta"
+                            ></span>
+                        </div>
+                        <p id="progressDetailText" class="progress-detail"></p>
+                        <div
+                            id="progressBar"
+                            class="progress-bar"
+                            role="progressbar"
+                            aria-label="Andamento"
+                            data-i18n-aria-label="progressTitle"
+                            aria-valuemin="0"
+                            aria-valuemax="100"
+                        >
+                            <span
+                                id="progressBarFill"
+                                class="progress-bar-fill"
+                            ></span>
+                        </div>
+                        <ol
+                            id="progressTimeline"
+                            class="progress-timeline"
+                            aria-label="Linha do tempo do andamento"
+                            data-i18n-aria-label="progressTimelineLabel"
+                        ></ol>
+                    </div>
+
+                    <div
+                        id="resultCards"
+                        class="result-cards hidden"
+                        aria-live="polite"
+                    >
+                        <article class="result-card ui-card">
+                            <span data-i18n="filesCreated"
+                                >Arquivos gerados</span
+                            >
+                            <strong id="filesCreatedValue">0</strong>
+                        </article>
+                        <article class="result-card ui-card">
+                            <span data-i18n="rowsSaved">Linhas salvas</span>
+                            <strong id="rowsSavedValue">0</strong>
+                        </article>
+                        <article class="result-card ui-card">
+                            <span data-i18n="filesProcessed"
+                                >Arquivos processados</span
+                            >
+                            <strong id="filesProcessedValue">0</strong>
+                        </article>
+                        <article class="result-card ui-card warning-card">
+                            <span data-i18n="warnings">Avisos</span>
+                            <strong id="warningsValue">0</strong>
+                        </article>
+                        <article class="result-card ui-card error-card">
+                            <span data-i18n="filesFailed"
+                                >Não foi possível processar</span
+                            >
+                            <strong id="filesFailedValue">0</strong>
+                        </article>
+                    </div>
+
+                    <div id="outputList" class="output-list hidden"></div>
+                    <div
+                        id="friendlyErrorBox"
+                        class="friendly-error ui-card hidden"
+                    ></div>
+                    <details
+                        id="technicalDetails"
+                        class="technical-details hidden"
+                    >
+                        <summary data-i18n="technicalDetails">
+                            Detalhes para suporte
+                        </summary>
+                        <pre id="detailsBox"></pre>
+                    </details>
+
+                    <div class="toolbar-row">
+                        <button
+                            id="openFolderBtn"
+                            class="button secondary hidden"
+                            type="button"
+                            data-i18n="openFolder"
+                        >
+                            Abrir pasta
+                        </button>
+                        <button
+                            id="resetBtn"
+                            class="button ghost"
+                            type="button"
+                            data-i18n="newRun"
+                        >
+                            Nova execução
+                        </button>
+                    </div>
+                </section>
+            </main>
         </div>
-        <label class="language-switch">
-          <span data-i18n="language">Idioma</span>
-          <select id="languageSelect">
-            <option value="pt-BR">Português</option>
-            <option value="en-US">English</option>
-          </select>
-        </label>
-      </header>
 
-      <main class="workspace">
-        <nav class="steps" aria-label="Etapas">
-          <a href="#step-file" class="step-link active" data-step-label-key="stepFile">1. Arquivo</a>
-          <a href="#step-filter" class="step-link cleanup-only-section" data-step-label-key="stepFilter">2. Filtro</a>
-          <a href="#step-derived" class="step-link cleanup-only-section" data-step-label-key="stepDerived">3. Novas colunas</a>
-          <a href="#step-summarization" class="step-link summarization-only-section hidden" data-step-label-key="stepSummarization">4. Sumarização</a>
-          <a href="#step-output" class="step-link" data-step-label-key="stepOutput">4. Saída</a>
-          <a href="#step-run" class="step-link" data-step-label-key="stepRun">5. Gerar</a>
-        </nav>
-
-        <section id="step-file" class="panel" data-workflow-step>
-          <fieldset class="route-mode-panel">
-            <legend data-i18n="routeModeTitle">O que voce quer gerar?</legend>
-            <p data-i18n="routeModeHelp">Sumarização aqui significa uma analise agrupada com totais, no estilo IDEA.</p>
-            <div class="route-mode-grid">
-              <label class="route-card ui-card ui-card--interactive active">
-                <input type="radio" name="routeMode" value="cleanBase" checked>
-                <strong data-i18n="cleanBase">Limpar base</strong>
-                <span data-i18n="cleanBaseHelp">Filtra e salva a base limpa.</span>
-              </label>
-              <label class="route-card ui-card ui-card--interactive">
-                <input type="radio" name="routeMode" value="cleanThenSummarization">
-                <strong data-i18n="cleanThenSummarization">Limpar e sumarizar base limpa</strong>
-                <span data-i18n="cleanThenSummarizationHelp">Salva a base limpa e tambem a sumarização agrupada com totais.</span>
-              </label>
-              <label class="route-card ui-card ui-card--interactive">
-                <input type="radio" name="routeMode" value="summarizationOnly">
-                <strong data-i18n="summarizationOnly">Sumarizar bases de entrada</strong>
-                <span data-i18n="summarizationOnlyHelp">Gera somente a sumarização agrupada com totais.</span>
-              </label>
+        <template id="filterRowTemplate">
+            <div class="filter-row">
+                <div class="column-search">
+                    <input
+                        class="filter-column"
+                        type="search"
+                        autocomplete="off"
+                        aria-label="Coluna"
+                        data-i18n-aria-label="columnAriaLabel"
+                        aria-autocomplete="list"
+                        aria-expanded="false"
+                        aria-haspopup="listbox"
+                        placeholder="Buscar coluna"
+                        data-i18n-placeholder="columnSearchPlaceholder"
+                        spellcheck="false"
+                    />
+                    <div
+                        class="filter-column-suggestions hidden"
+                        role="listbox"
+                    ></div>
+                </div>
+                <input
+                    class="filter-operator"
+                    type="hidden"
+                    value="equals"
+                    spellcheck="false"
+                />
+                <div class="operator-picker">
+                    <button
+                        class="operator-trigger"
+                        type="button"
+                        aria-haspopup="listbox"
+                        aria-expanded="false"
+                    >
+                        <span class="operator-symbol">=</span>
+                        <span class="operator-trigger-label sr-only">=</span>
+                    </button>
+                    <div class="operator-menu hidden"></div>
+                </div>
+                <input
+                    class="filter-value"
+                    type="text"
+                    placeholder="Valor"
+                    data-i18n-placeholder="value"
+                    spellcheck="false"
+                />
+                <input
+                    class="filter-value2"
+                    type="text"
+                    placeholder="Valor final"
+                    data-i18n-placeholder="finalValue"
+                    spellcheck="false"
+                />
+                <button
+                    class="icon-button remove-filter"
+                    type="button"
+                    aria-label="Remover regra"
+                    data-i18n-aria-label="removeRule"
+                    title="Remover regra"
+                    data-i18n-title="removeRule"
+                >
+                    x
+                </button>
             </div>
-          </fieldset>
+        </template>
 
-          <div class="section-heading">
-            <div>
-              <p class="eyebrow" data-step-eyebrow>Etapa 1</p>
-              <h2 data-i18n="chooseFile">Escolha o arquivo</h2>
-            </div>
-          </div>
+        <template id="derivedColumnTemplate">
+            <article class="derived-column-card ui-card">
+                <div class="derived-card-header">
+                    <strong class="derived-preview">Nova coluna</strong>
+                    <button
+                        class="icon-button remove-derived-column"
+                        type="button"
+                        aria-label="Remover coluna"
+                        data-i18n-aria-label="removeDerivedColumn"
+                        title="Remover coluna"
+                        data-i18n-title="removeDerivedColumn"
+                    >
+                        x
+                    </button>
+                </div>
+                <div class="field-grid compact">
+                    <label class="wide">
+                        <span data-i18n="sourceColumn">Coluna de origem</span>
+                        <div class="column-search">
+                            <input
+                                class="filter-column derived-source-column"
+                                type="search"
+                                autocomplete="off"
+                                aria-label="Coluna de origem"
+                                data-i18n-aria-label="sourceColumn"
+                                aria-autocomplete="list"
+                                aria-expanded="false"
+                                aria-haspopup="listbox"
+                                placeholder="Buscar coluna"
+                                data-i18n-placeholder="columnSearchPlaceholder"
+                                spellcheck="false"
+                            />
+                            <div
+                                class="filter-column-suggestions hidden"
+                                role="listbox"
+                            ></div>
+                        </div>
+                    </label>
+                    <label>
+                        <span data-i18n="namePrefix">Prefixo</span>
+                        <input
+                            class="derived-prefix"
+                            type="text"
+                            placeholder="LIMPO"
+                            data-i18n-placeholder="prefixPlaceholder"
+                            spellcheck="false"
+                        />
+                    </label>
+                    <label>
+                        <span data-i18n="nameSuffix">Sufixo</span>
+                        <input
+                            class="derived-suffix"
+                            type="text"
+                            placeholder="FORMATADO"
+                            data-i18n-placeholder="suffixPlaceholder"
+                            spellcheck="false"
+                        />
+                    </label>
+                    <label>
+                        <span data-i18n="nameSeparator">Separador</span>
+                        <input
+                            class="derived-separator"
+                            type="text"
+                            placeholder="_"
+                            value="_"
+                            spellcheck="false"
+                        />
+                    </label>
+                </div>
+                <div class="derived-summary"></div>
+                <div class="derived-transforms"></div>
+                <div class="toolbar-row">
+                    <button
+                        class="button ghost add-derived-transform"
+                        type="button"
+                        data-i18n="addTransformation"
+                    >
+                        Adicionar transformação
+                    </button>
+                </div>
+                <details class="advanced-line compact-details">
+                    <summary data-i18n="advancedOptions">
+                        Opções avançadas
+                    </summary>
+                    <div class="field-grid compact">
+                        <label>
+                            <span data-i18n="derivedPosition">Posição</span>
+                            <select class="derived-position-mode">
+                                <option
+                                    value="append"
+                                    data-i18n="positionAppend"
+                                >
+                                    No fim da tabela
+                                </option>
+                                <option
+                                    value="before"
+                                    data-i18n="positionBefore"
+                                >
+                                    Antes de uma coluna
+                                </option>
+                                <option value="after" data-i18n="positionAfter">
+                                    Depois de uma coluna
+                                </option>
+                            </select>
+                        </label>
+                        <label class="wide">
+                            <span data-i18n="positionTarget"
+                                >Coluna de referência</span
+                            >
+                            <div class="column-search">
+                                <input
+                                    class="filter-column derived-position-target"
+                                    type="search"
+                                    autocomplete="off"
+                                    aria-label="Coluna de referência"
+                                    data-i18n-aria-label="positionTarget"
+                                    aria-autocomplete="list"
+                                    aria-expanded="false"
+                                    aria-haspopup="listbox"
+                                    placeholder="Buscar coluna"
+                                    data-i18n-placeholder="columnSearchPlaceholder"
+                                    spellcheck="false"
+                                />
+                                <div
+                                    class="filter-column-suggestions hidden"
+                                    role="listbox"
+                                ></div>
+                            </div>
+                        </label>
+                    </div>
+                </details>
+            </article>
+        </template>
 
-          <div id="dropZone" class="drop-zone" role="button" tabindex="0" aria-labelledby="dropZoneTitle" aria-describedby="dropZoneHelp">
-            <strong id="dropZoneTitle" data-i18n="dropStrong">Clique ou arraste o arquivo aqui</strong>
-            <span id="dropZoneHelp" data-i18n="dropHelp">Pressione Enter ou Espaço para escolher pelo computador.</span>
-          </div>
-
-          <div class="file-summary" aria-live="polite">
-            <div class="ui-card file-summary-card">
-              <span class="label" data-i18n="fileLabel">Arquivo</span>
-              <strong id="inputPathText" data-i18n="noFile">Nenhum arquivo escolhido</strong>
-            </div>
-            <div class="ui-card file-summary-card">
-              <span class="label" data-i18n="sizeLabel">Tamanho</span>
-              <strong id="inputSizeText">-</strong>
-            </div>
-            <div class="ui-card file-summary-card">
-              <span class="label" data-i18n="columnsLabel">Colunas</span>
-              <strong id="columnCountText">-</strong>
-            </div>
-          </div>
-
-          <div id="queuePanel" class="queue-panel hidden" aria-live="polite">
-            <h3 data-i18n="inputQueue">Arquivos na fila</h3>
-            <div id="queueList" class="queue-list"></div>
-          </div>
-
-          <div id="inputWarningsPanel" class="notice input-warnings hidden" aria-live="polite">
-            <strong data-i18n="warnings">Avisos</strong>
-            <ul id="inputWarningsList"></ul>
-          </div>
-
-          <details class="advanced-line">
-            <summary data-i18n="readOptions">Opções de leitura</summary>
-            <div class="field-grid compact">
-              <label>
-                <span data-i18n="encoding">Codificação</span>
-                <input id="encodingInput" type="text" placeholder="utf-8">
-              </label>
-              <label>
-                <span data-i18n="delimiter">Delimitador</span>
-                <input id="delimiterInput" type="text" maxlength="4" placeholder="auto">
-              </label>
-              <label>
-                <span data-i18n="nullValue">Valor nulo</span>
-                <input id="nullValueInput" type="text" placeholder="vazio" data-i18n-placeholder="emptyPlaceholder">
-              </label>
-              <label>
-                <span data-i18n="zipPasswords">Senhas de ZIP</span>
-                <textarea id="zipPasswordsInput" rows="3" placeholder="Uma senha por linha" data-i18n-placeholder="onePasswordPerLine"></textarea>
-              </label>
-              <label class="checkline">
-                <input id="allExcelSheetsInput" type="checkbox">
-                <span data-i18n="allExcelSheets">Processar todas as abas do Excel</span>
-              </label>
-              <label class="checkline">
-                <input id="reuseSchemaInput" type="checkbox">
-                <span data-i18n="reuseSchema">Reutilizar o esquema do primeiro arquivo</span>
-              </label>
-              <label class="checkline">
-                <input id="deleteZipInput" type="checkbox">
-                <span data-i18n="deleteZipAfterExtract">Excluir ZIP após extrair com sucesso</span>
-              </label>
-            </div>
-          </details>
-        </section>
-
-        <section id="step-filter" class="panel cleanup-only-section" data-workflow-step>
-          <div class="section-heading">
-            <div>
-              <p class="eyebrow" data-step-eyebrow>Etapa 2</p>
-              <h2 data-i18n="buildFilter">Monte o filtro</h2>
-            </div>
-            <div class="segmented" role="tablist" aria-label="Modo de filtro">
-              <button id="visualTab" class="segment active" type="button" data-i18n="visual">Visual</button>
-              <button id="advancedTab" class="segment" type="button" data-i18n="advanced">Avançado</button>
-            </div>
-          </div>
-
-          <div id="visualFilterPanel">
-            <div class="toolbar-row">
-              <label>
-                <span data-i18n="combineRules">Combinar regras</span>
-                <select id="combineSelect">
-                  <option value="and" data-i18n="allRules">todas as regras</option>
-                  <option value="or" data-i18n="anyRule">qualquer regra</option>
+        <template id="derivedTransformTemplate">
+            <div class="derived-transform-row">
+                <select
+                    class="derived-transform-operation"
+                    aria-label="Transformação"
+                    data-i18n-aria-label="transformationAriaLabel"
+                >
+                    <option value="trim" data-i18n="txTrim">
+                        Aparar espaços
+                    </option>
+                    <option
+                        value="remove_extra_spaces"
+                        data-i18n="txRemoveExtraSpaces"
+                    >
+                        Remover espaços repetidos
+                    </option>
+                    <option value="uppercase" data-i18n="txUppercase">
+                        Maiúsculas
+                    </option>
+                    <option value="lowercase" data-i18n="txLowercase">
+                        Minúsculas
+                    </option>
+                    <option value="title_case" data-i18n="txTitleCase">
+                        Título
+                    </option>
+                    <option value="replace_text" data-i18n="txReplaceText">
+                        Substituir texto
+                    </option>
+                    <option value="add_prefix" data-i18n="txAddPrefix">
+                        Adicionar texto antes
+                    </option>
+                    <option value="add_suffix" data-i18n="txAddSuffix">
+                        Adicionar texto depois
+                    </option>
+                    <option value="keep_digits" data-i18n="txKeepDigits">
+                        Manter só números
+                    </option>
+                    <option value="keep_letters" data-i18n="txKeepLetters">
+                        Manter só letras
+                    </option>
+                    <option value="remove_accents" data-i18n="txRemoveAccents">
+                        Remover acentos
+                    </option>
+                    <option
+                        value="remove_punctuation"
+                        data-i18n="txRemovePunctuation"
+                    >
+                        Remover pontuação e símbolos
+                    </option>
+                    <option value="remove_spaces" data-i18n="txRemoveSpaces">
+                        Remover espaços
+                    </option>
+                    <option value="pad_left" data-i18n="txPadLeft">
+                        Preencher à esquerda
+                    </option>
+                    <option value="pad_right" data-i18n="txPadRight">
+                        Preencher à direita
+                    </option>
+                    <option value="take_first" data-i18n="txTakeFirst">
+                        Pegar primeiros caracteres
+                    </option>
+                    <option value="take_last" data-i18n="txTakeLast">
+                        Pegar últimos caracteres
+                    </option>
+                    <option value="remove_first" data-i18n="txRemoveFirst">
+                        Remover primeiros caracteres
+                    </option>
+                    <option value="remove_last" data-i18n="txRemoveLast">
+                        Remover últimos caracteres
+                    </option>
+                    <option value="extract_before" data-i18n="txExtractBefore">
+                        Extrair antes de separador
+                    </option>
+                    <option value="extract_after" data-i18n="txExtractAfter">
+                        Extrair depois de separador
+                    </option>
+                    <option
+                        value="default_if_blank"
+                        data-i18n="txDefaultIfBlank"
+                    >
+                        Usar padrão se vazio/nulo
+                    </option>
+                    <option value="format_cpf" data-i18n="txFormatCpf">
+                        Formatar CPF
+                    </option>
+                    <option value="format_cnpj" data-i18n="txFormatCnpj">
+                        Formatar CNPJ
+                    </option>
+                    <option value="format_phone" data-i18n="txFormatPhone">
+                        Formatar telefone
+                    </option>
                 </select>
-              </label>
-              <button id="addFilterBtn" class="button secondary" type="button" data-i18n="addRule">Adicionar regra</button>
+                <input
+                    class="derived-transform-value"
+                    type="text"
+                    placeholder="Valor"
+                    spellcheck="false"
+                />
+                <input
+                    class="derived-transform-extra"
+                    type="text"
+                    placeholder="Novo valor"
+                    spellcheck="false"
+                />
+                <button
+                    class="icon-button remove-derived-transform"
+                    type="button"
+                    aria-label="Remover transformação"
+                    data-i18n-aria-label="removeTransformation"
+                    title="Remover transformação"
+                    data-i18n-title="removeTransformation"
+                >
+                    x
+                </button>
             </div>
-            <p id="noFilterHint" class="hint" data-i18n="noFilterHint">Sem regras, todas as linhas serão exportadas.</p>
-            <div id="filterRows" class="filter-rows"></div>
-          </div>
+        </template>
 
-          <div id="advancedFilterPanel" class="hidden">
-            <label>
-              <span data-i18n="advancedFilter">Filtro avançado</span>
-              <textarea id="rawFilterInput" rows="6" spellcheck="false" placeholder='STATUS EM ("ATIVO", "SUSPENSO") E VALOR_TOTAL > 1000'></textarea>
-            </label>
-            <div class="toolbar-row end">
-              <button id="checkExpressionBtn" class="button secondary" type="button" data-i18n="checkExpression">Verificar expressão</button>
-            </div>
-          </div>
-        </section>
-
-        <section id="step-derived" class="panel cleanup-only-section derived-section" data-workflow-step>
-          <div class="section-heading">
-            <div>
-              <p class="eyebrow" data-step-eyebrow>Etapa 3</p>
-              <h2 data-i18n="derivedColumnsTitle">Criar novas colunas</h2>
-              <p class="muted" data-i18n="derivedColumnsHelp">Opcional: crie colunas limpas a partir das colunas filtradas.</p>
-            </div>
-            <button id="addDerivedColumnBtn" class="button secondary" type="button" data-i18n="addDerivedColumn">Adicionar coluna</button>
-          </div>
-          <div id="derivedColumnsList" class="derived-columns-list"></div>
-          <p id="noDerivedColumnsText" class="muted" data-i18n="noDerivedColumns">Nenhuma coluna nova será criada.</p>
-          <div class="toolbar-row end">
-            <button id="saveConfigBtn" class="button ghost" type="button" data-i18n="saveConfig">Salvar configuração</button>
-          </div>
-        </section>
-
-        <section id="step-summarization" class="panel summarization-only-section hidden" data-workflow-step>
-          <div class="section-heading">
-            <div>
-              <p class="eyebrow" data-step-eyebrow>Etapa 4</p>
-              <h2 data-i18n="summarizationSetupTitle">Configure a sumarização</h2>
-              <p class="muted" data-i18n="summarizationSetupHelp">Escolha as colunas de agrupamento e as colunas numéricas que serão totalizadas.</p>
-            </div>
-          </div>
-
-          <div id="summarizationFields" class="field-grid summarization-fields">
-            <label class="summarization-picker-field">
-              <span data-i18n="summarizationGroupBy">Agrupar por</span>
-              <div id="summarizationGroupByInput" class="summarization-column-picker" data-values="">
-                <div class="summarization-picker-chips" aria-live="polite"></div>
-                <div class="column-search">
-                  <input class="filter-column summarization-column-input" type="search" autocomplete="off" aria-label="Agrupar por" aria-autocomplete="list" aria-expanded="false" aria-haspopup="listbox" placeholder="Buscar coluna" data-i18n-placeholder="columnSearchPlaceholder">
-                  <div class="filter-column-suggestions hidden" role="listbox"></div>
-                </div>
-              </div>
-            </label>
-            <label class="summarization-picker-field">
-              <span data-i18n="summarizationTotals">Colunas para totalizar</span>
-              <div id="summarizationTotalsInput" class="summarization-column-picker" data-values="">
-                <div class="summarization-picker-chips" aria-live="polite"></div>
-                <div class="column-search">
-                  <input class="filter-column summarization-column-input" type="search" autocomplete="off" aria-label="Colunas para totalizar" aria-autocomplete="list" aria-expanded="false" aria-haspopup="listbox" placeholder="Buscar coluna" data-i18n-placeholder="columnSearchPlaceholder">
-                  <div class="filter-column-suggestions hidden" role="listbox"></div>
-                </div>
-              </div>
-            </label>
-          </div>
-        </section>
-
-        <section id="step-output" class="panel" data-workflow-step>
-          <div class="section-heading">
-            <div>
-              <p class="eyebrow" data-step-eyebrow>Etapa 4</p>
-              <h2 data-i18n="chooseOutputFolder">Escolha a pasta de saída</h2>
-            </div>
-            <button id="browseOutputBtn" class="button primary" type="button" data-i18n="chooseFolder">Escolher pasta</button>
-          </div>
-
-          <label class="output-path-field">
-            <span data-i18n="saveToFolder">Pasta de destino</span>
-            <input id="outputPathInput" type="text" placeholder="Escolha uma pasta" data-i18n-placeholder="chooseFolderPlaceholder">
-          </label>
-
-          <div id="cleanupOutputSettings" class="output-settings-card cleanup-only-section">
-            <div class="mini-heading">
-              <div>
-                <h3 data-i18n="cleanupOutputTitle">Base limpa</h3>
-                <p data-i18n="cleanupOutputHelp">Escolha o formato da base filtrada.</p>
-              </div>
-            </div>
-            <div class="format-card-grid" role="radiogroup" aria-label="Formato da base limpa">
-              <button class="format-card active" type="button" data-format-card="csv" aria-pressed="true">
-                <strong data-i18n="formatCsvTitle">CSV</strong>
-              </button>
-              <button class="format-card" type="button" data-format-card="xlsx" aria-pressed="false">
-                <strong data-i18n="formatExcelTitle">Excel</strong>
-              </button>
-              <button class="format-card" type="button" data-format-card="parquet" aria-pressed="false">
-                <strong data-i18n="formatParquetTitle">Parquet</strong>
-              </button>
-            </div>
-
-            <select id="formatSelect" class="hidden" aria-label="Formato">
-              <option value="csv">CSV</option>
-              <option value="xlsx">Excel</option>
-              <option value="parquet">Parquet</option>
-            </select>
-
-            <label class="output-suffix-field">
-              <span data-i18n="outputNameSuffix">Sufixo da base limpa</span>
-              <input id="outputNameSuffixInput" type="text" value="_tratada" placeholder="_tratada">
-            </label>
-          </div>
-
-          <div id="summarizationOutputSettings" class="output-settings-card summarization-only-section hidden">
-            <div class="mini-heading">
-              <div>
-                <h3 data-i18n="summarizationOutputTitle">Sumarização</h3>
-                <p data-i18n="summarizationOutputHelp">Escolha o formato da sumarização agrupada.</p>
-              </div>
-            </div>
-            <div class="format-card-grid" role="radiogroup" aria-label="Formato da sumarização">
-              <button class="format-card active" type="button" data-summary-format-card="xlsx" aria-pressed="true">
-                <strong data-i18n="formatExcelTitle">Excel</strong>
-              </button>
-              <button class="format-card" type="button" data-summary-format-card="csv" aria-pressed="false">
-                <strong data-i18n="formatCsvTitle">CSV</strong>
-              </button>
-              <button class="format-card" type="button" data-summary-format-card="parquet" aria-pressed="false">
-                <strong data-i18n="formatParquetTitle">Parquet</strong>
-              </button>
-            </div>
-
-            <select id="summaryFormatSelect" class="hidden" aria-label="Formato da sumarização">
-              <option value="xlsx">Excel</option>
-              <option value="csv">CSV</option>
-              <option value="parquet">Parquet</option>
-            </select>
-
-            <label class="output-suffix-field summarization-suffix-field">
-              <span data-i18n="summarizationOutputSuffix">Sufixo da sumarização</span>
-              <input id="summarizationOutputSuffixInput" type="text" value="_sumarizacao" placeholder="_sumarizacao">
-            </label>
-          </div>
-
-          <div id="outputNamesPanel" class="output-names-panel hidden" aria-live="polite">
-            <div class="mini-heading">
-              <div>
-                <h3 data-i18n="generatedOutputNamesTitle">Nomes dos arquivos</h3>
-                <p data-i18n="generatedOutputNamesHelp">Edite apenas o nome base. O formato define a extensão.</p>
-              </div>
-              <button id="resetOutputNamesBtn" class="button ghost" type="button" data-i18n="resetOutputNames">Redefinir nomes</button>
-            </div>
-            <div id="outputNamesList" class="output-names-list"></div>
-          </div>
-
-          <details class="advanced-line">
-            <summary data-i18n="advancedOptions">Opções avançadas</summary>
-            <div class="field-grid">
-              <label class="cleanup-option">
-                <span data-i18n="columnsToSave">Colunas para salvar</span>
-                <textarea id="selectColumnsInput" rows="4" placeholder="Uma coluna por linha" data-i18n-placeholder="oneColumnPerLine"></textarea>
-              </label>
-              <label class="cleanup-option">
-                <span data-i18n="renameColumns">Renomear colunas</span>
-                <textarea id="renamesInput" rows="4" placeholder="ANTIGO=Novo nome" data-i18n-placeholder="renamePlaceholder"></textarea>
-              </label>
-              <label class="cleanup-option">
-                <span data-i18n="sortBy">Ordenar por</span>
-                <input id="sortInput" type="text" placeholder="COLUNA ou COLUNA:desc" data-i18n-placeholder="sortPlaceholder">
-              </label>
-              <label class="cleanup-option">
-                <span data-i18n="dedupeKey">Chave de deduplicação</span>
-                <input id="dedupeKeyInput" type="text" placeholder="COLUNA" data-i18n-placeholder="columnPlaceholder">
-              </label>
-              <label class="checkline cleanup-option">
-                <input id="dedupeInput" type="checkbox">
-                <span data-i18n="removeDuplicates">Remover linhas duplicadas</span>
-              </label>
-              <label class="checkline">
-                <input id="caseInsensitiveInput" type="checkbox">
-                <span data-i18n="caseInsensitive">Não diferenciar maiúsculas em nomes de colunas</span>
-              </label>
-              <label>
-                <span data-i18n="jsonReport">Relatório JSON</span>
-                <div class="inline-field">
-                  <input id="reportPathInput" type="text" placeholder="Opcional" data-i18n-placeholder="optional">
-                  <button id="browseReportBtn" class="icon-button" type="button" title="Escolher relatório" data-i18n-title="chooseReport">...</button>
-                </div>
-              </label>
-              <label>
-                <span data-i18n="rejectsCsv">Rejeitados CSV</span>
-                <div class="inline-field">
-                  <input id="rejectsPathInput" type="text" placeholder="Opcional" data-i18n-placeholder="optional">
-                  <button id="browseRejectsBtn" class="icon-button" type="button" title="Escolher rejeitados" data-i18n-title="chooseRejects">...</button>
-                </div>
-              </label>
-            </div>
-          </details>
-        </section>
-
-        <section id="step-run" class="panel" data-workflow-step>
-          <div class="section-heading">
-            <div>
-              <p class="eyebrow" data-step-eyebrow>Etapa 5</p>
-              <h2 data-i18n="generateFile">Gerar arquivo</h2>
-            </div>
-            <button id="runBtn" class="button primary" type="button" data-i18n="generateResult">Gerar resultado</button>
-          </div>
-
-          <div class="status-strip ui-card" aria-live="polite">
-            <span id="statusDot" class="status-dot idle"></span>
-            <div>
-              <strong id="statusTitle">Pronto</strong>
-              <p id="statusText">Escolha um arquivo de entrada para começar.</p>
-            </div>
-          </div>
-
-          <div id="progressPanel" class="progress-card ui-card hidden" aria-live="polite">
-            <div class="progress-card-header">
-              <div>
-                <span class="label" data-i18n="progressTitle">Andamento</span>
-                <strong id="progressPhaseText">Na fila</strong>
-              </div>
-              <span id="progressItemText" class="progress-meta"></span>
-            </div>
-            <p id="progressDetailText" class="progress-detail"></p>
-            <div id="progressBar" class="progress-bar" role="progressbar" aria-label="Andamento" aria-valuemin="0" aria-valuemax="100">
-              <span id="progressBarFill" class="progress-bar-fill"></span>
-            </div>
-            <ol id="progressTimeline" class="progress-timeline" aria-label="Linha do tempo do andamento"></ol>
-          </div>
-
-          <div id="resultCards" class="result-cards hidden" aria-live="polite">
-            <article class="result-card ui-card">
-              <span data-i18n="filesCreated">Arquivos gerados</span>
-              <strong id="filesCreatedValue">0</strong>
-            </article>
-            <article class="result-card ui-card">
-              <span data-i18n="rowsSaved">Linhas salvas</span>
-              <strong id="rowsSavedValue">0</strong>
-            </article>
-            <article class="result-card ui-card">
-              <span data-i18n="filesProcessed">Arquivos processados</span>
-              <strong id="filesProcessedValue">0</strong>
-            </article>
-            <article class="result-card ui-card warning-card">
-              <span data-i18n="warnings">Avisos</span>
-              <strong id="warningsValue">0</strong>
-            </article>
-            <article class="result-card ui-card error-card">
-              <span data-i18n="filesFailed">Não foi possível processar</span>
-              <strong id="filesFailedValue">0</strong>
-            </article>
-          </div>
-
-          <div id="outputList" class="output-list hidden"></div>
-          <div id="friendlyErrorBox" class="friendly-error ui-card hidden"></div>
-          <details id="technicalDetails" class="technical-details hidden">
-            <summary data-i18n="technicalDetails">Detalhes técnicos</summary>
-            <pre id="detailsBox"></pre>
-          </details>
-
-          <div class="toolbar-row">
-            <button id="openFolderBtn" class="button secondary hidden" type="button" data-i18n="openFolder">Abrir pasta</button>
-            <button id="resetBtn" class="button ghost" type="button" data-i18n="newRun">Nova execução</button>
-          </div>
-        </section>
-      </main>
-    </div>
-
-    <template id="filterRowTemplate">
-      <div class="filter-row">
-        <div class="column-search">
-          <input class="filter-column" type="search" autocomplete="off" aria-label="Coluna" aria-autocomplete="list" aria-expanded="false" aria-haspopup="listbox" placeholder="Buscar coluna" data-i18n-placeholder="columnSearchPlaceholder">
-          <div class="filter-column-suggestions hidden" role="listbox"></div>
-        </div>
-        <input class="filter-operator" type="hidden" value="equals">
-        <div class="operator-picker">
-          <button class="operator-trigger" type="button" aria-haspopup="listbox" aria-expanded="false">
-            <span class="operator-symbol">=</span>
-            <span class="operator-trigger-label sr-only">=</span>
-          </button>
-          <div class="operator-menu hidden"></div>
-        </div>
-        <input class="filter-value" type="text" placeholder="Valor" data-i18n-placeholder="value">
-        <input class="filter-value2" type="text" placeholder="Valor final" data-i18n-placeholder="finalValue">
-        <button class="icon-button remove-filter" type="button" title="Remover regra" data-i18n-title="removeRule">x</button>
-      </div>
-    </template>
-
-    <template id="derivedColumnTemplate">
-      <article class="derived-column-card ui-card">
-        <div class="derived-card-header">
-          <strong class="derived-preview">Nova coluna</strong>
-          <button class="icon-button remove-derived-column" type="button" title="Remover coluna" data-i18n-title="removeDerivedColumn">x</button>
-        </div>
-        <div class="field-grid compact">
-          <label class="wide">
-            <span data-i18n="sourceColumn">Coluna de origem</span>
-            <div class="column-search">
-              <input class="filter-column derived-source-column" type="search" autocomplete="off" aria-label="Coluna de origem" aria-autocomplete="list" aria-expanded="false" aria-haspopup="listbox" placeholder="Buscar coluna" data-i18n-placeholder="columnSearchPlaceholder">
-              <div class="filter-column-suggestions hidden" role="listbox"></div>
-            </div>
-          </label>
-          <label>
-            <span data-i18n="namePrefix">Prefixo</span>
-            <input class="derived-prefix" type="text" placeholder="LIMPO" data-i18n-placeholder="prefixPlaceholder">
-          </label>
-          <label>
-            <span data-i18n="nameSuffix">Sufixo</span>
-            <input class="derived-suffix" type="text" placeholder="FORMATADO" data-i18n-placeholder="suffixPlaceholder">
-          </label>
-          <label>
-            <span data-i18n="nameSeparator">Separador</span>
-            <input class="derived-separator" type="text" placeholder="_" value="_">
-          </label>
-        </div>
-        <div class="derived-summary"></div>
-        <div class="derived-transforms"></div>
-        <div class="toolbar-row">
-          <button class="button ghost add-derived-transform" type="button" data-i18n="addTransformation">Adicionar transformação</button>
-        </div>
-        <details class="advanced-line compact-details">
-          <summary data-i18n="advancedOptions">Opções avançadas</summary>
-          <div class="field-grid compact">
-            <label>
-              <span data-i18n="derivedPosition">Posição</span>
-              <select class="derived-position-mode">
-                <option value="append" data-i18n="positionAppend">No fim da tabela</option>
-                <option value="before" data-i18n="positionBefore">Antes de uma coluna</option>
-                <option value="after" data-i18n="positionAfter">Depois de uma coluna</option>
-              </select>
-            </label>
-            <label class="wide">
-              <span data-i18n="positionTarget">Coluna de referência</span>
-              <div class="column-search">
-                <input class="filter-column derived-position-target" type="search" autocomplete="off" aria-label="Coluna de referência" aria-autocomplete="list" aria-expanded="false" aria-haspopup="listbox" placeholder="Buscar coluna" data-i18n-placeholder="columnSearchPlaceholder">
-                <div class="filter-column-suggestions hidden" role="listbox"></div>
-              </div>
-            </label>
-          </div>
-        </details>
-      </article>
-    </template>
-
-    <template id="derivedTransformTemplate">
-      <div class="derived-transform-row">
-        <select class="derived-transform-operation" aria-label="Transformação">
-          <option value="trim" data-i18n="txTrim">Aparar espaços</option>
-          <option value="remove_extra_spaces" data-i18n="txRemoveExtraSpaces">Remover espaços repetidos</option>
-          <option value="uppercase" data-i18n="txUppercase">Maiúsculas</option>
-          <option value="lowercase" data-i18n="txLowercase">Minúsculas</option>
-          <option value="title_case" data-i18n="txTitleCase">Título</option>
-          <option value="replace_text" data-i18n="txReplaceText">Substituir texto</option>
-          <option value="add_prefix" data-i18n="txAddPrefix">Adicionar texto antes</option>
-          <option value="add_suffix" data-i18n="txAddSuffix">Adicionar texto depois</option>
-          <option value="keep_digits" data-i18n="txKeepDigits">Manter só números</option>
-          <option value="keep_letters" data-i18n="txKeepLetters">Manter só letras</option>
-          <option value="remove_accents" data-i18n="txRemoveAccents">Remover acentos</option>
-          <option value="remove_punctuation" data-i18n="txRemovePunctuation">Remover pontuação e símbolos</option>
-          <option value="remove_spaces" data-i18n="txRemoveSpaces">Remover espaços</option>
-          <option value="pad_left" data-i18n="txPadLeft">Preencher à esquerda</option>
-          <option value="pad_right" data-i18n="txPadRight">Preencher à direita</option>
-          <option value="take_first" data-i18n="txTakeFirst">Pegar primeiros caracteres</option>
-          <option value="take_last" data-i18n="txTakeLast">Pegar últimos caracteres</option>
-          <option value="remove_first" data-i18n="txRemoveFirst">Remover primeiros caracteres</option>
-          <option value="remove_last" data-i18n="txRemoveLast">Remover últimos caracteres</option>
-          <option value="extract_before" data-i18n="txExtractBefore">Extrair antes de separador</option>
-          <option value="extract_after" data-i18n="txExtractAfter">Extrair depois de separador</option>
-          <option value="default_if_blank" data-i18n="txDefaultIfBlank">Usar padrão se vazio/nulo</option>
-          <option value="format_cpf" data-i18n="txFormatCpf">Formatar CPF</option>
-          <option value="format_cnpj" data-i18n="txFormatCnpj">Formatar CNPJ</option>
-          <option value="format_phone" data-i18n="txFormatPhone">Formatar telefone</option>
-        </select>
-        <input class="derived-transform-value" type="text" placeholder="Valor">
-        <input class="derived-transform-extra" type="text" placeholder="Novo valor">
-        <button class="icon-button remove-derived-transform" type="button" title="Remover transformação" data-i18n-title="removeTransformation">x</button>
-      </div>
-    </template>
-
-    <script src="./app.js?v=20260619-2"></script>
-  </body>
+        <script src="./app.js?v=20260619-2"></script>
+    </body>
 </html>

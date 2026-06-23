@@ -17,6 +17,10 @@
 - Derived columns are post-filter projections. They must be validated and compiled in Python/DuckDB, never implemented as JavaScript-only data transforms.
 - Beginner-facing UI copy should avoid data-structure jargon such as “list/lista” for membership filters. Prefer “é um destes valores” / “is one of these values” and keep raw DSL keywords (`IN`, `EM`) documented only where useful.
 - Step 4 in the UI should show parsed result cards, warnings, and friendly next steps. Keep raw JSON/technical details behind a collapsed disclosure for support/debugging only.
+- UI output-name controls must not repeat source filenames in labels, helper text, previews, or ARIA labels. In Step 5, identify rows by artifact type such as `Base limpa` / `Cleaned base` or `Sumarização` / `Summarization`; the editable filename field is the only place the output base name should appear.
+- When composing output filenames, never concatenate base names and suffixes naively. Normalize separator boundaries for `.`, `_`, `-`, and surrounding spaces, strip only known generated suffixes, and avoid outputs such as doubled separators, repeated suffixes, or `name_- 1_suffix`.
+- Avoid redundant UI chrome: do not add a second preview line that repeats the composed filename, and do not add hover titles that duplicate visible text. Keep tooltips/ARIA descriptions only where visible text is just a symbol, icon, or otherwise ambiguous.
+- Summarization copy should explain the grouped-total action directly without referencing external products or assuming the user lacks domain knowledge.
 - ZIP passwords are session-only. Never persist, log, or include them in report JSON.
 - Reports use `report.RunReport` and can be written as JSON by the CLI `--report` path.
 - Human-facing CLI text is centralized in `i18n.py`; do not translate stable config keys, report JSON keys, Python identifiers, or exception class names.
