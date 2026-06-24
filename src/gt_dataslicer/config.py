@@ -67,6 +67,7 @@ class FilterRunOptions:
     summary_output_path: Path | None = None
     summary_output_format: OutputFormat = "xlsx"
     summary_output_suffix: str | None = None
+    summary_output_names: list[str] = field(default_factory=list)
     resolved_input: ResolvedInput | None = None
     where: list[str] = field(default_factory=list)
     select: list[str] = field(default_factory=list)
@@ -317,6 +318,7 @@ def merge_config_and_cli(
     cli_summary_totals: list[str],
     cli_summary_output_format: str | None,
     cli_summary_output_suffix: str | None,
+    cli_summary_output_names: list[str],
     cli_renames: list[str],
     cli_dedupe: bool,
     cli_dedupe_keys: list[str],
@@ -385,7 +387,17 @@ def merge_config_and_cli(
         *as_list(preset_config.get("output_name") or preset_config.get("output_names"), key="output_names"),
         *cli_output_names,
     ]
-    if any(output_names) and output_path.suffix:
+    summary_output_names = [
+        *as_list(
+            preset_config.get("summarization_output_name")
+            or preset_config.get("summarization_output_names")
+            or preset_config.get("summary_output_name")
+            or preset_config.get("summary_output_names"),
+            key="summarization_output_names",
+        ),
+        *cli_summary_output_names,
+    ]
+    if (any(output_names) or any(summary_output_names)) and output_path.suffix:
         raise ConfigError("Output names require an output directory destination, not a file path.")
 
     config_renames_raw = preset_config.get("rename") or preset_config.get("renames") or {}
@@ -445,6 +457,7 @@ def merge_config_and_cli(
         summary_output_path=None,
         summary_output_format=summary_output_format,
         summary_output_suffix=summary_output_suffix,
+        summary_output_names=summary_output_names,
         where=[*config_where, *cli_where],
         select=select,
         renames=renames,

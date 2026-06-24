@@ -351,6 +351,12 @@ def build_options_from_payload(
     cli_where = [filter_expression] if filter_expression else _string_list(payload.get("where"))
 
     output_names = _output_name_items(payload.get("output_names") or payload.get("output_name"))
+    summary_output_names = _output_name_items(
+        payload.get("summarization_output_names")
+        or payload.get("summarization_output_name")
+        or payload.get("summary_output_names")
+        or payload.get("summary_output_name")
+    )
     options = merge_config_and_cli(
         input_path=input_path,
         output_path=output_path,
@@ -370,6 +376,7 @@ def build_options_from_payload(
         cli_summary_output_suffix=_optional_text(
             payload.get("summarization_output_suffix") or payload.get("summary_output_suffix")
         ),
+        cli_summary_output_names=summary_output_names,
         cli_renames=_rename_items(payload.get("renames") or payload.get("rename")),
         cli_dedupe=bool(payload.get("dedupe", False)),
         cli_dedupe_keys=_string_list(payload.get("dedupe_keys") or payload.get("dedupe_key")),
@@ -391,7 +398,7 @@ def build_options_from_payload(
         typed_mode=bool(payload.get("typed_mode", False)),
         strict_values=bool(payload.get("strict_values", False)),
         batch_size=int(payload.get("batch_size") or 10_000),
-        allow_output_directory=len(input_paths) > 1 or any(output_names),
+        allow_output_directory=len(input_paths) > 1 or any(output_names) or any(summary_output_names),
         avoid_existing_output_paths=bool(payload.get("avoid_existing_output_paths", False)),
     )
     options.derived_columns = [*options.derived_columns, *parse_derived_columns(payload.get("derived_columns"))]
@@ -447,6 +454,14 @@ def _config_from_payload(payload: dict[str, Any]) -> dict[str, object]:
     summarization_output_suffix = _optional_text(payload.get("summarization_output_suffix"))
     if summarization_output_suffix is not None:
         config["summarization_output_suffix"] = summarization_output_suffix
+    summary_output_names = _output_name_items(
+        payload.get("summarization_output_names")
+        or payload.get("summarization_output_name")
+        or payload.get("summary_output_names")
+        or payload.get("summary_output_name")
+    )
+    if any(summary_output_names):
+        config["summarization_output_names"] = summary_output_names
     if payload.get("dedupe"):
         config["dedupe"] = True
     dedupe_keys = _string_list(payload.get("dedupe_keys") or payload.get("dedupe_key"))

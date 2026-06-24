@@ -267,6 +267,7 @@ def test_ui_api_runs_summarization_and_summarization_only_outputs(tmp_path: Path
             "input_path": str(csv_path),
             "output_path": str(tmp_path),
             "output_names": ["filtered"],
+            "summarization_output_names": ["summary_custom"],
             "avoid_existing_output_paths": True,
             "csv_options": {"delimiter": ","},
             "summarization": True,
@@ -290,17 +291,17 @@ def test_ui_api_runs_summarization_and_summarization_only_outputs(tmp_path: Path
     assert summary_report["output_rows"] == 2
     assert summary_report["output_paths"] == [
         str(output_path.with_suffix(".csv")),
-        str(output_path.with_name("filtered_resumo.csv")),
+        str(tmp_path / "summary_custom.csv"),
     ]
     assert output_path.with_suffix(".csv").exists()
-    assert output_path.with_name("filtered_resumo.csv").exists()
+    assert (tmp_path / "summary_custom.csv").exists()
 
     summary_only_path = tmp_path / "only_summarization"
     summary_only_response = api.start_filter_run(
         {
             "input_path": str(csv_path),
             "output_path": str(tmp_path),
-            "output_names": ["only_summarization"],
+            "summarization_output_names": ["only_summarization"],
             "avoid_existing_output_paths": True,
             "csv_options": {"delimiter": ","},
             "summarization": True,
@@ -464,6 +465,7 @@ def test_ui_api_saves_summarization_config_with_public_keys(tmp_path: Path, monk
             "summarization_totals": ["Valor"],
             "summarization_output_suffix": "_resumo",
             "summarization_output_format": "csv",
+            "summarization_output_names": ["resumo"],
         }
     )
 
@@ -475,6 +477,8 @@ def test_ui_api_saves_summarization_config_with_public_keys(tmp_path: Path, monk
     assert "summarization_totals:" in contents
     assert "summarization_output_suffix: _resumo" in contents
     assert "summarization_output_format: csv" in contents
+    assert "summarization_output_names:" in contents
     assert "summary_group_by" not in contents
     assert "summary_output_suffix" not in contents
+    assert "summary_output_names" not in contents
     assert "summary_output_format" not in contents

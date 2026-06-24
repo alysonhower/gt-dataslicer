@@ -231,6 +231,7 @@ def create_app(language: str = DEFAULT_LANGUAGE) -> typer.Typer:
                 cli_summary_totals=[],
                 cli_summary_output_format=None,
                 cli_summary_output_suffix=None,
+                cli_summary_output_names=[],
                 cli_renames=[],
                 cli_dedupe=False,
                 cli_dedupe_keys=[],
@@ -440,6 +441,15 @@ def create_app(language: str = DEFAULT_LANGUAGE) -> typer.Typer:
             list[str] | None,
             typer.Option("--nome-saida", "--output-name", help=tr("option.output_name"), metavar="NOME"),
         ] = None,
+        summarization_output_name: Annotated[
+            list[str] | None,
+            typer.Option(
+                "--nome-saida-sumarizacao",
+                "--summarization-output-name",
+                help=tr("option.summary_output_name"),
+                metavar="NOME",
+            ),
+        ] = None,
         typed_mode: Annotated[
             bool, typer.Option("--modo-tipado", "--typed-mode", help=tr("option.typed_mode"))
         ] = False,
@@ -469,6 +479,7 @@ def create_app(language: str = DEFAULT_LANGUAGE) -> typer.Typer:
                 cli_summary_totals=(summarization_totals or []) + (legacy_summary_totals or []),
                 cli_summary_output_format=None,
                 cli_summary_output_suffix=None,
+                cli_summary_output_names=summarization_output_name or [],
                 cli_dedupe=dedupe,
                 cli_dedupe_keys=dedupe_key or [],
                 cli_sorts=sort or [],
@@ -502,7 +513,12 @@ def create_app(language: str = DEFAULT_LANGUAGE) -> typer.Typer:
                 typed_mode=typed_mode,
                 strict_values=strict_values,
                 batch_size=batch_size,
-                allow_output_directory=len(input_files) > 1 or bool(output_name) or (output.exists() and output.is_dir()),
+                allow_output_directory=(
+                    len(input_files) > 1
+                    or bool(output_name)
+                    or bool(summarization_output_name)
+                    or (output.exists() and output.is_dir())
+                ),
             )
             with InputResolutionSession(
                 input_files,

@@ -144,14 +144,24 @@ def _queue_progress_update(
 
 def _engine_output_format(base_options: FilterRunOptions, *, index: int) -> str:
     output_name = base_options.output_names[index - 1] if index <= len(base_options.output_names) else None
-    if base_options.summary_only and output_name is not None:
+    summary_output_name = (
+        base_options.summary_output_names[index - 1]
+        if index <= len(base_options.summary_output_names)
+        else None
+    )
+    if base_options.summary_only and (output_name is not None or summary_output_name is not None):
         return base_options.summary_output_format
     return base_options.output_format
 
 
 def _engine_summary_output_format(base_options: FilterRunOptions, *, index: int) -> str:
     output_name = base_options.output_names[index - 1] if index <= len(base_options.output_names) else None
-    if output_name is not None:
+    summary_output_name = (
+        base_options.summary_output_names[index - 1]
+        if index <= len(base_options.summary_output_names)
+        else None
+    )
+    if output_name is not None or summary_output_name is not None:
         return base_options.summary_output_format
     return base_options.output_format
 
@@ -164,6 +174,11 @@ def _output_paths_for_input(
     total: int,
 ) -> tuple[Path, Path | None]:
     output_name = base_options.output_names[index - 1] if index <= len(base_options.output_names) else None
+    summary_output_name = (
+        base_options.summary_output_names[index - 1]
+        if index <= len(base_options.summary_output_names)
+        else None
+    )
     filtered_path = output_path_for_input(
         base_options.output_path,
         input_,
@@ -176,7 +191,8 @@ def _output_paths_for_input(
     if not base_options.summarize:
         return filtered_path, None
     if base_options.summary_only:
-        if output_name is None:
+        name = summary_output_name or output_name
+        if name is None:
             return filtered_path, filtered_path
         summary_path = output_path_for_input(
             base_options.output_path,
@@ -184,10 +200,23 @@ def _output_paths_for_input(
             index=index,
             total=total,
             output_format=base_options.summary_output_format,
-            output_name=output_name,
+            output_name=name,
             artifact="filtered",
         )
         return summary_path, summary_path
+    if summary_output_name is not None:
+        summary_path = output_path_for_input(
+            base_options.output_path,
+            input_,
+            index=index,
+            total=total,
+            output_format=base_options.summary_output_format,
+            output_name=summary_output_name,
+            artifact="filtered",
+        )
+        if summary_path == filtered_path:
+            raise ConfigError(f"Filtered and summarization output names resolve to the same file: {summary_path}.")
+        return filtered_path, summary_path
     summary_format = base_options.summary_output_format if output_name is not None else base_options.output_format
     summary_artifact = "summarization" if output_name is not None else "summary"
     summary_artifact_suffix = base_options.summary_output_suffix if base_options.summary_output_suffix else None

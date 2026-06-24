@@ -179,6 +179,7 @@ def test_browser_app_uses_directory_first_output_destination() -> None:
 def test_browser_app_generates_localized_default_output_names() -> None:
     script = APP_JS.read_text(encoding="utf-8")
     markup = INDEX_HTML.read_text(encoding="utf-8")
+    styles = STYLES_CSS.read_text(encoding="utf-8")
 
     assert 'data-i18n="generatedOutputNamesTitle"' in markup
     assert 'data-i18n="individualOutputNames"' not in markup
@@ -191,20 +192,53 @@ def test_browser_app_generates_localized_default_output_names() -> None:
     output_panel = markup[markup.index('id="outputNamesPanel"') : markup.index('id="outputNamesList"')]
     assert 'id="summarizationOutputSuffixInput"' not in output_panel
     assert 'id="resetOutputNamesBtn"' in markup
+    assert 'resetOutputNames: "Redefinir"' in script
+    assert 'resetOutputNames: "Reset"' in script
+    assert 'Redefinir nomes gerados' not in markup
+    assert 'Reset generated names' not in script
     assert 'defaultOutputSuffix: "_tratada"' in script
     assert 'defaultOutputSuffix: "_treated"' in script
     assert 'defaultSummarizationOutputSuffix: "_sumarizacao"' in script
     assert 'defaultSummarizationOutputSuffix: "_summarization"' in script
     assert "function refreshOutputNameDefaults" in script
-    assert "state.outputNameTouchedIndexes.add(index)" in script
+    assert "state.summarizationOutputNames = []" in script
+    assert "artifact.touched.add(index)" in script
     assert "state.outputNameSuffixTouched = true" in script
     assert "state.summarizationOutputSuffixTouched = true" in script
     assert "summarization_output_suffix" in script
     assert "summarization_output_format" in script
+    assert "summarization_output_names" in script
     assert "outputNameExtension()" in script
     assert "outputNameStemValue" in script
+    assert "output-suffix-badge" in script
     assert "output-extension-badge" in script
     assert 'avoid_existing_output_paths: true' in script
+    assert "function outputNamePreview" not in script
+    assert "output-name-preview" not in script
+    assert "output-name-preview" not in styles
+    assert "output-artifact-label" in script
+    assert "output-source-context" not in script
+    assert "output-source-context" not in styles
+    assert "`${index + 1}. ${sourceLabel} · ${t(artifact.titleKey)}`" not in script
+    assert 'input.setAttribute("aria-label", t(artifact.ariaKey));' in script
+    assert '`${t(artifact.ariaKey)}: ${sourceLabel}`' not in script
+
+
+def test_browser_app_joins_output_suffixes_with_separator_awareness() -> None:
+    script = APP_JS.read_text(encoding="utf-8")
+    helper = script[script.index("function outputSuffixParts"):script.index("function outputNameArtifacts")]
+    render_output_names = script[script.index("function renderOutputNames"):script.index("function showInputWarnings")]
+    output_items = script[script.index("function outputNamesWithSuffix"):script.index("function outputNameItems")]
+
+    assert "OUTPUT_STEM_SPACED_SEPARATOR_PATTERN" in script
+    assert 'replace(OUTPUT_STEM_SPACED_SEPARATOR_PATTERN, "_")' in script
+    assert "function stripOutputSuffix" in helper
+    assert "OUTPUT_SUFFIX_SEPARATOR_PATTERN" in helper
+    assert "OUTPUT_SUFFIX_TRAILING_PATTERN" in helper
+    assert "(?:^|[._-]+)" in helper
+    assert 'safeOutputStem(`${base}${suffix}`)' not in helper
+    assert 'const base = stripOutputSuffix(names[index] || "", suffix);' in output_items
+    assert "stripOutputSuffix(withoutExtension, artifact.suffix)" in render_output_names
 
 
 def test_browser_app_copy_contract_stays_bilingual_and_concise() -> None:
@@ -224,6 +258,17 @@ def test_browser_app_copy_contract_stays_bilingual_and_concise() -> None:
         "Significado: " "igual a",
         "Generated name suffix",
         "Sufixo dos nomes gerados",
+        "Relatório JSON",
+        "JSON report",
+        "Valor nulo",
+        "Null value",
+        "Base filtrada",
+        "Filtered base",
+        "ponte com Python",
+        "Python bridge",
+        "no estilo IDEA",
+        "Redefinir nomes gerados",
+        "Reset generated names",
     ):
         assert forbidden_copy not in combined
 
@@ -244,8 +289,41 @@ def test_browser_app_copy_contract_stays_bilingual_and_concise() -> None:
         'progressArtifactSummarization: "Summarization"',
         'derivedSummaryEmpty: "Escolha a coluna de origem e pelo menos uma ação."',
         'derivedSummaryEmpty: "Choose the source column and at least one action."',
+        'chooseOutputFolder: "Destino"',
+        'chooseOutputFolder: "Destination"',
+        'saveToFolder: "Pasta"',
+        'saveToFolder: "Folder"',
+        'chooseFolderPlaceholder: "Caminho da pasta"',
+        'chooseFolderPlaceholder: "Folder path"',
+        'cleanupOutputHelp: "Formato do arquivo exportado."',
+        'cleanupOutputHelp: "Export file format."',
+        'summarizationOutputHelp: "Formato do resumo agrupado."',
+        'summarizationOutputHelp: "Grouped summary format."',
+        'generatedOutputNamesHelp: "Edite só o nome base."',
+        'generatedOutputNamesHelp: "Edit only the base name."',
+        'derivedSummary: "Origem: `{source}`."',
+        'derivedSummary: "Source: `{source}`."',
     ):
         assert expected_copy in script
+
+    for expected_markup in (
+        'data-i18n-aria-label="stepsNavLabel"',
+        'data-i18n-aria-label="filterModeLabel"',
+        'data-i18n-aria-label="summarizationTotals"',
+        'data-i18n-aria-label="summaryFormatLabel"',
+        'data-i18n-aria-label="progressTimelineLabel"',
+        'data-i18n-aria-label="removeTransformation"',
+        'data-i18n-title="removeRule"',
+        'data-i18n-title="removeDerivedColumn"',
+        'data-i18n-title="removeTransformation"',
+        'data-i18n="routeModeHelp">Agrupe os dados por uma ou mais colunas e calcule totais por grupo.',
+        'data-i18n="generatedOutputNamesHelp">Edite só o nome base.',
+    ):
+        assert expected_markup in markup
+
+    fields = re.findall(r"<(?:input|textarea)\b[^>]*>", markup)
+    assert fields
+    assert all('spellcheck="false"' in field for field in fields)
 
 
 def test_browser_app_filter_hint_uses_complete_visual_rules() -> None:
@@ -327,7 +405,7 @@ def test_browser_app_uses_symbolic_operator_picker_with_accessible_meanings() ->
     operator_options = script[script.index("const FILTER_OPERATOR_OPTIONS"):script.index("const text =")]
     operator_meaning_key = "operator" "Meaning"
 
-    for token in ("=", "≠", ">", "≥", "<", "≤", "∈", "∉", "≤ x ≤", "…x…", "x…", "…x", ".*", "∅", "≠ ∅"):
+    for token in ("=", "≠", ">", "≥", "<", "≤", "∈", "∉", "≤ x ≤", "…x…", "x…", "…x", "≈", "∅", "≠ ∅"):
         assert f'symbol: "{token}"' in operator_options
 
     for operator_id in (
@@ -383,6 +461,8 @@ def test_browser_app_uses_symbolic_operator_picker_with_accessible_meanings() ->
     assert 'operator-description' not in script
     assert 'operator-description' not in styles
     assert 'description.textContent = operatorLabel(option);' not in script
+    assert "option.title = column" not in script
+    assert "chip.title = value" not in script
     assert f'description.textContent = t("{operator_meaning_key}")' not in script
     assert f'{operator_meaning_key}:' not in script
     assert 'item.append(symbol);' in script
@@ -439,7 +519,10 @@ def test_browser_app_refreshes_summary_pickers_when_derived_outputs_change() -> 
 
     assert "card.remove();\n    updateDerivedEmptyState();\n    refreshSummarizationColumnPickers();" in script
     assert "function updateDerivedCard(card)" in script
-    assert "card.querySelector(\".derived-summary\").textContent" in script
+    update_derived = script[script.index("function updateDerivedCard"):script.index("function updateDerivedEmptyState")]
+    assert "transformLabels" not in update_derived
+    assert 'card.querySelector(".derived-summary").textContent = summary;' in update_derived
+    assert '${summary} ${transformLabels.join(", ")}.' not in update_derived
     assert "refreshSummarizationColumnPickers();\n}" in script
     assert 'byId("selectColumnsInput").addEventListener("input", refreshSummarizationColumnPickers);' in script
     assert 'byId("renamesInput").addEventListener("input", refreshSummarizationColumnPickers);' in script
@@ -594,7 +677,7 @@ def test_browser_app_applies_shared_card_primitives_to_workflow_surfaces() -> No
         assert selector in styles
     assert ".output-row:focus-visible" in styles
     assert 'row.className = "queue-item"' in script
-    assert 'label.className = "queue-output-name"' in script
+    assert "queue-output-name--${artifact.kind}" in script
     assert 'row.className = "output-row"' in script
     assert 'row.className = "output-row output-error"' in script
 

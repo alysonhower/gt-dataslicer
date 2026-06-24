@@ -329,6 +329,64 @@ def test_ui_named_summary_outputs_accept_stems_and_custom_summary_format(tmp_pat
     assert observed == [(output_dir / "first_tratada.csv", "csv", "csv", output_dir / "first_tratada_resumo.csv")]
 
 
+def test_ui_named_summary_outputs_accept_independent_summarization_names(tmp_path: Path, monkeypatch) -> None:
+    csv_path = tmp_path / "first.csv"
+    csv_path.write_text("A,Amount\n1,10\n", encoding="utf-8")
+    output_dir = tmp_path / "outputs"
+    observed: list[tuple[Path, str, str, Path | None]] = []
+
+    class FakeDuckDBEngine:
+        def run_filter(self, options, progress=None, *, schema_override=None, column_types_override=None):
+            observed.append(
+                (options.output_path, options.output_format, options.summary_output_format, options.summary_output_path)
+            )
+            report = RunReport(input_path=options.input_path)
+            report.output_paths = [str(options.output_path), str(options.summary_output_path)]
+            report.output_rows = 1
+            report.finish()
+            return report
+
+    monkeypatch.setattr(runner_module, "DuckDBEngine", FakeDuckDBEngine)
+    options = FilterRunOptions(
+        input_path=csv_path,
+        output_path=output_dir,
+        summarize=True,
+        output_names=["first_tratada.csv"],
+        summary_output_names=["first_sumario.csv"],
+        summary_output_format="csv",
+        summary_output_suffix="_resumo",
+    )
+    inputs = [ResolvedInput(path=csv_path, format="csv", display_name="first", source_path=csv_path)]
+
+    runner_module.run_filter_inputs(options, inputs)
+
+    assert observed == [(output_dir / "first_tratada.csv", "csv", "csv", output_dir / "first_sumario.csv")]
+
+
+def test_summary_output_name_matching_filtered_output_is_rejected(tmp_path: Path, monkeypatch) -> None:
+    csv_path = tmp_path / "first.csv"
+    csv_path.write_text("A,Amount\n1,10\n", encoding="utf-8")
+    output_dir = tmp_path / "outputs"
+
+    class FakeDuckDBEngine:
+        def run_filter(self, *_args, **_kwargs):
+            raise AssertionError("conflicting output names should fail before exporting")
+
+    monkeypatch.setattr(runner_module, "DuckDBEngine", FakeDuckDBEngine)
+    options = FilterRunOptions(
+        input_path=csv_path,
+        output_path=output_dir,
+        summarize=True,
+        output_names=["same.csv"],
+        summary_output_names=["same.csv"],
+        summary_output_format="csv",
+    )
+    inputs = [ResolvedInput(path=csv_path, format="csv", display_name="first", source_path=csv_path)]
+
+    with pytest.raises(ConfigError, match="Filtered and summarization output names resolve to the same file"):
+        runner_module.run_filter_inputs(options, inputs)
+
+
 def test_ui_directory_outputs_avoid_existing_files_deterministically(tmp_path: Path, monkeypatch) -> None:
     csv_path = tmp_path / "first.csv"
     csv_path.write_text("A\n1\n", encoding="utf-8")
