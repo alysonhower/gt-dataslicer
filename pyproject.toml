@@ -1,51 +1,28 @@
-[build-system]
-requires = ["hatchling>=1.26"]
-build-backend = "hatchling.build"
-
 [project]
 name = "gt-dataslicer"
 version = "0.1.0"
 description = "Filter large CSV, Parquet, Excel, and ZIP-delivered files with a safe expression DSL."
-readme = "README.md"
-requires-python = ">=3.12"
-license = "MIT"
-authors = [
-  { name = "GT DataSlicer" }
-]
+requires-python = ">=3.14"
 dependencies = [
-  "duckdb>=1.1",
-  "lark>=1.2",
-  "openpyxl>=3.1",
-  "pywebview>=6.2.1",
-  "pyzipper>=0.3.6",
-  "pyyaml>=6.0",
-  "rich>=13.7",
-  "typer>=0.12",
-  "xlsxwriter>=3.2",
+    "duckdb",
+    "lark",
+    "openpyxl",
+    "pywebview",
+    "pyyaml",
+    "pyzipper",
+    "xlsxwriter",
 ]
 
 [project.optional-dependencies]
 dev = [
-  "pytest>=8.2",
-  "pytest-cov>=5.0",
+    "pytest",
+    "pytest-cov",
 ]
 freeze = [
-  "pillow>=10",
-  "pyinstaller>=6.0",
+    "pillow",
+    "pyinstaller",
 ]
 
-[project.scripts]
-dataslicer = "gt_dataslicer.ui.app:main"
-gt-dataslicer = "gt_dataslicer.cli:main"
-
-[tool.hatch.build.targets.wheel]
-packages = ["src/gt_dataslicer"]
-
-[tool.hatch.build.targets.wheel.force-include]
-"icon.png" = "gt_dataslicer/ui/icon.png"
-"src/gt_dataslicer/filters/grammar.lark" = "gt_dataslicer/filters/grammar.lark"
-"src/gt_dataslicer/ui/web" = "gt_dataslicer/ui/web"
-
-[tool.pytest.ini_options]
-testpaths = ["tests"]
-addopts = "-q"
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"

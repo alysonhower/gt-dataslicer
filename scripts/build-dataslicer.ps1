@@ -194,7 +194,7 @@ if (-not $buildSucceeded -and $uvCommand) {
 }
 
 if (-not $pythonCommand -and -not $uvCommand) {
-    throw "Python 3.12+ or uv is required to build DataSlicer.exe. Install Python or uv and run this script again."
+    throw "Python 3.14+ or uv is required to build DataSlicer.exe. Install Python or uv and run this script again."
 }
 
 if (-not $buildSucceeded) {

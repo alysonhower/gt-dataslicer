@@ -1,5 +1,8 @@
 from importlib import util
 from pathlib import Path
+import subprocess
+import tomllib
+import zipfile
 
 from gt_dataslicer.ui import app as ui_app
 
@@ -26,14 +29,29 @@ def test_pyinstaller_spec_includes_launcher_and_ui_assets() -> None:
     assert "tests" not in spec
 
 
-def test_package_metadata_includes_freeze_icon_dependencies() -> None:
-    pyproject = PYPROJECT_PATH.read_text(encoding="utf-8")
+def test_package_metadata_includes_freeze_dependencies_and_wheel_data(tmp_path: Path) -> None:
+    pyproject = tomllib.loads(PYPROJECT_PATH.read_text(encoding="utf-8"))
+    runtime_dependencies = set(pyproject["project"]["dependencies"])
+    freeze_dependencies = set(pyproject["project"]["optional-dependencies"]["freeze"])
 
-    assert '"pillow>=10"' in pyproject
-    assert '"openpyxl>=3.1"' in pyproject
-    assert '"pyzipper>=0.3.6"' in pyproject
-    assert '"icon.png" = "gt_dataslicer/ui/icon.png"' in pyproject
-    assert '"src/gt_dataslicer/filters/grammar.lark" = "gt_dataslicer/filters/grammar.lark"' in pyproject
+    assert "pillow" in freeze_dependencies
+    assert "openpyxl" in runtime_dependencies
+    assert "pyzipper" in runtime_dependencies
+
+    subprocess.run(
+        ["uv", "build", "--wheel", "--out-dir", str(tmp_path)],
+        cwd=ROOT,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    wheel_path = next(tmp_path.glob("*.whl"))
+    with zipfile.ZipFile(wheel_path) as wheel:
+        wheel_entries = set(wheel.namelist())
+
+    assert "gt_dataslicer/ui/icon.png" in wheel_entries
+    assert "gt_dataslicer/filters/grammar.lark" in wheel_entries
+    assert "gt_dataslicer/ui/web/index.html" in wheel_entries
 
 
 def test_pyinstaller_spec_configures_single_file_dataslicer_exe() -> None:

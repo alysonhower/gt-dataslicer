@@ -1,4 +1,4 @@
-"""Configuration loading and CLI option models."""
+"""Configuration loading and runtime option models."""
 
 from __future__ import annotations
 

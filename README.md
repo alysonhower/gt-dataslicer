@@ -1,123 +1,52 @@
-# gt-dataslicer
+# DataSlicer
 
-`gt-dataslicer` filtra arquivos grandes e salva apenas as linhas que você quer.
+DataSlicer is a desktop app for filtering large CSV, Parquet, Excel `.xlsx`, and ZIP-delivered data files, then saving the result as CSV, Excel, or Parquet.
 
-Por padrão, o resultado sai em CSV. Se você quiser abrir no Excel, salve em XLSX. Se o resultado for grande ou for usado por ferramentas de análise, salve em Parquet.
+The main experience is the visual app. It lets you choose files, build filters, create cleaned columns, summarize data, and export results without using a command interface.
 
-## Usar com tela visual
+## Run The Desktop App
 
-A forma mais simples de usar é abrir o DataSlicer:
-
-```bash
-dataslicer
-```
-
-Ou, pelo comando principal:
+From a development checkout:
 
 ```bash
-gt-dataslicer abrir
+uv run python -m gt_dataslicer.ui.app
 ```
 
-Na tela visual você pode:
+The visible product name is `DataSlicer`.
 
-- escolher arquivos CSV, Parquet, Excel ou ZIP;
-- colocar vários arquivos em fila;
-- montar filtros com campos e valores, sem escrever comandos;
-- encontrar colunas rapidamente digitando parte do nome, mesmo em arquivos com muitas colunas;
-- salvar em CSV, Excel ou Parquet;
-- criar novas colunas limpas, como CPF só com números;
-- escolher colunas, remover duplicados e gerar relatório quando precisar.
+## Build The Windows App
 
-## Gerar executável do DataSlicer
-
-No Windows, você pode gerar um executável portátil:
-
-```powershell
-python -m pip install -e .[dev,freeze]
-.\scripts\build-dataslicer.ps1
-```
-
-Se você não tiver o comando `python`, mas tiver `uv`, o mesmo script usa `uv` automaticamente:
+The Windows build uses the canonical PyInstaller spec:
 
 ```powershell
 uv run --extra freeze python -m PyInstaller packaging\pyinstaller\dataslicer.spec --noconfirm --clean
 ```
 
-O arquivo final fica em:
+The generated executable is:
 
 ```text
 dist\DataSlicer.exe
 ```
 
-Esse executável não precisa de Python nem de `uv` para rodar. Ele usa Pywebview e espera que o WebView2 Runtime esteja instalado no Windows.
+The executable is self-contained and does not require Python or `uv` at runtime. It uses Pywebview and expects the WebView2 Runtime on Windows.
 
-## Exemplos rápidos
+## Visual Workflow
 
-Salvar em CSV:
+In the app you can:
 
-```bash
-gt-dataslicer filtrar input.csv --saida output.csv --filtro 'STATUS EM ("ATIVO", "SUSPENSO")'
-```
+- choose CSV, Parquet, Excel, or ZIP input files;
+- queue multiple files;
+- build filters with field/value controls;
+- search columns by typing part of the name;
+- export to CSV, Excel, or Parquet;
+- create cleaned derived columns such as digits-only CPF/CNPJ values;
+- choose output columns, rename columns, deduplicate rows, sort rows, summarize groups, and generate reports.
 
-Filtrar Parquet:
+## Manual Test Data
 
-```bash
-gt-dataslicer filtrar input.parquet --saida output.csv --filtro 'STATUS = "ATIVO"'
-```
+For local testing without real data, create files under `manual-test-data/`.
 
-Filtrar Excel:
-
-```bash
-gt-dataslicer filtrar input.xlsx --saida output.csv --filtro 'STATUS = "ATIVO"'
-```
-
-Filtrar todas as abas de um Excel:
-
-```bash
-gt-dataslicer filtrar input.xlsx --todas-abas --saida saidas --filtro 'STATUS = "ATIVO"'
-```
-
-Filtrar vários arquivos em sequência:
-
-```bash
-gt-dataslicer filtrar janeiro.csv fevereiro.parquet --saida filtrado.csv --filtro 'STATUS = "ATIVO"'
-```
-
-Filtrar arquivos dentro de um ZIP com senha:
-
-```bash
-gt-dataslicer filtrar dados.zip --senha-zip minha-senha --saida filtrado.csv --filtro 'STATUS = "ATIVO"'
-```
-
-Salvar em Excel:
-
-```bash
-gt-dataslicer filtrar input.csv --saida output.xlsx --filtro 'STATUS = "ATIVO"'
-```
-
-Salvar em Parquet:
-
-```bash
-gt-dataslicer filtrar input.csv --saida output.parquet --filtro 'STATUS = "ATIVO"'
-```
-
-Ver as colunas do arquivo:
-
-```bash
-gt-dataslicer inspecionar input.csv
-```
-
-Testar se um filtro está correto antes de gerar o arquivo:
-
-```bash
-gt-dataslicer validar-filtro input.csv --filtro 'VALOR_TOTAL > 1000'
-```
-
-## Arquivos para teste manual
-
-Para testar a tela visual sem usar dados reais, você pode criar arquivos locais na pasta `manual-test-data/`.
-
-Essa pasta é ignorada pelo Git, então os arquivos de teste não entram nos commits. Um conjunto útil de arquivos é:
+That directory is ignored by Git. Useful sample filenames are:
 
 ```text
 manual-test-data\clientes.csv
@@ -125,23 +54,17 @@ manual-test-data\clientes.parquet
 manual-test-data\clientes.xlsx
 ```
 
-Use o mesmo filtro nos três formatos para comparar o resultado:
+Use the same filter across formats to compare results:
 
 ```text
 CD_EMPRESA = 1 E ST_CONTRATO != "P" E CD_NATUREZA_OPERACAO NAO EM (14, 15) E CD_MODALIDADE <= 13
 ```
 
-## Como escrever filtros
+## Filter Expressions
 
-Use o nome da coluna, um operador e o valor desejado.
+The visual builder writes the same safe expression language used by the Python engine.
 
-```text
-STATUS = "ATIVO"
-VALOR_TOTAL > 1000
-CD_EMPRESA = 1 E ST_CONTRATO != "P"
-```
-
-Filtros comuns:
+Common expressions:
 
 ```text
 STATUS = "ATIVO"
@@ -154,15 +77,15 @@ CPF NÃO É NULO
 OBSERVACAO E VAZIO
 ```
 
-`STATUS EM ("ATIVO", "SUSPENSO")` quer dizer: o status é um destes valores. Na tela visual, escolha “é um destes valores” e separe os valores com vírgula.
+`STATUS EM ("ATIVO", "SUSPENSO")` means the status is one of those values. In the visual app, choose “é um destes valores” and separate values with commas.
 
-Você pode usar `E`, `OU` e `NÃO` para combinar regras:
+You can combine rules with `E`, `OU`, and `NÃO`:
 
 ```text
 STATUS = "ATIVO" E NÃO (TIPO = "TEMPORARIO" OU CIDADE = "RIO")
 ```
 
-Os acentos são opcionais nos operadores em português:
+Accents are optional in Portuguese operators:
 
 ```text
 NOME contem "SILVA"
@@ -171,88 +94,7 @@ CPF NAO E NULO
 CPF NÃO É NULO
 ```
 
-## Escolher colunas
-
-Para salvar só algumas colunas:
-
-```bash
-gt-dataslicer filtrar input.csv --saida output.csv \
-  --filtro 'STATUS = "ATIVO"' \
-  --selecionar NOME \
-  --selecionar VALOR_TOTAL
-```
-
-Para renomear uma coluna no arquivo final:
-
-```bash
-gt-dataslicer filtrar input.csv --saida output.csv \
-  --filtro 'STATUS = "ATIVO"' \
-  --selecionar NOME \
-  --renomear NOME=Nome
-```
-
-## Criar novas colunas
-
-Na tela visual, use “Criar novas colunas” para limpar ou formatar uma coluna sem escrever fórmula.
-
-Exemplos comuns:
-
-- manter só números de um CPF;
-- remover acentos de nomes;
-- deixar texto em maiúsculas;
-- adicionar um prefixo ou sufixo;
-- formatar CPF, CNPJ ou telefone.
-
-Pela CLI, use o mesmo formato de configuração da tela visual.
-
-Exemplo direto na linha de comando:
-
-```bash
-gt-dataslicer filtrar pessoas.csv --saida pessoas_limpas.csv \
-  --selecionar NOME \
-  --coluna-derivada '{"source":"CPF","name":{"prefix":"LIMPO","separator":"_"},"transforms":[{"operation":"keep_digits"}]}'
-```
-
-Exemplo com arquivo `derivadas.yaml`:
-
-```yaml
-derived_columns:
-  - source: CPF
-    name:
-      prefix: LIMPO
-      separator: "_"
-    transforms:
-      - operation: keep_digits
-```
-
-Rodando:
-
-```bash
-gt-dataslicer filtrar pessoas.csv --saida pessoas_limpas.csv --colunas-derivadas-arquivo derivadas.yaml
-```
-
-## Idioma
-
-A CLI usa português por padrão.
-
-Para ver mensagens em inglês:
-
-```bash
-gt-dataslicer --idioma en-US validar-filtro input.csv --filtro 'STATUS IN ("ACTIVE", "SUSPENDED")'
-```
-
-## Compatibilidade com comandos em inglês
-
-Os comandos e opções em inglês continuam funcionando:
-
-```bash
-gt-dataslicer filter input.csv --output output.csv --where 'STATUS IN ("ATIVO", "SUSPENSO")'
-gt-dataslicer validate-filter input.csv --where 'VALOR_TOTAL > 1000'
-```
-
-## Colunas com nomes especiais
-
-Se uma coluna tiver espaço, acento, pontuação ou o mesmo nome de um operador, use colchetes ou crases:
+For column names with spaces, accents, punctuation, or operator names, use brackets or backticks:
 
 ```text
 [Nome completo] contém "SILVA"
@@ -260,28 +102,16 @@ Se uma coluna tiver espaço, acento, pontuação ou o mesmo nome de um operador,
 `STATUS FINAL` = "ATIVO"
 ```
 
-## Recursos avançados
+## Derived Columns
 
-Você também pode:
+Use the app’s “Criar novas colunas” controls to clean or format values without writing formulas.
 
-- usar arquivos de configuração com `--configuracao`;
-- salvar configuração pela tela visual e reutilizar na CLI;
-- usar arquivos externos de consulta com `--consulta`;
-- ler arquivos Parquet, Excel `.xlsx` e ZIP;
-- salvar o resultado em Parquet com `--formato parquet` ou usando saída `.parquet`;
-- excluir o ZIP automaticamente depois de extrair com sucesso usando `--excluir-zip-apos-extrair`;
-- remover linhas duplicadas com `--deduplicar`;
-- ordenar o resultado com `--ordenar`;
-- gerar relatório com `--relatorio`;
-- salvar rejeições de leitura com `--rejeitados`.
+Common transformations include:
 
-Exemplo:
+- keeping only digits;
+- removing accents;
+- converting text to uppercase;
+- adding a prefix or suffix;
+- formatting CPF, CNPJ, or phone numbers.
 
-```bash
-gt-dataslicer filtrar pessoas.csv --saida ativos.csv \
-  --filtro 'ID EM @ids_ativos E STATUS = "ATIVO"' \
-  --consulta ids_ativos=ids.csv:ID \
-  --deduplicar \
-  --ordenar Nome \
-  --relatorio relatorio.json
-```
+Derived columns are compiled and validated in Python/DuckDB as part of the same export pipeline as filters.

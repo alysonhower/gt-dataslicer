@@ -10,7 +10,7 @@ class DataSlicerError(Exception):
 
 
 class ConfigError(DataSlicerError):
-    """Raised when a configuration file or CLI option is invalid."""
+    """Raised when a configuration file or runtime option is invalid."""
 
     exit_code = 2
 
