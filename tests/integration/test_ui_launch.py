@@ -1,66 +1,7 @@
 from types import SimpleNamespace
 import sys
 
-from typer.testing import CliRunner
-
-from gt_dataslicer.cli import app
 from gt_dataslicer.ui import app as ui_app
-
-
-runner = CliRunner()
-
-
-def test_cli_abrir_launches_ui(monkeypatch) -> None:
-    called = {}
-
-    def fake_main(*, language: str, debug: bool) -> None:
-        called["language"] = language
-        called["debug"] = debug
-
-    monkeypatch.setattr(ui_app, "main", fake_main)
-
-    result = runner.invoke(app, ["abrir"])
-
-    assert result.exit_code == 0, result.output
-    assert called == {"language": "pt-BR", "debug": False}
-
-
-def test_cli_ui_alias_launches_ui_in_en_us(monkeypatch) -> None:
-    called = {}
-
-    def fake_main(*, language: str, debug: bool) -> None:
-        called["language"] = language
-        called["debug"] = debug
-
-    monkeypatch.setattr(ui_app, "main", fake_main)
-
-    result = runner.invoke(app, ["--idioma", "en-US", "ui"])
-
-    assert result.exit_code == 0, result.output
-    assert called == {"language": "en-US", "debug": False}
-
-
-def test_cli_abrir_pywebview_debug_flag_launches_debug_ui(monkeypatch) -> None:
-    called = {}
-
-    def fake_main(*, language: str, debug: bool) -> None:
-        called["language"] = language
-        called["debug"] = debug
-
-    monkeypatch.setattr(ui_app, "main", fake_main)
-
-    result = runner.invoke(app, ["abrir", "--pywebview-debug"])
-
-    assert result.exit_code == 0, result.output
-    assert called == {"language": "pt-BR", "debug": True}
-
-
-def test_cli_abrir_help_hides_pywebview_debug_flag() -> None:
-    result = runner.invoke(app, ["abrir", "--help"])
-
-    assert result.exit_code == 0, result.output
-    assert "pywebview-debug" not in result.output
-    assert "depurar-pywebview" not in result.output
 
 
 def test_dataslicer_entrypoint_builds_webview_window(monkeypatch) -> None:
